@@ -12,7 +12,7 @@ use crate::model::{Problem, ProblemKind};
 use crate::pdf::{sanitize_with, unique_path_with};
 
 const NO_PROJECT: &str = "Sin proyecto";
-const BOM: &str = "\u{feff}";
+pub(crate) const BOM: &str = "\u{feff}";
 const NONE_KEY: &str = "none";
 const DEFAULT_CURRENCY: &str = "MXN";
 const OVERTIME: &str = "Horas extra";
@@ -26,7 +26,7 @@ pub enum ExportFormat {
 }
 
 impl ExportFormat {
-    fn extension(self) -> &'static str {
+    pub(crate) fn extension(self) -> &'static str {
         match self {
             ExportFormat::Csv => "csv",
             ExportFormat::Md => "md",
@@ -544,11 +544,11 @@ impl Report {
     }
 }
 
-fn hours(seconds: f64) -> f64 {
+pub(crate) fn hours(seconds: f64) -> f64 {
     seconds / 3600.0
 }
 
-fn fixed(seconds: f64) -> String {
+pub(crate) fn fixed(seconds: f64) -> String {
     format!("{:.2}", hours(seconds))
 }
 
@@ -581,12 +581,12 @@ fn jira_label(totals: Option<JiraTotals>) -> String {
     }
 }
 
-fn factor(multiplier: f64) -> String {
+pub(crate) fn factor(multiplier: f64) -> String {
     let text = format!("{multiplier:.2}");
     text.trim_end_matches('0').trim_end_matches('.').to_string()
 }
 
-fn symbol(currency: &str) -> Option<&'static str> {
+pub(crate) fn symbol(currency: &str) -> Option<&'static str> {
     match currency.to_ascii_uppercase().as_str() {
         "MXN" | "USD" | "CAD" | "AUD" | "NZD" | "ARS" | "CLP" | "COP" => Some("$"),
         "EUR" => Some("€"),
@@ -595,18 +595,18 @@ fn symbol(currency: &str) -> Option<&'static str> {
     }
 }
 
-fn currency_format(currency: &str) -> String {
+pub(crate) fn currency_format(currency: &str) -> String {
     match symbol(currency) {
         Some(sign) => format!("\"{sign}\"#,##0.00"),
         None => "#,##0.00".into(),
     }
 }
 
-fn amount(value: f64) -> String {
+pub(crate) fn amount(value: f64) -> String {
     format!("{value:.2}")
 }
 
-fn grouped_amount(value: f64, currency: &str) -> String {
+pub(crate) fn grouped_amount(value: f64, currency: &str) -> String {
     let fixed = amount(value);
     let (digits, cents) = fixed.split_once('.').unwrap_or((&fixed, "00"));
     let mut grouped = String::new();
@@ -646,7 +646,7 @@ fn overtime_labels(overtime: &Overtime) -> Vec<String> {
     ]
 }
 
-fn csv_field(value: &str) -> String {
+pub(crate) fn csv_field(value: &str) -> String {
     let value = &if value.starts_with(['=', '+', '-', '@', '\t', '\r']) {
         format!("'{value}")
     } else {
@@ -659,7 +659,7 @@ fn csv_field(value: &str) -> String {
     }
 }
 
-fn csv_line(out: &mut String, fields: &[String]) {
+pub(crate) fn csv_line(out: &mut String, fields: &[String]) {
     let line: Vec<String> = fields.iter().map(|f| csv_field(f)).collect();
     out.push_str(&line.join(","));
     out.push_str("\r\n");
@@ -752,7 +752,7 @@ fn render_csv(report: &Report, sections: Sections) -> String {
     out
 }
 
-fn md_cell(value: &str) -> String {
+pub(crate) fn md_cell(value: &str) -> String {
     let flat: String = value
         .chars()
         .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
@@ -765,13 +765,13 @@ fn md_cell(value: &str) -> String {
     }
 }
 
-fn md_row(out: &mut String, cells: &[String]) {
+pub(crate) fn md_row(out: &mut String, cells: &[String]) {
     out.push_str("| ");
     out.push_str(&cells.iter().map(|c| md_cell(c)).collect::<Vec<_>>().join(" | "));
     out.push_str(" |\n");
 }
 
-fn md_rule(out: &mut String, aligns: &[bool]) {
+pub(crate) fn md_rule(out: &mut String, aligns: &[bool]) {
     out.push('|');
     for right in aligns {
         out.push_str(if *right { " ---: |" } else { " --- |" });
@@ -1147,7 +1147,7 @@ fn render_xlsx(report: &Report, sections: Sections) -> Result<Vec<u8>, XlsxError
     workbook.save_to_buffer()
 }
 
-fn failed(message: impl Into<String>) -> Problem {
+pub(crate) fn failed(message: impl Into<String>) -> Problem {
     Problem::new(ProblemKind::CliFailed, message)
 }
 
@@ -1174,15 +1174,35 @@ fn write_report(
         serde_json::from_value(report).map_err(|error| failed(format!("El reporte no se puede leer: {error}")))?;
     let report = normalize(view);
     let bytes = render(format, &report, include, group_by)?;
-    let extension = format.extension();
-    let stem = match file_name.map(str::trim).filter(|name| !name.is_empty()) {
-        Some(name) => sanitize_with(name, extension),
-        None => sanitize_with(&report.default_stem(), extension),
-    };
+    save_export(dir, file_name, &report.default_stem(), format.extension(), &bytes)
+}
+
+pub(crate) fn save_export(
+    dir: &Path,
+    file_name: Option<&str>,
+    default_stem: &str,
+    extension: &str,
+    bytes: &[u8],
+) -> Result<PathBuf, Problem> {
+    let stem = sanitize_with(file_name.map(str::trim).filter(|name| !name.is_empty()).unwrap_or(default_stem), extension);
     std::fs::create_dir_all(dir).map_err(|error| failed(format!("No pude preparar {}: {error}", dir.display())))?;
     let target = unique_path_with(dir, &stem, extension);
     std::fs::write(&target, bytes).map_err(|error| failed(format!("No pude guardar {}: {error}", target.display())))?;
     Ok(target)
+}
+
+pub(crate) async fn save_to_downloads<F>(write: F) -> Result<String, Problem>
+where
+    F: FnOnce(&Path) -> Result<PathBuf, Problem> + Send + 'static,
+{
+    let downloads = node::home()
+        .map(|home| home.join("Downloads"))
+        .ok_or_else(|| failed("No sé cuál es tu carpeta de inicio."))?;
+    let target = tauri::async_runtime::spawn_blocking(move || write(&downloads))
+        .await
+        .map_err(|error| failed(format!("La exportación se interrumpió: {error}")))??;
+    let _ = crate::media::reveal(&target).await;
+    Ok(target.display().to_string())
 }
 
 #[tauri::command]
@@ -1193,18 +1213,9 @@ pub async fn export_report(
     group_by: Option<GroupBy>,
     file_name: Option<String>,
 ) -> Result<String, Problem> {
-    let downloads = node::home()
-        .map(|home| home.join("Downloads"))
-        .ok_or_else(|| failed("No sé cuál es tu carpeta de inicio."))?;
     let include = include.unwrap_or_default();
     let group_by = group_by.unwrap_or_default();
-    let target = tauri::async_runtime::spawn_blocking(move || {
-        write_report(&downloads, format, report, &include, group_by, file_name.as_deref())
-    })
-    .await
-    .map_err(|error| failed(format!("La exportación se interrumpió: {error}")))??;
-    let _ = crate::media::reveal(&target).await;
-    Ok(target.display().to_string())
+    save_to_downloads(move |downloads| write_report(downloads, format, report, &include, group_by, file_name.as_deref())).await
 }
 
 #[cfg(test)]

@@ -134,11 +134,7 @@ impl Cli {
         list
     }
 
-    async fn run_envelope<T: DeserializeOwned>(
-        &self,
-        args: &[&str],
-        options: CallOptions,
-    ) -> Result<(Option<T>, serde_json::Value), Problem> {
+    pub async fn raw_envelope(&self, args: &[&str], options: CallOptions) -> Result<serde_json::Value, Problem> {
         let name = self.tool.name();
         let limit = options.timeout.unwrap_or(CALL_TIMEOUT);
         let mut command = registry::command(&self.bin, None).ok_or_else(|| registry::missing_problem(self.tool))?;
@@ -164,14 +160,23 @@ impl Cli {
             })?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let Some(line) = registry::last_envelope(&stdout) else {
+        registry::last_envelope(&stdout).ok_or_else(|| {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let detail = if stdout.trim().is_empty() { stderr.trim().to_string() } else { stdout.trim().to_string() };
-            return Err(Problem::new(
+            Problem::new(
                 ProblemKind::Unreadable,
                 format!("{name} no devolvió una respuesta que entienda: {detail}"),
-            ));
-        };
+            )
+        })
+    }
+
+    async fn run_envelope<T: DeserializeOwned>(
+        &self,
+        args: &[&str],
+        options: CallOptions,
+    ) -> Result<(Option<T>, serde_json::Value), Problem> {
+        let name = self.tool.name();
+        let line = self.raw_envelope(args, options).await?;
 
         let envelope: Envelope<T> = serde_json::from_value(line).map_err(|error| {
             Problem::new(

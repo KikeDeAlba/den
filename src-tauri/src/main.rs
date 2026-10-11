@@ -3,6 +3,7 @@ mod ask;
 mod atlassian_cmd;
 mod cli;
 mod commands;
+mod coworkers;
 mod docs;
 mod doctor;
 mod worked;
@@ -18,6 +19,7 @@ mod panel;
 mod pay;
 mod pdf;
 mod report_export;
+mod coworker_export;
 mod platform;
 mod proposals;
 mod recap;
@@ -74,6 +76,10 @@ fn main() {
             report::report,
             pay::get_pay,
             pay::set_pay,
+            coworkers::coworker_overtime,
+            coworkers::overtime_excludes_list,
+            coworkers::overtime_excludes_add,
+            coworkers::overtime_excludes_remove,
             commands::scopes,
             commands::add_project,
             commands::set_scope,
@@ -110,6 +116,7 @@ fn main() {
             media::reveal_in_finder,
             pdf::export_pdf,
             report_export::export_report,
+            coworker_export::export_coworker_report,
             atlassian_cmd::atlassian_sites,
             atlassian_cmd::atlassian_site_add,
             atlassian_cmd::atlassian_site_test,

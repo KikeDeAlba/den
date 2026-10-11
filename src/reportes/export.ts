@@ -394,6 +394,6 @@ async function printPdf(app: App, state: ExportState, report: ReportView): Promi
   }
 }
 
-function tilde(path: string): string {
+export function tilde(path: string): string {
   return path.replace(/^\/(?:Users|home)\/[^/]+/, '~')
 }

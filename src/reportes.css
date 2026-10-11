@@ -14,7 +14,8 @@ body:has(#reportes) {
 }
 
 #reportes button:focus-visible,
-#reportes input:focus-visible {
+#reportes input:focus-visible,
+#reportes a:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
@@ -1359,6 +1360,11 @@ body:has(#reportes) {
   color: #7c6f64;
 }
 
+.paper-link {
+  color: #076678;
+  text-decoration: underline;
+}
+
 #print-root {
   position: fixed;
   left: -12000px;
@@ -1616,5 +1622,233 @@ body:has(#reportes) {
 
   .pay-actions {
     bottom: -16px;
+  }
+}
+
+.coworker-pair {
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  align-items: start;
+}
+
+.coworker-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.coworker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(120px, 100%), 1fr));
+  gap: 10px;
+}
+
+.coworker-field--wide {
+  grid-column: span 2;
+}
+
+.coworker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.coworker-status {
+  flex: 1 1 200px;
+  margin: 0;
+}
+
+.coworker-excludes {
+  gap: 10px;
+}
+
+.coworker-excludes > .report-meta,
+.coworker-candidates > .report-meta {
+  margin: -6px 0 0;
+}
+
+.coworker-none {
+  margin: 0;
+}
+
+.coworker-retry {
+  align-self: flex-start;
+}
+
+.coworker-chips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.coworker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 2px 2px 8px;
+  border-radius: 5px;
+  background: var(--elev);
+}
+
+.coworker-chip-key {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.coworker-chip-remove {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: var(--fg-mute);
+}
+
+.coworker-chip-remove:hover {
+  background: var(--elev-strong);
+  color: var(--fg);
+}
+
+.coworker-exclude-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.coworker-exclude-field {
+  flex: 0 1 160px;
+}
+
+.coworker-results {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.coworker-person {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.coworker-candidate-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.coworker-candidate {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-control);
+  text-align: left;
+  color: var(--fg);
+}
+
+.coworker-candidate:hover {
+  background: var(--elev);
+}
+
+.coworker-candidate-name {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.coworker-candidate-email {
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-mute);
+  overflow-wrap: anywhere;
+}
+
+.coworker-table--hours {
+  min-width: 420px;
+}
+
+.coworker-table--issues {
+  min-width: 600px;
+}
+
+.coworker-key {
+  white-space: nowrap;
+  color: var(--fg-bright);
+}
+
+.coworker-key-link {
+  color: var(--blue);
+  text-decoration: none;
+  border-radius: 3px;
+}
+
+.coworker-key-link:hover {
+  color: var(--aqua);
+  text-decoration: underline;
+}
+
+.coworker-export {
+  padding: 16px;
+}
+
+.coworker-export-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.coworker-export-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.coworker-export-field .report-segmented {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.coworker-export-switches {
+  display: flex;
+  flex-direction: column;
+}
+
+.coworker-export-target {
+  margin: 0;
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.coworker-summary {
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coworker-pad {
+  margin: 0;
+  padding: 12px 16px;
+}
+
+@media (max-width: 520px) {
+  .coworker-field--wide {
+    grid-column: 1 / -1;
   }
 }

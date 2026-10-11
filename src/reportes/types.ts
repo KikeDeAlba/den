@@ -175,3 +175,121 @@ export async function getPay(): Promise<PaySettings> {
 export function setPay(pay: PaySettings): Promise<PaySettings | null> {
   return invoke<PaySettings | null>('set_pay', { pay })
 }
+
+export interface CoworkerQuery {
+  user: string | null
+  accountId: string | null
+  fromMonth: string
+  toMonth: string
+  salary: number | null
+  monthlyHours: number
+  multiplier: number
+  currency: string
+  site: string | null
+}
+
+export interface CoworkerPerson {
+  name: string
+  accountId: string | null
+  source: string | null
+}
+
+export interface CoworkerRate {
+  hourlyRate: number | null
+  monthlyHours: number
+  multiplier: number
+  currency: string
+}
+
+export interface CoworkerIssue {
+  key: string
+  summary: string
+  project: string | null
+  status: string | null
+  startDate: string | null
+  estimateSeconds: number | null
+  url?: string | null | undefined
+}
+
+export interface CoworkerMonth {
+  month: string
+  estimateSeconds: number
+  expectedSeconds: number
+  overtimeSeconds: number
+  payX1: number | null
+  payMultiplied: number | null
+  issues: CoworkerIssue[]
+  withoutEstimate: CoworkerIssue[]
+}
+
+export interface CoworkerTotals {
+  estimateSeconds: number
+  expectedSeconds: number
+  overtimeSeconds: number
+  payX1: number | null
+  payMultiplied: number | null
+}
+
+export interface CoworkerOvertime {
+  person: CoworkerPerson
+  rate: CoworkerRate
+  months: CoworkerMonth[]
+  totals: CoworkerTotals
+  siteUrl?: string | null | undefined
+}
+
+export interface CoworkerExportInclude {
+  pay: boolean
+  withoutEstimate: boolean
+}
+
+export interface CoworkerExportReport extends CoworkerOvertime {
+  fromMonth: string
+  toMonth: string
+}
+
+export interface CoworkerCandidate {
+  displayName: string
+  email: string | null
+  accountId: string
+}
+
+export type CoworkerOutcome = { status: 'ready'; overtime: CoworkerOvertime } | { status: 'ambiguous'; candidates: CoworkerCandidate[] }
+
+export interface JiraSiteOption {
+  site: string
+  name?: string | null
+}
+
+export function fetchCoworkerOvertime(query: CoworkerQuery): Promise<CoworkerOutcome> {
+  return invoke<CoworkerOutcome>('coworker_overtime', { query })
+}
+
+export function listOvertimeExcludes(): Promise<string[]> {
+  return invoke<string[]>('overtime_excludes_list')
+}
+
+export function addOvertimeExclude(key: string): Promise<string[]> {
+  return invoke<string[]>('overtime_excludes_add', { key })
+}
+
+export function removeOvertimeExclude(key: string): Promise<string[]> {
+  return invoke<string[]>('overtime_excludes_remove', { key })
+}
+
+export function fetchJiraSites(): Promise<JiraSiteOption[]> {
+  return invoke<JiraSiteOption[]>('atlassian_sites', { check: false })
+}
+
+export function exportCoworkerReport(
+  format: FileFormat,
+  report: CoworkerExportReport,
+  include: CoworkerExportInclude,
+  fileName: string,
+): Promise<string> {
+  return invoke<string>('export_coworker_report', { format, report, include, fileName })
+}
+
+export function openJiraUrl(url: string): Promise<void> {
+  return invoke<void>('open_external', { url })
+}

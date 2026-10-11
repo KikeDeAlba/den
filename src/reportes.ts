@@ -1,6 +1,7 @@
 import { describeProblem } from './bita.ts'
 import { element, must } from './dom.ts'
 import type { App, ExportState, View } from './reportes/app.ts'
+import { clearSalaryField, coworkersView, coworkerState, forgetSalary, prepareCoworkers } from './reportes/coworkers.ts'
 import { dashboard } from './reportes/dashboard.ts'
 import { detail } from './reportes/detail.ts'
 import { exportView } from './reportes/export.ts'
@@ -25,6 +26,7 @@ const app: App = {
   detail: null,
   exporting: null,
   pay: { settings: null, error: null, open: false, draft: null, saving: false, status: null },
+  coworkers: coworkerState(today),
   today,
   render,
   navigate,
@@ -34,6 +36,7 @@ const app: App = {
   openExport,
   openPay,
   closePay,
+  openCoworkers,
 }
 
 function render(): void {
@@ -46,7 +49,14 @@ function render(): void {
   const strip = element('div', 'report-drag')
   strip.setAttribute('data-tauri-drag-region', '')
   strip.setAttribute('aria-hidden', 'true')
-  const page = app.view.name === 'dashboard' ? dashboard(app) : app.view.name === 'detail' ? detail(app, app.view.projectId) : exportView(app, loadExport)
+  const page =
+    app.view.name === 'dashboard'
+      ? dashboard(app)
+      : app.view.name === 'detail'
+        ? detail(app, app.view.projectId)
+        : app.view.name === 'coworkers'
+          ? coworkersView(app)
+          : exportView(app, loadExport)
   root.replaceChildren(strip, page)
   if (app.pay.open && app.view.name === 'dashboard') root.append(payPanel(app, app.main.report?.projects ?? []))
   root.dataset['view'] = app.view.name
@@ -61,9 +71,22 @@ function render(): void {
 
 function navigate(view: View): void {
   if (app.exporting?.busy === true) return
+  if (app.view.name === 'coworkers' && view.name !== 'coworkers') forgetSalary(app.coworkers)
   app.view = view
   if (view.name === 'detail') loadDetail(view.projectId)
+  if (view.name === 'coworkers') prepareCoworkers(app)
   render()
+}
+
+function openCoworkers(): void {
+  if (app.pay.open) closePay()
+  navigate({ name: 'coworkers' })
+  root.querySelector<HTMLElement>('[data-key="coworker-name"]')?.focus()
+}
+
+function hideCoworkers(): void {
+  forgetSalary(app.coworkers)
+  if (app.view.name === 'coworkers') render()
 }
 
 function openPay(): void {
@@ -210,6 +233,16 @@ document.addEventListener('keydown', (event) => {
   if (app.exporting?.busy === true) return
   navigate({ name: 'dashboard' })
 })
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'hidden') return
+  clearSalaryField(app.coworkers)
+  if (app.view.name === 'coworkers') render()
+})
+window.addEventListener('pagehide', hideCoworkers)
+void import('@tauri-apps/api/window')
+  .then(({ getCurrentWindow }) => getCurrentWindow().listen('tauri://close-requested', hideCoworkers))
+  .catch(() => undefined)
 
 loadMain()
 void loadPay(app).then(() => {

@@ -207,9 +207,9 @@ function main(app: App): HTMLElement {
     copy.dataset['key'] = 'copy'
     const exportButton = primaryAction('Exportar', () => app.openExport(null))
     exportButton.dataset['key'] = 'export'
-    header.append(payButton(app), copy, exportButton)
+    header.append(payButton(app), coworkersButton(app), copy, exportButton)
   } else {
-    header.append(payButton(app))
+    header.append(payButton(app), coworkersButton(app))
   }
   section.append(header)
 
@@ -253,6 +253,13 @@ function payButton(app: App): HTMLButtonElement {
   node.dataset['key'] = 'pay-open'
   node.setAttribute('aria-haspopup', 'dialog')
   node.setAttribute('aria-label', 'Configurar pago y horas extra')
+  return node
+}
+
+function coworkersButton(app: App): HTMLButtonElement {
+  const node = button('Compañeros', 'ghost-button', () => app.openCoworkers())
+  node.dataset['key'] = 'coworkers-open'
+  node.setAttribute('aria-label', 'Horas extra de compañeros')
   return node
 }
 
