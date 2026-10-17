@@ -19,23 +19,7 @@ import { bindTrackpad } from './cerebro/gestures.ts'
 import type { LayoutFrame, LayoutRequest } from './cerebro/layout.worker.ts'
 import { EDGE_LABELS, KIND_LABELS, readPalette, type Palette } from './cerebro/palette.ts'
 import { kindDot, sideDetail, sideLoading, sideProblem, type SideHandlers } from './cerebro/side.ts'
-
-interface NodeAttributes {
-  x: number
-  y: number
-  size: number
-  color: string
-  label: string
-  kind: NodeKind
-  project: string
-  pinned: boolean
-}
-
-interface EdgeAttributes {
-  kind: EdgeKind
-  size: number
-  color: string
-}
+import type { EdgeAttributes, NodeAttributes } from './cerebro/types.ts'
 
 const SEARCH_DELAY = 220
 const ALL = ''
@@ -171,6 +155,9 @@ function fill(data: BrainGraph): void {
     graph.addNode(node.id, {
       x: seed.x,
       y: seed.y,
+      baseX: seed.x,
+      baseY: seed.y,
+      glow: 1,
       size: nodeSize(Math.max(node.degree, degrees.get(node.id) ?? 0)),
       color: palette.kinds[node.kind],
       label: node.title,
