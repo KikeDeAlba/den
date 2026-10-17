@@ -17,7 +17,8 @@ import {
 import { GAZE_FIXTURE } from './cerebro/flag.ts'
 import { bindTrackpad } from './cerebro/gestures.ts'
 import type { LayoutFrame, LayoutRequest } from './cerebro/layout.worker.ts'
-import { EDGE_LABELS, KIND_LABELS, readPalette, type Palette } from './cerebro/palette.ts'
+import { EDGE_LABELS, KIND_LABELS, mix, readPalette, SKY, type Palette } from './cerebro/palette.ts'
+import { createSky } from './cerebro/sky.ts'
 import { kindDot, sideDetail, sideLoading, sideProblem, type SideHandlers } from './cerebro/side.ts'
 import type { EdgeAttributes, NodeAttributes } from './cerebro/types.ts'
 
@@ -60,7 +61,9 @@ const renderer = new Sigma<NodeAttributes, EdgeAttributes>(graph, stage, {
     hideEdgesOnMove: false,
     labelDensity: 0.12,
     labelGridCellSize: 140,
-    labelRenderedSizeThreshold: 7,
+    labelRenderedSizeThreshold: 4,
+    nodePickingPadding: 5,
+    antialiasNodes: true,
     zoomToSizeRatioFunction: (ratio) => Math.pow(ratio, 0.25),
   },
   nodeReducer: (node, _data, attributes) => nodeLook(node, attributes),
@@ -68,6 +71,7 @@ const renderer = new Sigma<NodeAttributes, EdgeAttributes>(graph, stage, {
 })
 
 bindTrackpad(stage, renderer)
+createSky(stage, renderer, graph)
 
 const worker = new Worker(new URL('./cerebro/layout.worker.ts', import.meta.url), { type: 'module' })
 let layoutRun = 0
@@ -88,9 +92,24 @@ function focusNode(): string | null {
   return state.hovered ?? state.selected
 }
 
+const LABEL_FONT = "'Instrument Sans', -apple-system, system-ui, sans-serif"
+const CORE_SCALE = 0.42
+const CORE_WHITE = 0.7
+
 function nodeLook(node: string, attributes: NodeAttributes): Partial<NodeDisplayData> {
   if (!nodeVisible(attributes)) return { visibility: 'hidden', labelVisibility: 'hidden' }
-  const look: Partial<NodeDisplayData> = { labelColor: palette.label }
+  const look: Partial<NodeDisplayData> = {
+    color: mix(attributes.color, '#ffffff', CORE_WHITE),
+    size: attributes.size * CORE_SCALE,
+    opacity: Math.max(0, Math.min(1, attributes.glow)),
+    labelColor: palette.label,
+    labelSize: 11,
+    labelFont: LABEL_FONT,
+    backdropColor: SKY.backdrop,
+    backdropShadowColor: SKY.backdropShadow,
+    backdropArea: 'label',
+  }
+  if (attributes.glow <= 0) return { ...look, labelVisibility: 'hidden' }
   if (attributes.pinned) look.labelVisibility = 'visible'
   const focus = focusNode()
   if (focus === null) return look
@@ -102,9 +121,10 @@ function nodeLook(node: string, attributes: NodeAttributes): Partial<NodeDisplay
 function edgeLook(edge: string, attributes: EdgeAttributes): Partial<EdgeDisplayData> {
   if (!edgeVisible(edge)) return { visibility: 'hidden' }
   const focus = focusNode()
-  if (focus === null) return {}
+  const look: Partial<EdgeDisplayData> = { size: attributes.size * 0.6 }
+  if (focus === null) return look
   if (graph.hasExtremity(edge, focus)) return { color: palette.strongEdge, size: Math.max(attributes.size, 1.4), zIndex: 2 }
-  return { color: palette.fadedEdge, zIndex: 0 }
+  return { ...look, color: palette.fadedEdge, zIndex: 0 }
 }
 
 function refreshFocus(): void {

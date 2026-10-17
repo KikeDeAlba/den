@@ -188,11 +188,16 @@ body:has(#cerebro) {
   position: relative;
   flex: 1;
   min-width: 0;
-  background: var(--bg);
+  isolation: isolate;
+  background: radial-gradient(ellipse 120% 95% at 50% 42%, #0b1020 0%, #070a17 55%, #03050c 100%);
 }
 
 .brain-stage--pointer {
-  cursor: pointer;
+  cursor: grab;
+}
+
+.brain-stage--grabbing {
+  cursor: grabbing;
 }
 
 .brain-dot {
@@ -211,9 +216,13 @@ body:has(#cerebro) {
   padding: 10px 12px;
   display: flex;
   gap: 18px;
-  background: color-mix(in srgb, var(--card) 92%, transparent);
-  border: 1px solid var(--line);
+  color: #dbe3ff;
+  background: rgba(8, 12, 28, 0.72);
+  border: 1px solid rgba(186, 214, 255, 0.14);
   border-radius: var(--radius-card);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
 }
 
 .brain-legend-group {
@@ -229,7 +238,7 @@ body:has(#cerebro) {
   font-weight: 600;
   letter-spacing: 0.4px;
   text-transform: uppercase;
-  color: var(--fg-mute);
+  color: rgba(207, 216, 255, 0.55);
 }
 
 .brain-legend-item {
@@ -238,17 +247,17 @@ body:has(#cerebro) {
   align-items: center;
   gap: 7px;
   font-size: 12px;
-  color: var(--fg);
+  color: #dbe3ff;
   text-align: left;
   border-radius: 5px;
 }
 
 .brain-legend-item:hover {
-  background: var(--elev);
+  background: rgba(186, 214, 255, 0.08);
 }
 
 .brain-legend-item[aria-pressed='false'] {
-  color: var(--fg-faint);
+  color: rgba(207, 216, 255, 0.4);
 }
 
 .brain-legend-item[aria-pressed='false'] .brain-dot {
@@ -258,7 +267,7 @@ body:has(#cerebro) {
 
 .brain-legend-toggle input {
   margin: 0;
-  accent-color: var(--blue);
+  accent-color: #9fb8ff;
 }
 
 .brain-legend-line {
@@ -275,7 +284,7 @@ body:has(#cerebro) {
 .brain-legend-count {
   font-family: var(--font-mono);
   font-size: 10.5px;
-  color: var(--fg-mute);
+  color: rgba(207, 216, 255, 0.55);
 }
 
 .brain-message {
@@ -299,9 +308,13 @@ body:has(#cerebro) {
   flex-direction: column;
   align-items: flex-start;
   gap: 10px;
-  background: var(--card);
-  border: 1px solid var(--line);
+  color: #dbe3ff;
+  background: rgba(8, 12, 28, 0.72);
+  border: 1px solid rgba(186, 214, 255, 0.14);
   border-radius: var(--radius-card);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
   pointer-events: auto;
 }
 
@@ -309,7 +322,21 @@ body:has(#cerebro) {
   margin: 0;
   font-size: 13px;
   line-height: 1.5;
-  color: var(--fg);
+  color: #dbe3ff;
+}
+
+.brain-message-card .brain-hint {
+  color: #b8c4ec;
+  background: rgba(3, 5, 12, 0.6);
+}
+
+.brain-message-card .brain-button {
+  color: #eef2ff;
+  background: rgba(186, 214, 255, 0.12);
+}
+
+.brain-message-card .brain-button:hover {
+  background: rgba(186, 214, 255, 0.2);
 }
 
 .brain-hint {
