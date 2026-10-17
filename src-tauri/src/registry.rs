@@ -193,7 +193,10 @@ impl Tool {
 
     pub fn default_install(self) -> String {
         let name = self.name();
-        format!("npm install -g @kikedealba/{name} && {name} setup")
+        match self {
+            Tool::Gaze => "cargo install --locked --git https://github.com/KikeDeAlba/gaze && gaze setup".to_string(),
+            _ => format!("npm install -g @kikedealba/{name} && {name} setup"),
+        }
     }
 
     pub fn purpose(self) -> &'static str {
