@@ -40,8 +40,9 @@ interface Cloud {
 }
 
 const SEED = 0x5eed
-const FRAME = 1000 / 15
+const TWINKLE_FRAME = 1000 / 8
 const SPRITE = 64
+const FLARE = 32
 const FADED_ALPHA = 0.15
 
 const LAYERS: Layer[] = [
@@ -121,16 +122,17 @@ export function createSky(
   const haloContext = haloCanvas.getContext('2d')
   if (starContext === null || haloContext === null) return
 
-  const stars = makeStars()
+  const stars = makeStars().sort((left, right) => left.color.localeCompare(right.color))
   const sprites = new Map<string, HTMLCanvasElement>()
+  const flares = new Map<string, HTMLCanvasElement>()
   const camera = renderer.getCamera()
   const calm = window.matchMedia('(prefers-reduced-motion: reduce)')
   let width = 0
   let height = 0
   let ratio = 1
   let frame = 0
-  let last = 0
-  let dirty = true
+  let timer: ReturnType<typeof setTimeout> | null = null
+  let clock = 0
 
   const sprite = (color: string): HTMLCanvasElement => {
     const cached = sprites.get(color)
@@ -154,6 +156,25 @@ export function createSky(
     return canvas
   }
 
+  const flare = (color: string): HTMLCanvasElement => {
+    const cached = flares.get(color)
+    if (cached !== undefined) return cached
+    const canvas = document.createElement('canvas')
+    canvas.width = FLARE
+    canvas.height = FLARE
+    const context = canvas.getContext('2d')
+    if (context !== null) {
+      const half = FLARE / 2
+      const gradient = context.createRadialGradient(half, half, 0, half, half, half)
+      gradient.addColorStop(0, rgba(color, 0.35))
+      gradient.addColorStop(1, rgba(color, 0))
+      context.fillStyle = gradient
+      context.fillRect(0, 0, FLARE, FLARE)
+    }
+    flares.set(color, canvas)
+    return canvas
+  }
+
   const drawStars = (time: number) => {
     starContext.setTransform(ratio, 0, 0, ratio, 0, 0)
     starContext.clearRect(0, 0, width, height)
@@ -165,18 +186,17 @@ export function createSky(
       const y = wrap(star.v * height + view.y * span * star.depth * 10, height)
       const shimmer = time === 0 ? 1 : 1 - star.twinkle * (0.5 + 0.5 * Math.sin(time * star.speed + star.phase))
       const alpha = star.alpha * shimmer
+      starContext.globalAlpha = alpha
       if (star.flare) {
-        const glow = starContext.createRadialGradient(x, y, 0, x, y, star.radius * 5)
-        glow.addColorStop(0, rgba(star.color, alpha * 0.35))
-        glow.addColorStop(1, rgba(star.color, 0))
-        starContext.fillStyle = glow
-        starContext.fillRect(x - star.radius * 5, y - star.radius * 5, star.radius * 10, star.radius * 10)
+        const reach = star.radius * 5
+        starContext.drawImage(flare(star.color), x - reach, y - reach, reach * 2, reach * 2)
       }
-      starContext.fillStyle = rgba(star.color, alpha)
+      if (starContext.fillStyle !== star.color) starContext.fillStyle = star.color
       starContext.beginPath()
       starContext.arc(x, y, star.radius, 0, Math.PI * 2)
       starContext.fill()
     }
+    starContext.globalAlpha = 1
   }
 
   const drawHalos = () => {
@@ -194,14 +214,12 @@ export function createSky(
       const core = renderer.scaleSize(display.size)
       const radius = core * 6 + 10
       const faded = display.color === SKY.faded
-      if (!faded) {
-        const cloud = clouds.get(attributes.project) ?? { x: 0, y: 0, spread: 0, count: 0 }
-        cloud.x += point.x
-        cloud.y += point.y
-        cloud.spread += point.x * point.x + point.y * point.y
-        cloud.count += 1
-        clouds.set(attributes.project, cloud)
-      }
+      const cloud = clouds.get(attributes.project) ?? { x: 0, y: 0, spread: 0, count: 0 }
+      cloud.x += point.x
+      cloud.y += point.y
+      cloud.spread += point.x * point.x + point.y * point.y
+      cloud.count += 1
+      clouds.set(attributes.project, cloud)
       if (point.x < -radius || point.y < -radius || point.x > width + radius || point.y > height + radius) return
       halos.push({ x: point.x, y: point.y, radius, alpha: glow * (faded ? FADED_ALPHA : 1), color: attributes.color })
     })
@@ -230,21 +248,38 @@ export function createSky(
     haloContext.globalCompositeOperation = 'source-over'
   }
 
-  const twinkling = () => !calm.matches && !document.hidden
+  const twinkling = () => !calm.matches && !document.hidden && document.hasFocus()
 
-  const tick = (now: number) => {
+  const paint = () => {
     frame = 0
-    const live = twinkling()
-    if (dirty || (live && now - last >= FRAME)) {
-      drawStars(live ? now : 0)
-      last = now
-      dirty = false
-    }
-    if (live) frame = requestAnimationFrame(tick)
+    drawStars(calm.matches ? 0 : clock)
   }
 
   const wake = () => {
-    if (frame === 0) frame = requestAnimationFrame(tick)
+    if (frame === 0) frame = requestAnimationFrame(paint)
+  }
+
+  const beat = () => {
+    timer = null
+    if (!twinkling()) return
+    clock = performance.now()
+    wake()
+    timer = setTimeout(beat, TWINKLE_FRAME)
+  }
+
+  const twinkle = () => {
+    if (timer === null && twinkling()) beat()
+  }
+
+  const watchRatio = () => {
+    window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener(
+      'change',
+      () => {
+        resize()
+        watchRatio()
+      },
+      { once: true },
+    )
   }
 
   const resize = () => {
@@ -261,7 +296,6 @@ export function createSky(
       canvas.style.width = `${width}px`
       canvas.style.height = `${height}px`
     }
-    dirty = true
     drawHalos()
     wake()
   }
@@ -269,17 +303,14 @@ export function createSky(
   new ResizeObserver(resize).observe(stage)
   renderer.on('resize', resize)
   renderer.on('afterRender', drawHalos)
-  camera.on('updated', () => {
-    dirty = true
-    wake()
-  })
+  camera.on('updated', wake)
   calm.addEventListener('change', () => {
-    dirty = true
     wake()
+    twinkle()
   })
-  document.addEventListener('visibilitychange', () => {
-    dirty = true
-    wake()
-  })
+  document.addEventListener('visibilitychange', twinkle)
+  window.addEventListener('focus', twinkle)
+  watchRatio()
   resize()
+  twinkle()
 }

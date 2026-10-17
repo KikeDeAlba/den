@@ -347,7 +347,10 @@ Markdown (el mismo lector de las notas) y sus conexiones. La búsqueda llama a
 
 Se dibuja como un cielo de constelaciones, siempre de noche: cada nodo es una
 estrella con halo del color de su tipo sobre un campo de estrellas con paralaje,
-y el titileo se apaga si el sistema pide reducir movimiento.
+y el titileo se apaga si el sistema pide reducir movimiento. Las estrellas se
+pueden arrastrar y, al soltarlas, el grafo se reacomoda; en reposo flotan
+despacio y se quedan quietas tras medio minuto sin mover el puntero, con la
+ventana sin foco o si el sistema pide reducir movimiento.
 
 Sin `gaze` instalado se puede revisar con datos de ejemplo
 (`src/cerebro/fixture.json`), solo en desarrollo:

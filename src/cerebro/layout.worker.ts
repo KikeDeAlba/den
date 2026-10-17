@@ -149,13 +149,20 @@ function release(message: LayoutRelease): void {
   schedule(current, SETTLE_DELAY)
 }
 
+function stop(message: LayoutStop): void {
+  const current = session
+  if (current === null || current.run !== message.stop) return
+  if (current.timer !== null) clearTimeout(current.timer)
+  current.timer = null
+  current.pinned = null
+  current.remaining = 0
+  session = null
+}
+
 addEventListener('message', (event: MessageEvent<LayoutMessage>) => {
   const message = event.data
   if ('stop' in message) {
-    if (session !== null && session.run === message.stop) {
-      if (session.timer !== null) clearTimeout(session.timer)
-      session = null
-    }
+    stop(message)
     return
   }
   if ('pin' in message) {

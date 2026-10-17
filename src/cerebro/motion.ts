@@ -6,14 +6,17 @@ type BrainGraph = Graph<NodeAttributes, EdgeAttributes>
 type BrainRenderer = Sigma<NodeAttributes, EdgeAttributes>
 
 const DRAG_THRESHOLD = 4
-const FLOAT_FRAME = 1000 / 30
+const RELEASE_SLACK = 50
+const FLOAT_FRAME = 1000 / 10
 const FLOAT_MAX_NODES = 1500
 const FLOAT_AMPLITUDE = 0.006
 const FLOAT_MIN_PERIOD = 6000
 const FLOAT_MAX_PERIOD = 12000
 const FLOAT_FOCUS_FACTOR = 0.3
-const FLOAT_EASE = 0.08
+const FLOAT_EASE = 0.2
 const FLOAT_RAMP = 1500
+const FLOAT_FADE = 2500
+const FLOAT_IDLE = 30000
 const APPEAR_TOTAL = 600
 const APPEAR_FADE = 220
 
@@ -27,11 +30,13 @@ export interface DragHooks {
   onStart(node: string): void
   onMove(node: string, x: number, y: number): void
   onRelease(node: string): void
+  onCancel(node: string): void
 }
 
 export interface DragControl {
   dragging(): string | null
   consumeDrag(): boolean
+  releasedRecently(): boolean
   cancel(): void
 }
 
@@ -40,6 +45,7 @@ export function bindDrag(renderer: BrainRenderer, graph: BrainGraph, stage: HTML
   let origin = { x: 0, y: 0 }
   let moved = false
   let dragged = false
+  let releasedAt = Number.NEGATIVE_INFINITY
 
   const finish = (notify: boolean): void => {
     if (node === null) return
@@ -50,7 +56,12 @@ export function bindDrag(renderer: BrainRenderer, graph: BrainGraph, stage: HTML
     stage.classList.remove('brain-stage--grabbing')
     if (!wasMoved) return
     dragged = true
-    if (notify) hooks.onRelease(released)
+    if (notify) {
+      releasedAt = performance.now()
+      hooks.onRelease(released)
+    } else {
+      hooks.onCancel(released)
+    }
   }
 
   renderer.on('downNode', ({ node: hit, event }) => {
@@ -92,9 +103,11 @@ export function bindDrag(renderer: BrainRenderer, graph: BrainGraph, stage: HTML
       dragged = false
       return was
     },
+    releasedRecently: () => performance.now() - releasedAt <= renderer.getSetting('doubleClickTimeout') + RELEASE_SLACK,
     cancel: () => {
       finish(false)
       dragged = false
+      releasedAt = Number.NEGATIVE_INFINITY
       renderer.setCustomBBox(null)
     },
   }
@@ -166,19 +179,29 @@ function graphRadius(graph: BrainGraph): number {
 export function startFloat(graph: BrainGraph, options: FloatOptions): FloatControl {
   const waves = new Map<string, Wave>()
   let layoutActive = false
-  let frame: number | null = null
+  let timer: ReturnType<typeof setTimeout> | null = null
   let last = 0
-  let resumedAt = 0
+  let energy = 0
   let radius = 0
-  let floating = false
+  let displaced = false
+  let activeAt = performance.now()
 
   const enabled = (): boolean => !reducedMotion.matches && graph.order > 0 && graph.order <= FLOAT_MAX_NODES
 
-  const paused = (): boolean => layoutActive || document.hidden || options.dragging() !== null
+  const halted = (): boolean => layoutActive || document.hidden || options.dragging() !== null
+
+  const resting = (now: number): boolean => !document.hasFocus() || now - activeAt > FLOAT_IDLE
+
+  const stop = (): void => {
+    if (timer !== null) clearTimeout(timer)
+    timer = null
+  }
 
   const settle = (): void => {
-    if (!floating) return
-    floating = false
+    energy = 0
+    last = 0
+    if (!displaced) return
+    displaced = false
     graph.updateEachNodeAttributes(
       (_node, attributes) => {
         attributes.x = attributes.baseX
@@ -189,35 +212,30 @@ export function startFloat(graph: BrainGraph, options: FloatOptions): FloatContr
     )
   }
 
-  const step = (now: number): void => {
-    frame = null
-    if (!enabled()) {
+  const step = (): void => {
+    timer = null
+    if (!enabled() || halted()) {
       settle()
       return
     }
-    frame = requestAnimationFrame(step)
-    if (paused()) {
-      floating = false
-      resumedAt = 0
+    const now = performance.now()
+    if (last === 0) radius = graphRadius(graph)
+    const elapsed = last === 0 ? 0 : now - last
+    last = now
+    const rest = resting(now)
+    energy = rest ? Math.max(0, energy - elapsed / FLOAT_FADE) : Math.min(1, energy + elapsed / FLOAT_RAMP)
+    if (rest && energy === 0) {
+      settle()
       return
     }
-    if (now - last < FLOAT_FRAME) return
-    last = now
-    if (resumedAt === 0) {
-      resumedAt = now
-      radius = graphRadius(graph)
-      for (const wave of waves.values()) wave.factor = 0
-    }
-    const ramp = Math.min(1, (now - resumedAt) / FLOAT_RAMP)
-    const amplitude = radius * FLOAT_AMPLITUDE * (ramp * ramp * (3 - 2 * ramp))
+    const amplitude = radius * FLOAT_AMPLITUDE * (energy * energy * (3 - 2 * energy))
     const { focus, neighbors } = options.focus()
-    floating = true
+    displaced = true
     graph.updateEachNodeAttributes(
       (node, attributes) => {
         let wave = waves.get(node)
         if (wave === undefined) {
           wave = waveFor(node)
-          wave.factor = 0
           waves.set(node, wave)
         }
         const target = node === focus || neighbors.has(node) ? FLOAT_FOCUS_FACTOR : 1
@@ -229,40 +247,52 @@ export function startFloat(graph: BrainGraph, options: FloatOptions): FloatContr
       },
       { attributes: ['x', 'y'] },
     )
+    timer = setTimeout(step, FLOAT_FRAME)
   }
 
   const wake = (): void => {
-    if (frame === null && enabled()) frame = requestAnimationFrame(step)
+    if (timer === null && enabled() && !halted()) timer = setTimeout(step, 0)
+  }
+
+  const stir = (): void => {
+    activeAt = performance.now()
+    wake()
   }
 
   reducedMotion.addEventListener('change', () => {
-    if (reducedMotion.matches) {
-      if (frame !== null) cancelAnimationFrame(frame)
-      frame = null
-      settle()
-    } else {
-      wake()
-    }
+    stop()
+    if (reducedMotion.matches) settle()
+    else wake()
   })
 
+  for (const type of ['pointermove', 'pointerdown', 'wheel', 'keydown', 'focus']) {
+    window.addEventListener(type, stir, { passive: true })
+  }
+  window.addEventListener('blur', wake)
   document.addEventListener('visibilitychange', wake)
 
   return {
     setLayoutActive: (active) => {
       layoutActive = active
-      if (active) floating = false
-      wake()
+      if (active) {
+        stop()
+        settle()
+      } else {
+        wake()
+      }
     },
     reset: () => {
+      stop()
       waves.clear()
-      floating = false
-      resumedAt = 0
+      displaced = false
+      energy = 0
+      last = 0
       wake()
     },
   }
 }
 
-export function appear(graph: BrainGraph): () => void {
+export function appear(graph: BrainGraph, onFrame: () => void): () => void {
   const order = graph.nodes()
   if (reducedMotion.matches || order.length === 0) return () => {}
   const delays = new Map(order.map((node, index) => [node, (index / Math.max(1, order.length - 1)) * (APPEAR_TOTAL - APPEAR_FADE)]))
@@ -281,6 +311,7 @@ export function appear(graph: BrainGraph): () => void {
       },
       { attributes: ['glow'] },
     )
+    onFrame()
     return pending
   }
 
@@ -305,5 +336,6 @@ export function appear(graph: BrainGraph): () => void {
       },
       { attributes: ['glow'] },
     )
+    onFrame()
   }
 }

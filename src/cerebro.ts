@@ -16,9 +16,9 @@ import {
 } from './cerebro/api.ts'
 import { GAZE_FIXTURE } from './cerebro/flag.ts'
 import { bindTrackpad } from './cerebro/gestures.ts'
-import type { LayoutFrame, LayoutPin, LayoutRelease, LayoutRequest } from './cerebro/layout.worker.ts'
+import type { LayoutFrame, LayoutPin, LayoutRelease, LayoutRequest, LayoutStop } from './cerebro/layout.worker.ts'
 import { appear, bindDrag, startFloat } from './cerebro/motion.ts'
-import { EDGE_LABELS, KIND_LABELS, mix, readPalette, SKY, type Palette } from './cerebro/palette.ts'
+import { EDGE_LABELS, fade, KIND_LABELS, mix, readPalette, SKY, type Palette } from './cerebro/palette.ts'
 import { createSky } from './cerebro/sky.ts'
 import { kindDot, sideDetail, sideLoading, sideProblem, type SideHandlers } from './cerebro/side.ts'
 import type { EdgeAttributes, NodeAttributes } from './cerebro/types.ts'
@@ -86,14 +86,14 @@ const drag = bindDrag(renderer, graph, stage, {
   onMove: (node, x, y) => {
     const index = layoutIndex.get(node)
     if (index === undefined) return
-    const message: LayoutPin = { pin: layoutRun, index, x, y }
-    worker.postMessage(message)
+    const pin: LayoutPin = { pin: layoutRun, index, x, y }
+    worker.postMessage(pin)
   },
   onRelease: (node) => {
     const index = layoutIndex.get(node)
     if (index !== undefined) {
-      const message: LayoutRelease = { release: layoutRun, index }
-      worker.postMessage(message)
+      const release: LayoutRelease = { release: layoutRun, index }
+      worker.postMessage(release)
     }
     if (leftWhileDragging) {
       leftWhileDragging = false
@@ -102,6 +102,7 @@ const drag = bindDrag(renderer, graph, stage, {
       refreshFocus()
     }
   },
+  onCancel: () => stopLayout(),
 })
 
 const float = startFloat(graph, {
@@ -128,10 +129,21 @@ const LABEL_FONT = "'Instrument Sans', -apple-system, system-ui, sans-serif"
 const CORE_SCALE = 0.42
 const CORE_WHITE = 0.7
 
+const coreColors = new Map<string, string>()
+
+function coreColor(color: string): string {
+  let core = coreColors.get(color)
+  if (core === undefined) {
+    core = mix(color, '#ffffff', CORE_WHITE)
+    coreColors.set(color, core)
+  }
+  return core
+}
+
 function nodeLook(node: string, attributes: NodeAttributes): Partial<NodeDisplayData> {
   if (!nodeVisible(attributes)) return { visibility: 'hidden', labelVisibility: 'hidden' }
   const look: Partial<NodeDisplayData> = {
-    color: mix(attributes.color, '#ffffff', CORE_WHITE),
+    color: coreColor(attributes.color),
     size: attributes.size * CORE_SCALE,
     opacity: Math.max(0, Math.min(1, attributes.glow)),
     labelColor: palette.label,
@@ -150,8 +162,21 @@ function nodeLook(node: string, attributes: NodeAttributes): Partial<NodeDisplay
   return { ...look, color: palette.faded, labelVisibility: 'hidden', zIndex: 0 }
 }
 
+function edgeGlow(edge: string): number {
+  const [source, target] = graph.extremities(edge)
+  return Math.max(0, Math.min(1, graph.getNodeAttribute(source, 'glow'), graph.getNodeAttribute(target, 'glow')))
+}
+
 function edgeLook(edge: string, attributes: EdgeAttributes): Partial<EdgeDisplayData> {
   if (!edgeVisible(edge)) return { visibility: 'hidden' }
+  const look = edgeTone(edge, attributes)
+  const glow = edgeGlow(edge)
+  if (glow >= 1) return look
+  if (glow <= 0) return { visibility: 'hidden' }
+  return { ...look, color: fade(look.color ?? attributes.color, glow) }
+}
+
+function edgeTone(edge: string, attributes: EdgeAttributes): Partial<EdgeDisplayData> {
   const focus = focusNode()
   const look: Partial<EdgeDisplayData> = { size: attributes.size * 0.6 }
   if (focus === null) return look
@@ -251,6 +276,13 @@ function startLayout(): void {
     weights: Float32Array.from(weights),
   }
   worker.postMessage(request, [request.positions.buffer, request.edges.buffer, request.weights.buffer])
+}
+
+function stopLayout(): void {
+  const stop: LayoutStop = { stop: layoutRun }
+  worker.postMessage(stop)
+  layoutRun += 1
+  float.setLayoutActive(false)
 }
 
 worker.addEventListener('message', (event: MessageEvent<LayoutFrame>) => {
@@ -384,12 +416,13 @@ async function load(project: string | null): Promise<void> {
     leftWhileDragging = false
     fill(data)
     float.reset()
-    stopAppear = appear(graph)
+    stopAppear = appear(graph, () => renderer.refresh({ skipIndexation: true, schedule: true }))
     renderProjects()
     renderCount()
     renderLegend()
     refreshFocus()
     if (data.nodes.length === 0) {
+      stopLayout()
       showMessage(plainBox(project === null ? 'Este cerebro todavía está vacío.' : `No hay nada guardado de ${project}.`))
       return
     }
@@ -398,6 +431,8 @@ async function load(project: string | null): Promise<void> {
   } catch (error) {
     if (token !== state.loadToken) return
     state.failed = true
+    drag.cancel()
+    stopLayout()
     graph.clear()
     renderCount()
     renderLegend()
@@ -575,6 +610,13 @@ renderer.on('clickNode', ({ node }) => {
   select(node)
 })
 
+renderer.on('doubleClickNode', ({ node, preventSigmaDefault }) => {
+  if (!drag.releasedRecently()) return
+  preventSigmaDefault()
+  drag.consumeDrag()
+  select(node)
+})
+
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !side.hidden) closeSide()
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
@@ -586,6 +628,7 @@ document.addEventListener('keydown', (event) => {
 
 function repaint(): void {
   palette = readPalette()
+  coreColors.clear()
   graph.updateEachNodeAttributes((_node, attributes) => ({ ...attributes, color: palette.kinds[attributes.kind] }), {
     attributes: ['color'],
   })

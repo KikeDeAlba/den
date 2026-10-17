@@ -78,6 +78,17 @@ export function mix(color: string, base: string, amount: number): string {
   return `#${blended.map((value) => value.toString(16).padStart(2, '0')).join('')}`
 }
 
+export function fade(color: string, factor: number): string {
+  const rgba = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/i.exec(color)
+  if (rgba !== null) {
+    const alpha = rgba[4] === undefined ? 1 : Number(rgba[4])
+    return `rgba(${rgba[1]}, ${rgba[2]}, ${rgba[3]}, ${alpha * factor})`
+  }
+  const hex = channels(color)
+  if (hex === null) return color
+  return `rgba(${hex[0]}, ${hex[1]}, ${hex[2]}, ${factor})`
+}
+
 export function readPalette(): Palette {
   const style = getComputedStyle(document.documentElement)
   const kinds = Object.fromEntries(
