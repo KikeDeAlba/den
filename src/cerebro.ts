@@ -16,26 +16,12 @@ import {
 } from './cerebro/api.ts'
 import { GAZE_FIXTURE } from './cerebro/flag.ts'
 import { bindTrackpad } from './cerebro/gestures.ts'
-import type { LayoutFrame, LayoutRequest } from './cerebro/layout.worker.ts'
-import { EDGE_LABELS, KIND_LABELS, readPalette, type Palette } from './cerebro/palette.ts'
+import type { LayoutFrame, LayoutPin, LayoutRelease, LayoutRequest, LayoutStop } from './cerebro/layout.worker.ts'
+import { appear, bindDrag, startFloat } from './cerebro/motion.ts'
+import { EDGE_LABELS, fade, KIND_LABELS, mix, readPalette, SKY, type Palette } from './cerebro/palette.ts'
+import { createSky } from './cerebro/sky.ts'
 import { kindDot, sideDetail, sideLoading, sideProblem, type SideHandlers } from './cerebro/side.ts'
-
-interface NodeAttributes {
-  x: number
-  y: number
-  size: number
-  color: string
-  label: string
-  kind: NodeKind
-  project: string
-  pinned: boolean
-}
-
-interface EdgeAttributes {
-  kind: EdgeKind
-  size: number
-  color: string
-}
+import type { EdgeAttributes, NodeAttributes } from './cerebro/types.ts'
 
 const SEARCH_DELAY = 220
 const ALL = ''
@@ -76,7 +62,9 @@ const renderer = new Sigma<NodeAttributes, EdgeAttributes>(graph, stage, {
     hideEdgesOnMove: false,
     labelDensity: 0.12,
     labelGridCellSize: 140,
-    labelRenderedSizeThreshold: 7,
+    labelRenderedSizeThreshold: 4,
+    nodePickingPadding: 5,
+    antialiasNodes: true,
     zoomToSizeRatioFunction: (ratio) => Math.pow(ratio, 0.25),
   },
   nodeReducer: (node, _data, attributes) => nodeLook(node, attributes),
@@ -84,10 +72,43 @@ const renderer = new Sigma<NodeAttributes, EdgeAttributes>(graph, stage, {
 })
 
 bindTrackpad(stage, renderer)
+createSky(stage, renderer, graph)
 
 const worker = new Worker(new URL('./cerebro/layout.worker.ts', import.meta.url), { type: 'module' })
 let layoutRun = 0
 let layoutOrder: string[] = []
+let layoutIndex = new Map<string, number>()
+let stopAppear: () => void = () => {}
+let leftWhileDragging = false
+
+const drag = bindDrag(renderer, graph, stage, {
+  onStart: () => float.setLayoutActive(true),
+  onMove: (node, x, y) => {
+    const index = layoutIndex.get(node)
+    if (index === undefined) return
+    const pin: LayoutPin = { pin: layoutRun, index, x, y }
+    worker.postMessage(pin)
+  },
+  onRelease: (node) => {
+    const index = layoutIndex.get(node)
+    if (index !== undefined) {
+      const release: LayoutRelease = { release: layoutRun, index }
+      worker.postMessage(release)
+    }
+    if (leftWhileDragging) {
+      leftWhileDragging = false
+      state.hovered = null
+      stage.classList.remove('brain-stage--pointer')
+      refreshFocus()
+    }
+  },
+  onCancel: () => stopLayout(),
+})
+
+const float = startFloat(graph, {
+  focus: () => ({ focus: focusNode(), neighbors: state.focus }),
+  dragging: () => drag.dragging(),
+})
 
 function nodeVisible(attributes: NodeAttributes): boolean {
   return !state.hiddenKinds.has(attributes.kind)
@@ -104,9 +125,35 @@ function focusNode(): string | null {
   return state.hovered ?? state.selected
 }
 
+const LABEL_FONT = "'Instrument Sans', -apple-system, system-ui, sans-serif"
+const CORE_SCALE = 0.42
+const CORE_WHITE = 0.7
+
+const coreColors = new Map<string, string>()
+
+function coreColor(color: string): string {
+  let core = coreColors.get(color)
+  if (core === undefined) {
+    core = mix(color, '#ffffff', CORE_WHITE)
+    coreColors.set(color, core)
+  }
+  return core
+}
+
 function nodeLook(node: string, attributes: NodeAttributes): Partial<NodeDisplayData> {
   if (!nodeVisible(attributes)) return { visibility: 'hidden', labelVisibility: 'hidden' }
-  const look: Partial<NodeDisplayData> = { labelColor: palette.label }
+  const look: Partial<NodeDisplayData> = {
+    color: coreColor(attributes.color),
+    size: attributes.size * CORE_SCALE,
+    opacity: Math.max(0, Math.min(1, attributes.glow)),
+    labelColor: palette.label,
+    labelSize: 11,
+    labelFont: LABEL_FONT,
+    backdropColor: SKY.backdrop,
+    backdropShadowColor: SKY.backdropShadow,
+    backdropArea: 'label',
+  }
+  if (attributes.glow <= 0) return { ...look, labelVisibility: 'hidden' }
   if (attributes.pinned) look.labelVisibility = 'visible'
   const focus = focusNode()
   if (focus === null) return look
@@ -115,12 +162,26 @@ function nodeLook(node: string, attributes: NodeAttributes): Partial<NodeDisplay
   return { ...look, color: palette.faded, labelVisibility: 'hidden', zIndex: 0 }
 }
 
+function edgeGlow(edge: string): number {
+  const [source, target] = graph.extremities(edge)
+  return Math.max(0, Math.min(1, graph.getNodeAttribute(source, 'glow'), graph.getNodeAttribute(target, 'glow')))
+}
+
 function edgeLook(edge: string, attributes: EdgeAttributes): Partial<EdgeDisplayData> {
   if (!edgeVisible(edge)) return { visibility: 'hidden' }
+  const look = edgeTone(edge, attributes)
+  const glow = edgeGlow(edge)
+  if (glow >= 1) return look
+  if (glow <= 0) return { visibility: 'hidden' }
+  return { ...look, color: fade(look.color ?? attributes.color, glow) }
+}
+
+function edgeTone(edge: string, attributes: EdgeAttributes): Partial<EdgeDisplayData> {
   const focus = focusNode()
-  if (focus === null) return {}
+  const look: Partial<EdgeDisplayData> = { size: attributes.size * 0.6 }
+  if (focus === null) return look
   if (graph.hasExtremity(edge, focus)) return { color: palette.strongEdge, size: Math.max(attributes.size, 1.4), zIndex: 2 }
-  return { color: palette.fadedEdge, zIndex: 0 }
+  return { ...look, color: palette.fadedEdge, zIndex: 0 }
 }
 
 function refreshFocus(): void {
@@ -171,6 +232,9 @@ function fill(data: BrainGraph): void {
     graph.addNode(node.id, {
       x: seed.x,
       y: seed.y,
+      baseX: seed.x,
+      baseY: seed.y,
+      glow: 1,
       size: nodeSize(Math.max(node.degree, degrees.get(node.id) ?? 0)),
       color: palette.kinds[node.kind],
       label: node.title,
@@ -191,7 +255,8 @@ function fill(data: BrainGraph): void {
 function startLayout(): void {
   layoutRun += 1
   layoutOrder = graph.nodes()
-  const index = new Map(layoutOrder.map((node, at) => [node, at]))
+  layoutIndex = new Map(layoutOrder.map((node, at) => [node, at]))
+  const index = layoutIndex
   const positions = new Float32Array(layoutOrder.length * 2)
   layoutOrder.forEach((node, at) => {
     const attributes = graph.getNodeAttributes(node)
@@ -213,20 +278,30 @@ function startLayout(): void {
   worker.postMessage(request, [request.positions.buffer, request.edges.buffer, request.weights.buffer])
 }
 
+function stopLayout(): void {
+  const stop: LayoutStop = { stop: layoutRun }
+  worker.postMessage(stop)
+  layoutRun += 1
+  float.setLayoutActive(false)
+}
+
 worker.addEventListener('message', (event: MessageEvent<LayoutFrame>) => {
   const frame = event.data
   if (frame.run !== layoutRun) return
   const positions = frame.positions
-  const index = new Map(layoutOrder.map((node, at) => [node, at]))
+  const held = drag.dragging()
+  float.setLayoutActive(!frame.done)
   graph.updateEachNodeAttributes(
     (node, attributes) => {
-      const at = index.get(node)
-      if (at === undefined) return attributes
-      attributes.x = positions[at * 2] ?? attributes.x
-      attributes.y = positions[at * 2 + 1] ?? attributes.y
+      const at = layoutIndex.get(node)
+      if (at === undefined || node === held) return attributes
+      attributes.baseX = positions[at * 2] ?? attributes.baseX
+      attributes.baseY = positions[at * 2 + 1] ?? attributes.baseY
+      attributes.x = attributes.baseX
+      attributes.y = attributes.baseY
       return attributes
     },
-    { attributes: ['x', 'y'] },
+    { attributes: ['x', 'y', 'baseX', 'baseY'] },
   )
   if (frame.done && state.pending !== null) {
     const target = state.pending
@@ -336,12 +411,18 @@ async function load(project: string | null): Promise<void> {
     else if (!state.projects.includes(project)) state.projects = [...state.projects, project].sort()
     state.hovered = null
     if (state.selected !== null && !data.nodes.some((node) => node.id === state.selected)) state.selected = null
+    drag.cancel()
+    stopAppear()
+    leftWhileDragging = false
     fill(data)
+    float.reset()
+    stopAppear = appear(graph, () => renderer.refresh({ skipIndexation: true, schedule: true }))
     renderProjects()
     renderCount()
     renderLegend()
     refreshFocus()
     if (data.nodes.length === 0) {
+      stopLayout()
       showMessage(plainBox(project === null ? 'Este cerebro todavía está vacío.' : `No hay nada guardado de ${project}.`))
       return
     }
@@ -350,6 +431,8 @@ async function load(project: string | null): Promise<void> {
   } catch (error) {
     if (token !== state.loadToken) return
     state.failed = true
+    drag.cancel()
+    stopLayout()
     graph.clear()
     renderCount()
     renderLegend()
@@ -505,18 +588,34 @@ projectSelect.addEventListener('change', () => {
 })
 
 renderer.on('enterNode', ({ node }) => {
+  leftWhileDragging = false
+  if (drag.dragging() !== null) return
   state.hovered = node
   stage.classList.add('brain-stage--pointer')
   refreshFocus()
 })
 
 renderer.on('leaveNode', () => {
+  if (drag.dragging() !== null) {
+    leftWhileDragging = true
+    return
+  }
   state.hovered = null
   stage.classList.remove('brain-stage--pointer')
   refreshFocus()
 })
 
-renderer.on('clickNode', ({ node }) => select(node))
+renderer.on('clickNode', ({ node }) => {
+  if (drag.consumeDrag()) return
+  select(node)
+})
+
+renderer.on('doubleClickNode', ({ node, preventSigmaDefault }) => {
+  if (!drag.releasedRecently()) return
+  preventSigmaDefault()
+  drag.consumeDrag()
+  select(node)
+})
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !side.hidden) closeSide()
@@ -529,6 +628,7 @@ document.addEventListener('keydown', (event) => {
 
 function repaint(): void {
   palette = readPalette()
+  coreColors.clear()
   graph.updateEachNodeAttributes((_node, attributes) => ({ ...attributes, color: palette.kinds[attributes.kind] }), {
     attributes: ['color'],
   })
