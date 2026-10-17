@@ -16,7 +16,7 @@ import {
 } from './cerebro/api.ts'
 import { GAZE_FIXTURE } from './cerebro/flag.ts'
 import { bindTrackpad } from './cerebro/gestures.ts'
-import { LABEL_FONT, LABEL_SIZE, pickLabels } from './cerebro/labels.ts'
+import { LABEL_FONT, LABEL_SIZE, pickLabels, resetLabelMetrics } from './cerebro/labels.ts'
 import type { LayoutFrame, LayoutPin, LayoutRelease, LayoutRequest, LayoutStop } from './cerebro/layout.worker.ts'
 import { appear, bindDrag, startFloat } from './cerebro/motion.ts'
 import { EDGE_LABELS, fade, KIND_LABELS, mix, readPalette, SKY, type Palette } from './cerebro/palette.ts'
@@ -108,6 +108,7 @@ const drag = bindDrag(renderer, graph, stage, {
 })
 
 const float = startFloat(graph, {
+  renderer,
   focus: () => ({ focus: focusNode(), neighbors: state.focus }),
   dragging: () => drag.dragging(),
 })
@@ -193,8 +194,9 @@ function refreshFocus(): void {
       if (edgeVisible(edge)) state.focus.add(source === focus ? target : source)
     })
   }
+  labelsDirty = true
+  pickNow()
   renderer.refresh({ skipIndexation: true })
-  scheduleLabels()
 }
 
 let labelsDirty = false
@@ -205,18 +207,26 @@ function scheduleLabels(): void {
   renderer.scheduleRender()
 }
 
-function updateLabels(): void {
-  if (!labelsDirty) return
+function pickNow(): boolean {
+  if (!labelsDirty) return false
   labelsDirty = false
   const next = pickLabels(renderer, graph, { visible: nodeVisible, focus: focusNode(), neighbors: state.focus })
-  if (next.size === state.labels.size && [...next].every((node) => state.labels.has(node))) return
+  if (next.size === state.labels.size && [...next].every((node) => state.labels.has(node))) return false
   state.labels = next
-  renderer.scheduleRefresh({ skipIndexation: true })
+  return true
+}
+
+function updateLabels(): void {
+  if (pickNow()) renderer.scheduleRefresh({ skipIndexation: true })
 }
 
 renderer.on('afterRender', updateLabels)
 renderer.getCamera().on('updated', scheduleLabels)
 renderer.on('resize', scheduleLabels)
+document.fonts.addEventListener('loadingdone', () => {
+  resetLabelMetrics()
+  scheduleLabels()
+})
 
 function nodeSize(degree: number): number {
   return 2 + Math.min(9, Math.sqrt(Math.max(0, degree)) * 1.4)

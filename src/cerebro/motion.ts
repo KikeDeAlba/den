@@ -22,7 +22,6 @@ const APPEAR_TOTAL = 600
 const APPEAR_FADE = 220
 
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
-const renderers = new WeakMap<BrainGraph, BrainRenderer>()
 
 export function prefersReducedMotion(): boolean {
   return reducedMotion.matches
@@ -48,7 +47,6 @@ export function bindDrag(renderer: BrainRenderer, graph: BrainGraph, stage: HTML
   let moved = false
   let dragged = false
   let releasedAt = Number.NEGATIVE_INFINITY
-  renderers.set(graph, renderer)
 
   const finish = (notify: boolean): void => {
     if (node === null) return
@@ -124,7 +122,7 @@ export interface FloatFocus {
 export interface FloatOptions {
   focus: () => FloatFocus
   dragging: () => string | null
-  renderer?: BrainRenderer
+  renderer: BrainRenderer
 }
 
 export interface FloatControl {
@@ -178,10 +176,9 @@ export function startFloat(graph: BrainGraph, options: FloatOptions): FloatContr
   let displaced = false
   let stale = true
   let activeAt = performance.now()
-  const renderer = options.renderer ?? renderers.get(graph)
+  const renderer = options.renderer
 
   const measure = (): void => {
-    if (renderer === undefined) return
     const origin = renderer.viewportToGraph({ x: 0, y: 0 })
     const offset = renderer.viewportToGraph({ x: 1, y: 0 })
     unit = Math.hypot(offset.x - origin.x, offset.y - origin.y)
@@ -189,7 +186,7 @@ export function startFloat(graph: BrainGraph, options: FloatOptions): FloatContr
   }
 
   const enabled = (): boolean =>
-    renderer !== undefined && !reducedMotion.matches && graph.order > 0 && graph.order <= FLOAT_MAX_NODES
+    !reducedMotion.matches && graph.order > 0 && graph.order <= FLOAT_MAX_NODES
 
   const halted = (): boolean => layoutActive || pressed || document.hidden || options.dragging() !== null
 
@@ -296,23 +293,23 @@ export function startFloat(graph: BrainGraph, options: FloatOptions): FloatContr
   window.addEventListener('blur', wake)
   document.addEventListener('visibilitychange', wake)
 
-  if (renderer !== undefined) {
-    const release = (): void => {
-      if (!pressed) return
-      pressed = false
-      wake()
-    }
-    renderer.getContainer().addEventListener('pointerdown', () => {
-      pressed = true
-      stop()
-      settle()
-    })
-    window.addEventListener('pointerup', release)
-    window.addEventListener('pointercancel', release)
-    window.addEventListener('blur', release)
-    renderer.getCamera().on('updated', measure)
-    renderer.on('resize', measure)
+  const release = (): void => {
+    if (!pressed) return
+    pressed = false
+    wake()
   }
+  renderer.getContainer().addEventListener('pointerdown', () => {
+    pressed = true
+    stop()
+    settle()
+  })
+  window.addEventListener('pointerup', release)
+  window.addEventListener('pointercancel', release)
+  window.addEventListener('contextmenu', release)
+  renderer.getContainer().addEventListener('lostpointercapture', release)
+  window.addEventListener('blur', release)
+  renderer.getCamera().on('updated', measure)
+  renderer.on('resize', measure)
 
   return {
     setLayoutActive: (active) => {

@@ -11,6 +11,7 @@ export const LABEL_FONT = "'Instrument Sans', -apple-system, system-ui, sans-ser
 const LABEL_MARGIN = 5
 const LABEL_PAD = 4
 const CELL = 64
+const FLOAT_DRIFT = 3
 
 export interface LabelQuery {
   visible(attributes: NodeAttributes): boolean
@@ -41,6 +42,11 @@ interface Obstacle extends Box {
 const widths = new Map<string, number>()
 const advances = new Map<string, number>()
 let context: CanvasRenderingContext2D | null = null
+
+export function resetLabelMetrics(): void {
+  widths.clear()
+  advances.clear()
+}
 
 function advance(glyph: string): number {
   let width = advances.get(glyph)
@@ -127,7 +133,8 @@ export function pickLabels(renderer: BrainRenderer, graph: BrainGraph, query: La
     if (display === undefined) return
     const { x, y } = renderer.framedGraphToViewport(display)
     const radius = renderer.scaleSize(display.size)
-    const core: Obstacle = { owner: node, minX: x - radius, maxX: x + radius, minY: y - radius, maxY: y + radius }
+    const reach = radius + FLOAT_DRIFT
+    const core: Obstacle = { owner: node, minX: x - reach, maxX: x + reach, minY: y - reach, maxY: y + reach }
     if (overlaps(core, view)) grid.add(core)
     const rank = rankOf(node, attributes, query)
     if (rank < 0 || attributes.label === '') return
