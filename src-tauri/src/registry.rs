@@ -17,7 +17,7 @@ use crate::platform;
 pub const REGISTRY_ENV: &str = "KIT_REGISTRY_DIR";
 pub const MANIFEST_VERSION: u64 = 1;
 const PROBE_TIMEOUT: Duration = Duration::from_secs(15);
-const PASSTHROUGH_PREFIXES: [&str; 7] = ["KIT_", "XDG_", "BITA_", "INKWELL_", "RECAP_", "ATL_", "TALLY_"];
+const PASSTHROUGH_PREFIXES: [&str; 8] = ["KIT_", "XDG_", "BITA_", "INKWELL_", "RECAP_", "ATL_", "TALLY_", "GAZE_"];
 const PASSTHROUGH_VARS: [&str; 9] = [
     "APPDATA",
     "LOCALAPPDATA",
@@ -159,9 +159,10 @@ pub enum Tool {
     Tally,
     Atl,
     Recap,
+    Gaze,
 }
 
-pub const KNOWN: [Tool; 5] = [Tool::Bita, Tool::Inkwell, Tool::Tally, Tool::Atl, Tool::Recap];
+pub const KNOWN: [Tool; 6] = [Tool::Bita, Tool::Inkwell, Tool::Tally, Tool::Atl, Tool::Recap, Tool::Gaze];
 
 impl Tool {
     pub fn name(self) -> &'static str {
@@ -171,6 +172,7 @@ impl Tool {
             Tool::Tally => "tally",
             Tool::Atl => "atl",
             Tool::Recap => "recap",
+            Tool::Gaze => "gaze",
         }
     }
 
@@ -185,6 +187,7 @@ impl Tool {
             Tool::Tally => "TALLY_CLI",
             Tool::Atl => "ATL_CLI",
             Tool::Recap => "RECAP_CLI",
+            Tool::Gaze => "GAZE_CLI",
         }
     }
 
@@ -200,6 +203,7 @@ impl Tool {
             Tool::Tally => "Lo pendiente de pasar a Jira: agrupa el tiempo medido y lleva la cuenta de lo ya registrado.",
             Tool::Atl => "Las conexiones con Jira y Confluence.",
             Tool::Recap => "Grabar reuniones, la minuta y el asistente en vivo.",
+            Tool::Gaze => "El cerebro de cada proyecto: el grafo de lo aprendido y la búsqueda en él.",
         }
     }
 
@@ -220,6 +224,7 @@ impl Tool {
             Tool::Tally => &["timesheet.summary", "timesheet.map", "timesheet.link"],
             Tool::Atl => &["jira.issue.read", "jira.issue.write", "confluence.page.read", "confluence.page.write"],
             Tool::Recap => &[],
+            Tool::Gaze => &["memory.graph.read", "memory.search"],
         };
         list.iter().map(|item| item.to_string()).collect()
     }
@@ -655,6 +660,8 @@ pub struct Modules {
     pub live_assistant: bool,
     pub auto_ask: bool,
     pub meeting_kinds: bool,
+    pub graph: bool,
+    pub graph_search: bool,
 }
 
 pub type ReadyTools = HashMap<Tool, Vec<String>>;
@@ -682,6 +689,8 @@ pub fn modules(ready: &ReadyTools) -> Modules {
         live_assistant: recap,
         auto_ask: recap,
         meeting_kinds: bita && recap,
+        graph: has(Tool::Gaze, "memory.graph.read"),
+        graph_search: has(Tool::Gaze, "memory.graph.read") && has(Tool::Gaze, "memory.search"),
     }
 }
 
@@ -1242,6 +1251,17 @@ mod tests {
         assert!(!tally_without_summary.jira);
 
         assert!(modules(&ready(&[(Tool::Atl, &["jira.issue.read"])])).atlassian);
+        assert!(!trio.graph && !trio.graph_search);
+
+        let brain = modules(&ready(&[(Tool::Gaze, &["memory.graph.read", "memory.search"])]));
+        assert!(brain.graph && brain.graph_search);
+        assert!(!brain.timers && !brain.notes && !brain.meetings);
+
+        let search_only = modules(&ready(&[(Tool::Gaze, &["memory.search"])]));
+        assert!(!search_only.graph && !search_only.graph_search);
+
+        let graph_only = modules(&ready(&[(Tool::Gaze, &["memory.graph.read"])]));
+        assert!(graph_only.graph && !graph_only.graph_search);
     }
 
     #[cfg(unix)]
@@ -1404,6 +1424,7 @@ esac"#
         assert!(passes_through("INKWELL_DOCS_DIR"));
         assert!(passes_through("XDG_CONFIG_HOME"));
         assert!(passes_through("APPDATA"));
+        assert!(passes_through("GAZE_HOME"));
         assert!(!passes_through("AWS_SECRET_ACCESS_KEY"));
         assert!(!passes_through("PATH"));
     }

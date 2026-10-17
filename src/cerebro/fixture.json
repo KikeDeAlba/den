@@ -1,0 +1,1182 @@
+{
+ "nodes": [
+  {
+   "id": "den:rule:1",
+   "project": "den",
+   "kind": "rule",
+   "title": "Los módulos se encienden por capacidades",
+   "degree": 3,
+   "pinned": true,
+   "updatedAt": "2026-10-01T10:00:00Z",
+   "createdAt": "2026-09-01T09:00:00Z",
+   "body": "Un módulo de den solo aparece si la herramienta está en el registro **y** declara la capacidad en `capabilities --json`.\n\n- `notes` ← `docs.page.read`\n- `graph` ← `memory.graph.read`\n\nNunca se asume una capacidad por la versión.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "den:rule:2",
+   "project": "den",
+   "kind": "rule",
+   "title": "Sin comentarios en el código",
+   "degree": 7,
+   "pinned": false,
+   "updatedAt": "2026-10-08T10:00:00Z",
+   "createdAt": "2026-09-08T09:00:00Z",
+   "body": "El *por qué* va en el commit y en el README. Se permiten `TODO:` y `FIXME:` en la línea exacta del pendiente.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "den:decision:1",
+   "project": "den",
+   "kind": "decision",
+   "title": "Ventanas normales cuentan para el Dock",
+   "degree": 5,
+   "pinned": false,
+   "updatedAt": "2026-10-15T10:00:00Z",
+   "createdAt": "2026-09-15T09:00:00Z",
+   "body": "Notas, Reportes y Cerebro son ventanas normales: mientras alguna está visible la app aparece en el Dock de macOS.\n\n> Se decidió en la revisión del panel de octubre.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "den:decision:2",
+   "project": "den",
+   "kind": "decision",
+   "title": "Sigma.js para el grafo",
+   "degree": 6,
+   "pinned": false,
+   "updatedAt": "2026-10-22T10:00:00Z",
+   "createdAt": "2026-09-22T09:00:00Z",
+   "body": "Se eligió **sigma.js + graphology** porque dibuja con WebGL y aguanta miles de nodos.\n\nAlternativas descartadas:\n\n1. d3-force con SVG: lento arriba de 1 000 nodos.\n2. cytoscape: pesado para lo que necesitamos.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "den:fact:1",
+   "project": "den",
+   "kind": "fact",
+   "title": "El registro vive en tools.d",
+   "degree": 5,
+   "pinned": false,
+   "updatedAt": "2026-10-01T10:00:00Z",
+   "createdAt": "2026-09-01T09:00:00Z",
+   "body": "Cada herramienta deja un manifiesto en `~/.config/kikedealba/tools.d/<nombre>.json`. Se puede mover con `KIT_REGISTRY_DIR`.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "den:fact:2",
+   "project": "den",
+   "kind": "fact",
+   "title": "El sobre kit",
+   "degree": 4,
+   "pinned": false,
+   "updatedAt": "2026-10-08T10:00:00Z",
+   "createdAt": "2026-09-08T09:00:00Z",
+   "body": "Toda respuesta `--json` llega como:\n\n```json\n{ \"ok\": true, \"data\": {}, \"error\": null }\n```\n\nSi `ok` es falso, `error` trae `code`, `message` y a veces `hint`.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "den:fact:3",
+   "project": "den",
+   "kind": "fact",
+   "title": "La CSP no permite blobs",
+   "degree": 3,
+   "pinned": false,
+   "updatedAt": "2026-10-15T10:00:00Z",
+   "createdAt": "2026-09-15T09:00:00Z",
+   "body": "La política de contenido de la app es `default-src 'self'`: los workers deben ser archivos del bundle, no `blob:`.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "den:doc:1",
+   "project": "den",
+   "kind": "doc",
+   "title": "Arquitectura del panel",
+   "degree": 4,
+   "pinned": false,
+   "updatedAt": "2026-10-22T10:00:00Z",
+   "createdAt": "2026-09-22T09:00:00Z",
+   "body": "El panel vive en la barra de menús y muestra **Hoy**. Desde su barra se abren Notas, Reportes y Cerebro.\n\n| Ventana | Archivo |\n|---|---|\n| Panel | index.html |\n| Notas | notas.html |\n| Cerebro | cerebro.html |",
+   "source": "inkwell",
+   "sourceRef": null
+  },
+  {
+   "id": "den:doc:2",
+   "project": "den",
+   "kind": "doc",
+   "title": "Cómo correr den en desarrollo",
+   "degree": 2,
+   "pinned": false,
+   "updatedAt": "2026-10-01T10:00:00Z",
+   "createdAt": "2026-09-01T09:00:00Z",
+   "body": "```sh\npnpm install\npnpm tauri dev\n```\n\nPara ver el cerebro sin gaze: `VITE_GAZE_FIXTURE=1 pnpm dev`.",
+   "source": "inkwell",
+   "sourceRef": null
+  },
+  {
+   "id": "den:issue:1",
+   "project": "den",
+   "kind": "issue",
+   "title": "DEN-41 El grafo tarda en abrir",
+   "degree": 7,
+   "pinned": false,
+   "updatedAt": "2026-10-08T10:00:00Z",
+   "createdAt": "2026-09-08T09:00:00Z",
+   "body": "Con 4 000 nodos el layout bloqueaba la ventana. Se movió ForceAtlas2 a un worker con un número acotado de iteraciones.",
+   "source": "jira",
+   "sourceRef": "1"
+  },
+  {
+   "id": "den:issue:2",
+   "project": "den",
+   "kind": "issue",
+   "title": "DEN-38 Etiquetas encimadas",
+   "degree": 6,
+   "pinned": false,
+   "updatedAt": "2026-10-15T10:00:00Z",
+   "createdAt": "2026-09-15T09:00:00Z",
+   "body": "Las etiquetas del grafo se encimaban con zoom lejano. Se dejan en automático y solo se fuerzan las de los vecinos del nodo bajo el puntero.",
+   "source": "jira",
+   "sourceRef": "2"
+  },
+  {
+   "id": "den:meeting:1",
+   "project": "den",
+   "kind": "meeting",
+   "title": "Revisión del panel · 3 oct",
+   "degree": 4,
+   "pinned": false,
+   "updatedAt": "2026-10-22T10:00:00Z",
+   "createdAt": "2026-09-22T09:00:00Z",
+   "body": "Acuerdos:\n\n- El botón del cerebro va junto a Reportes.\n- El panel lateral reutiliza el lector de Markdown de Notas.\n\nPendientes: probar con el fixture.",
+   "source": "recap",
+   "sourceRef": null
+  },
+  {
+   "id": "den:entry:1",
+   "project": "den",
+   "kind": "entry",
+   "title": "Cronómetro: grafo de conocimiento",
+   "degree": 6,
+   "pinned": false,
+   "updatedAt": "2026-10-01T10:00:00Z",
+   "createdAt": "2026-09-01T09:00:00Z",
+   "body": "2 h 15 min trabajando en la vista del cerebro.",
+   "source": "bita",
+   "sourceRef": null
+  },
+  {
+   "id": "den:memory:1",
+   "project": "den",
+   "kind": "memory",
+   "title": "Preferencia: interfaz en español",
+   "degree": 6,
+   "pinned": false,
+   "updatedAt": "2026-10-08T10:00:00Z",
+   "createdAt": "2026-09-08T09:00:00Z",
+   "body": "Todo lo que ve la persona usuaria va en español; el código, en inglés.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "den:fact:4",
+   "project": "den",
+   "kind": "fact",
+   "title": "Los colores salen de variables CSS",
+   "degree": 5,
+   "pinned": false,
+   "updatedAt": "2026-10-15T10:00:00Z",
+   "createdAt": "2026-09-15T09:00:00Z",
+   "body": "El grafo lee `--running`, `--blue`, `--purple`… de `:root` al arrancar, así respeta el tema.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "inkwell:rule:3",
+   "project": "inkwell",
+   "kind": "rule",
+   "title": "Una página, un archivo",
+   "degree": 4,
+   "pinned": true,
+   "updatedAt": "2026-10-22T10:00:00Z",
+   "createdAt": "2026-09-22T09:00:00Z",
+   "body": "Cada página de inkwell es un archivo Markdown en git. El índice vive en SQLite.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "inkwell:decision:3",
+   "project": "inkwell",
+   "kind": "decision",
+   "title": "Confluence como espejo",
+   "degree": 4,
+   "pinned": false,
+   "updatedAt": "2026-10-01T10:00:00Z",
+   "createdAt": "2026-09-01T09:00:00Z",
+   "body": "Confluence es un espejo: la fuente de verdad es el repositorio de docs.\n\nVer también [la guía de sincronización](https://example.com/sync).",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "inkwell:fact:5",
+   "project": "inkwell",
+   "kind": "fact",
+   "title": "El backlog es una página",
+   "degree": 5,
+   "pinned": false,
+   "updatedAt": "2026-10-08T10:00:00Z",
+   "createdAt": "2026-09-08T09:00:00Z",
+   "body": "El backlog de cada proyecto es una página especial con front matter `kind: backlog`.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "inkwell:doc:3",
+   "project": "inkwell",
+   "kind": "doc",
+   "title": "Guía de sincronización",
+   "degree": 2,
+   "pinned": false,
+   "updatedAt": "2026-10-15T10:00:00Z",
+   "createdAt": "2026-09-15T09:00:00Z",
+   "body": "1. `inkwell sync pull`\n2. Revisa el diff.\n3. `inkwell sync push`\n\nLos conflictos se resuelven a mano.",
+   "source": "inkwell",
+   "sourceRef": null
+  },
+  {
+   "id": "inkwell:doc:4",
+   "project": "inkwell",
+   "kind": "doc",
+   "title": "Diagramas en las páginas",
+   "degree": 2,
+   "pinned": false,
+   "updatedAt": "2026-10-22T10:00:00Z",
+   "createdAt": "2026-09-22T09:00:00Z",
+   "body": "Se aceptan bloques `mermaid` y archivos `.drawio`.",
+   "source": "inkwell",
+   "sourceRef": null
+  },
+  {
+   "id": "inkwell:issue:3",
+   "project": "inkwell",
+   "kind": "issue",
+   "title": "INK-12 Front matter en el lector",
+   "degree": 4,
+   "pinned": false,
+   "updatedAt": "2026-10-01T10:00:00Z",
+   "createdAt": "2026-09-01T09:00:00Z",
+   "body": "El lector mostraba el front matter como texto. Se oculta al renderizar.",
+   "source": "jira",
+   "sourceRef": "3"
+  },
+  {
+   "id": "inkwell:issue:4",
+   "project": "inkwell",
+   "kind": "issue",
+   "title": "INK-19 Historial sin autor",
+   "degree": 5,
+   "pinned": false,
+   "updatedAt": "2026-10-08T10:00:00Z",
+   "createdAt": "2026-09-08T09:00:00Z",
+   "body": "Las revisiones importadas no traían autor; ahora se marcan como `import`.",
+   "source": "jira",
+   "sourceRef": "4"
+  },
+  {
+   "id": "inkwell:meeting:2",
+   "project": "inkwell",
+   "kind": "meeting",
+   "title": "Planeación de inkwell · 7 oct",
+   "degree": 9,
+   "pinned": false,
+   "updatedAt": "2026-10-15T10:00:00Z",
+   "createdAt": "2026-09-15T09:00:00Z",
+   "body": "Se priorizó la propuesta de cambios desde reuniones.",
+   "source": "recap",
+   "sourceRef": null
+  },
+  {
+   "id": "inkwell:entry:2",
+   "project": "inkwell",
+   "kind": "entry",
+   "title": "Cronómetro: sincronización con Confluence",
+   "degree": 8,
+   "pinned": false,
+   "updatedAt": "2026-10-22T10:00:00Z",
+   "createdAt": "2026-09-22T09:00:00Z",
+   "body": "1 h 40 min.",
+   "source": "bita",
+   "sourceRef": null
+  },
+  {
+   "id": "inkwell:memory:2",
+   "project": "inkwell",
+   "kind": "memory",
+   "title": "Las notas de cronómetro van a la página del día",
+   "degree": 4,
+   "pinned": false,
+   "updatedAt": "2026-10-01T10:00:00Z",
+   "createdAt": "2026-09-01T09:00:00Z",
+   "body": "Cuando se para un cronómetro con nota, la nota se anexa a la página del día del proyecto.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "inkwell:fact:6",
+   "project": "inkwell",
+   "kind": "fact",
+   "title": "Las propuestas vienen de recap",
+   "degree": 6,
+   "pinned": false,
+   "updatedAt": "2026-10-08T10:00:00Z",
+   "createdAt": "2026-09-08T09:00:00Z",
+   "body": "recap detecta acuerdos en la minuta y propone cambios a páginas concretas.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "inkwell:decision:4",
+   "project": "inkwell",
+   "kind": "decision",
+   "title": "Historial con diffs por bloque",
+   "degree": 4,
+   "pinned": false,
+   "updatedAt": "2026-10-15T10:00:00Z",
+   "createdAt": "2026-09-15T09:00:00Z",
+   "body": "El historial compara por bloques de Markdown, no por líneas, para que las tablas no se rompan.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "bita:rule:4",
+   "project": "bita",
+   "kind": "rule",
+   "title": "Un cronómetro por tarea",
+   "degree": 6,
+   "pinned": true,
+   "updatedAt": "2026-10-22T10:00:00Z",
+   "createdAt": "2026-09-22T09:00:00Z",
+   "body": "No se reutiliza un cronómetro para dos tareas; se para y se arranca otro.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "bita:fact:7",
+   "project": "bita",
+   "kind": "fact",
+   "title": "La base es SQLite local",
+   "degree": 7,
+   "pinned": false,
+   "updatedAt": "2026-10-01T10:00:00Z",
+   "createdAt": "2026-09-01T09:00:00Z",
+   "body": "Los cronómetros viven en `bita.db`; den la lee con `--db-path`.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "bita:fact:8",
+   "project": "bita",
+   "kind": "fact",
+   "title": "Las horas extra salen de tally",
+   "degree": 5,
+   "pinned": false,
+   "updatedAt": "2026-10-08T10:00:00Z",
+   "createdAt": "2026-09-08T09:00:00Z",
+   "body": "tally calcula horas extra por mes a partir de lo medido en bita.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "bita:decision:5",
+   "project": "bita",
+   "kind": "decision",
+   "title": "Redondeo a 15 minutos",
+   "degree": 6,
+   "pinned": false,
+   "updatedAt": "2026-10-15T10:00:00Z",
+   "createdAt": "2026-09-15T09:00:00Z",
+   "body": "Al subir a Jira se redondea a bloques de 15 minutos.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "bita:doc:5",
+   "project": "bita",
+   "kind": "doc",
+   "title": "Comandos básicos",
+   "degree": 4,
+   "pinned": false,
+   "updatedAt": "2026-10-22T10:00:00Z",
+   "createdAt": "2026-09-22T09:00:00Z",
+   "body": "```sh\nbita start \"tarea\" -p den\nbita stop\nbita ls --today\n```",
+   "source": "inkwell",
+   "sourceRef": null
+  },
+  {
+   "id": "bita:issue:5",
+   "project": "bita",
+   "kind": "issue",
+   "title": "BITA-7 Cronómetro fantasma",
+   "degree": 6,
+   "pinned": false,
+   "updatedAt": "2026-10-01T10:00:00Z",
+   "createdAt": "2026-09-01T09:00:00Z",
+   "body": "Un cronómetro quedaba corriendo tras reiniciar. Se cierra al detectar el arranque.",
+   "source": "jira",
+   "sourceRef": "5"
+  },
+  {
+   "id": "bita:issue:6",
+   "project": "bita",
+   "kind": "issue",
+   "title": "BITA-9 Zona horaria en reportes",
+   "degree": 12,
+   "pinned": false,
+   "updatedAt": "2026-10-08T10:00:00Z",
+   "createdAt": "2026-09-08T09:00:00Z",
+   "body": "Los reportes usaban UTC; ahora usan la zona local.",
+   "source": "jira",
+   "sourceRef": "6"
+  },
+  {
+   "id": "bita:meeting:3",
+   "project": "bita",
+   "kind": "meeting",
+   "title": "Retro de bita · 1 oct",
+   "degree": 4,
+   "pinned": false,
+   "updatedAt": "2026-10-15T10:00:00Z",
+   "createdAt": "2026-09-15T09:00:00Z",
+   "body": "Se acordó mostrar el total del día en la barra del panel.",
+   "source": "recap",
+   "sourceRef": null
+  },
+  {
+   "id": "bita:entry:3",
+   "project": "bita",
+   "kind": "entry",
+   "title": "Cronómetro: corrección de zona horaria",
+   "degree": 6,
+   "pinned": false,
+   "updatedAt": "2026-10-22T10:00:00Z",
+   "createdAt": "2026-09-22T09:00:00Z",
+   "body": "45 min.",
+   "source": "bita",
+   "sourceRef": null
+  },
+  {
+   "id": "bita:memory:3",
+   "project": "bita",
+   "kind": "memory",
+   "title": "El día empieza a las 6 am",
+   "degree": 6,
+   "pinned": false,
+   "updatedAt": "2026-10-01T10:00:00Z",
+   "createdAt": "2026-09-01T09:00:00Z",
+   "body": "Para agrupar por día, bita considera que el día empieza a las 6 am.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "bita:fact:9",
+   "project": "bita",
+   "kind": "fact",
+   "title": "Los tipos de reunión",
+   "degree": 3,
+   "pinned": false,
+   "updatedAt": "2026-10-08T10:00:00Z",
+   "createdAt": "2026-09-08T09:00:00Z",
+   "body": "Un cronómetro puede marcarse como reunión remota o presencial.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "den:fact:10",
+   "project": "den",
+   "kind": "fact",
+   "title": "gaze es el cerebro de cada proyecto",
+   "degree": 4,
+   "pinned": false,
+   "updatedAt": "2026-10-15T10:00:00Z",
+   "createdAt": "2026-09-15T09:00:00Z",
+   "body": "gaze guarda reglas, hechos y decisiones por proyecto y las enlaza en un grafo.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "den:rule:5",
+   "project": "den",
+   "kind": "rule",
+   "title": "Las rutas siempre absolutas",
+   "degree": 5,
+   "pinned": true,
+   "updatedAt": "2026-10-22T10:00:00Z",
+   "createdAt": "2026-09-22T09:00:00Z",
+   "body": "Las herramientas reciben rutas absolutas; nunca dependen del directorio actual.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "inkwell:rule:6",
+   "project": "inkwell",
+   "kind": "rule",
+   "title": "Los diagramas viven junto a la página",
+   "degree": 2,
+   "pinned": false,
+   "updatedAt": "2026-10-01T10:00:00Z",
+   "createdAt": "2026-09-01T09:00:00Z",
+   "body": "Un `.drawio` va en la misma carpeta que la página que lo usa.",
+   "source": "gaze",
+   "sourceRef": null
+  },
+  {
+   "id": "bita:rule:7",
+   "project": "bita",
+   "kind": "rule",
+   "title": "Las entradas no se borran",
+   "degree": 4,
+   "pinned": false,
+   "updatedAt": "2026-10-08T10:00:00Z",
+   "createdAt": "2026-09-08T09:00:00Z",
+   "body": "Una entrada equivocada se corrige o se descarta, no se borra de la base.",
+   "source": "gaze",
+   "sourceRef": null
+  }
+ ],
+ "edges": [
+  {
+   "src": "bita:decision:5",
+   "dst": "bita:fact:9",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:decision:5",
+   "dst": "bita:issue:5",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:decision:5",
+   "dst": "bita:issue:6",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:decision:5",
+   "dst": "bita:meeting:3",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:decision:5",
+   "dst": "den:fact:4",
+   "kind": "similar",
+   "weight": 0.59
+  },
+  {
+   "src": "bita:decision:5",
+   "dst": "den:memory:1",
+   "kind": "similar",
+   "weight": 0.78
+  },
+  {
+   "src": "bita:doc:5",
+   "dst": "bita:issue:6",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:doc:5",
+   "dst": "bita:issue:6",
+   "kind": "same-issue",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:doc:5",
+   "dst": "bita:rule:4",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:doc:5",
+   "dst": "inkwell:meeting:2",
+   "kind": "similar",
+   "weight": 0.83
+  },
+  {
+   "src": "bita:entry:3",
+   "dst": "bita:issue:5",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:entry:3",
+   "dst": "bita:memory:3",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:entry:3",
+   "dst": "bita:memory:3",
+   "kind": "same-entry",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:entry:3",
+   "dst": "bita:rule:4",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:entry:3",
+   "dst": "bita:rule:7",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:entry:3",
+   "dst": "bita:rule:7",
+   "kind": "same-entry",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:fact:7",
+   "dst": "bita:fact:8",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:fact:7",
+   "dst": "bita:issue:5",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:fact:7",
+   "dst": "bita:issue:5",
+   "kind": "same-issue",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:fact:7",
+   "dst": "bita:issue:6",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:fact:7",
+   "dst": "bita:meeting:3",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:fact:7",
+   "dst": "bita:memory:3",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:fact:7",
+   "dst": "inkwell:meeting:2",
+   "kind": "similar",
+   "weight": 0.93
+  },
+  {
+   "src": "bita:fact:8",
+   "dst": "bita:issue:6",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:fact:8",
+   "dst": "bita:issue:6",
+   "kind": "same-issue",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:fact:8",
+   "dst": "bita:meeting:3",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:fact:8",
+   "dst": "bita:rule:7",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:fact:9",
+   "dst": "bita:memory:3",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:fact:9",
+   "dst": "bita:rule:4",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:issue:5",
+   "dst": "bita:issue:6",
+   "kind": "same-issue",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:issue:5",
+   "dst": "inkwell:issue:4",
+   "kind": "similar",
+   "weight": 0.79
+  },
+  {
+   "src": "bita:issue:6",
+   "dst": "bita:meeting:3",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:issue:6",
+   "dst": "bita:memory:3",
+   "kind": "same-issue",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:issue:6",
+   "dst": "bita:rule:4",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:issue:6",
+   "dst": "bita:rule:4",
+   "kind": "same-issue",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:issue:6",
+   "dst": "inkwell:entry:2",
+   "kind": "similar",
+   "weight": 0.91
+  },
+  {
+   "src": "bita:memory:3",
+   "dst": "bita:rule:4",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "bita:rule:7",
+   "dst": "inkwell:meeting:2",
+   "kind": "similar",
+   "weight": 0.86
+  },
+  {
+   "src": "den:decision:1",
+   "dst": "den:decision:2",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:decision:1",
+   "dst": "den:doc:1",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:decision:1",
+   "dst": "den:doc:2",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:decision:1",
+   "dst": "den:fact:2",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:decision:1",
+   "dst": "den:issue:1",
+   "kind": "same-issue",
+   "weight": 1.0
+  },
+  {
+   "src": "den:decision:2",
+   "dst": "den:fact:10",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:decision:2",
+   "dst": "den:issue:1",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:decision:2",
+   "dst": "den:meeting:1",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:decision:2",
+   "dst": "den:rule:2",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:decision:2",
+   "dst": "den:rule:5",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:doc:1",
+   "dst": "den:entry:1",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:doc:1",
+   "dst": "den:issue:2",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:doc:1",
+   "dst": "den:issue:2",
+   "kind": "same-issue",
+   "weight": 1.0
+  },
+  {
+   "src": "den:doc:2",
+   "dst": "den:memory:1",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:entry:1",
+   "dst": "den:fact:10",
+   "kind": "similar",
+   "weight": 0.93
+  },
+  {
+   "src": "den:entry:1",
+   "dst": "den:issue:2",
+   "kind": "same-entry",
+   "weight": 1.0
+  },
+  {
+   "src": "den:entry:1",
+   "dst": "den:meeting:1",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:entry:1",
+   "dst": "den:rule:2",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:entry:1",
+   "dst": "den:rule:5",
+   "kind": "similar",
+   "weight": 0.86
+  },
+  {
+   "src": "den:fact:1",
+   "dst": "den:fact:3",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:fact:1",
+   "dst": "den:fact:4",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:fact:1",
+   "dst": "den:memory:1",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:fact:1",
+   "dst": "den:rule:1",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:fact:1",
+   "dst": "den:rule:5",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:fact:10",
+   "dst": "den:issue:1",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:fact:10",
+   "dst": "den:issue:1",
+   "kind": "same-issue",
+   "weight": 1.0
+  },
+  {
+   "src": "den:fact:2",
+   "dst": "den:rule:2",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:fact:2",
+   "dst": "den:rule:5",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:fact:2",
+   "dst": "inkwell:entry:2",
+   "kind": "similar",
+   "weight": 0.6
+  },
+  {
+   "src": "den:fact:3",
+   "dst": "den:issue:1",
+   "kind": "same-issue",
+   "weight": 1.0
+  },
+  {
+   "src": "den:fact:3",
+   "dst": "den:memory:1",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:fact:4",
+   "dst": "den:memory:1",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:fact:4",
+   "dst": "inkwell:fact:6",
+   "kind": "similar",
+   "weight": 0.59
+  },
+  {
+   "src": "den:fact:4",
+   "dst": "inkwell:meeting:2",
+   "kind": "similar",
+   "weight": 0.74
+  },
+  {
+   "src": "den:issue:1",
+   "dst": "den:memory:1",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:issue:1",
+   "dst": "den:rule:2",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:issue:2",
+   "dst": "den:meeting:1",
+   "kind": "same-issue",
+   "weight": 1.0
+  },
+  {
+   "src": "den:issue:2",
+   "dst": "den:rule:1",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:issue:2",
+   "dst": "den:rule:2",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:meeting:1",
+   "dst": "den:rule:2",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "den:rule:1",
+   "dst": "den:rule:5",
+   "kind": "similar",
+   "weight": 0.72
+  },
+  {
+   "src": "den:rule:2",
+   "dst": "inkwell:fact:5",
+   "kind": "similar",
+   "weight": 0.71
+  },
+  {
+   "src": "inkwell:decision:3",
+   "dst": "inkwell:decision:4",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:decision:3",
+   "dst": "inkwell:doc:4",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:decision:3",
+   "dst": "inkwell:entry:2",
+   "kind": "same-entry",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:decision:3",
+   "dst": "inkwell:memory:2",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:decision:4",
+   "dst": "inkwell:doc:4",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:decision:4",
+   "dst": "inkwell:rule:3",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:decision:4",
+   "dst": "inkwell:rule:6",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:doc:3",
+   "dst": "inkwell:fact:6",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:doc:3",
+   "dst": "inkwell:meeting:2",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:entry:2",
+   "dst": "inkwell:fact:5",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:entry:2",
+   "dst": "inkwell:fact:6",
+   "kind": "same-entry",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:entry:2",
+   "dst": "inkwell:issue:4",
+   "kind": "same-entry",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:entry:2",
+   "dst": "inkwell:meeting:2",
+   "kind": "same-entry",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:entry:2",
+   "dst": "inkwell:memory:2",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:fact:5",
+   "dst": "inkwell:fact:6",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:fact:5",
+   "dst": "inkwell:memory:2",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:fact:5",
+   "dst": "inkwell:rule:6",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:fact:6",
+   "dst": "inkwell:issue:3",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:fact:6",
+   "dst": "inkwell:rule:3",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:issue:3",
+   "dst": "inkwell:issue:4",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:issue:3",
+   "dst": "inkwell:meeting:2",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:issue:3",
+   "dst": "inkwell:meeting:2",
+   "kind": "same-issue",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:issue:4",
+   "dst": "inkwell:rule:3",
+   "kind": "link",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:issue:4",
+   "dst": "inkwell:rule:3",
+   "kind": "same-issue",
+   "weight": 1.0
+  },
+  {
+   "src": "inkwell:meeting:2",
+   "dst": "inkwell:memory:2",
+   "kind": "link",
+   "weight": 1.0
+  }
+ ]
+}
