@@ -16,7 +16,8 @@ import {
 } from './cerebro/api.ts'
 import { GAZE_FIXTURE } from './cerebro/flag.ts'
 import { bindTrackpad } from './cerebro/gestures.ts'
-import type { LayoutFrame, LayoutRequest } from './cerebro/layout.worker.ts'
+import type { LayoutFrame, LayoutPin, LayoutRelease, LayoutRequest } from './cerebro/layout.worker.ts'
+import { appear, bindDrag, startFloat } from './cerebro/motion.ts'
 import { EDGE_LABELS, KIND_LABELS, mix, readPalette, SKY, type Palette } from './cerebro/palette.ts'
 import { createSky } from './cerebro/sky.ts'
 import { kindDot, sideDetail, sideLoading, sideProblem, type SideHandlers } from './cerebro/side.ts'
@@ -76,6 +77,37 @@ createSky(stage, renderer, graph)
 const worker = new Worker(new URL('./cerebro/layout.worker.ts', import.meta.url), { type: 'module' })
 let layoutRun = 0
 let layoutOrder: string[] = []
+let layoutIndex = new Map<string, number>()
+let stopAppear: () => void = () => {}
+let leftWhileDragging = false
+
+const drag = bindDrag(renderer, graph, stage, {
+  onStart: () => float.setLayoutActive(true),
+  onMove: (node, x, y) => {
+    const index = layoutIndex.get(node)
+    if (index === undefined) return
+    const message: LayoutPin = { pin: layoutRun, index, x, y }
+    worker.postMessage(message)
+  },
+  onRelease: (node) => {
+    const index = layoutIndex.get(node)
+    if (index !== undefined) {
+      const message: LayoutRelease = { release: layoutRun, index }
+      worker.postMessage(message)
+    }
+    if (leftWhileDragging) {
+      leftWhileDragging = false
+      state.hovered = null
+      stage.classList.remove('brain-stage--pointer')
+      refreshFocus()
+    }
+  },
+})
+
+const float = startFloat(graph, {
+  focus: () => ({ focus: focusNode(), neighbors: state.focus }),
+  dragging: () => drag.dragging(),
+})
 
 function nodeVisible(attributes: NodeAttributes): boolean {
   return !state.hiddenKinds.has(attributes.kind)
@@ -198,7 +230,8 @@ function fill(data: BrainGraph): void {
 function startLayout(): void {
   layoutRun += 1
   layoutOrder = graph.nodes()
-  const index = new Map(layoutOrder.map((node, at) => [node, at]))
+  layoutIndex = new Map(layoutOrder.map((node, at) => [node, at]))
+  const index = layoutIndex
   const positions = new Float32Array(layoutOrder.length * 2)
   layoutOrder.forEach((node, at) => {
     const attributes = graph.getNodeAttributes(node)
@@ -224,16 +257,19 @@ worker.addEventListener('message', (event: MessageEvent<LayoutFrame>) => {
   const frame = event.data
   if (frame.run !== layoutRun) return
   const positions = frame.positions
-  const index = new Map(layoutOrder.map((node, at) => [node, at]))
+  const held = drag.dragging()
+  float.setLayoutActive(!frame.done)
   graph.updateEachNodeAttributes(
     (node, attributes) => {
-      const at = index.get(node)
-      if (at === undefined) return attributes
-      attributes.x = positions[at * 2] ?? attributes.x
-      attributes.y = positions[at * 2 + 1] ?? attributes.y
+      const at = layoutIndex.get(node)
+      if (at === undefined || node === held) return attributes
+      attributes.baseX = positions[at * 2] ?? attributes.baseX
+      attributes.baseY = positions[at * 2 + 1] ?? attributes.baseY
+      attributes.x = attributes.baseX
+      attributes.y = attributes.baseY
       return attributes
     },
-    { attributes: ['x', 'y'] },
+    { attributes: ['x', 'y', 'baseX', 'baseY'] },
   )
   if (frame.done && state.pending !== null) {
     const target = state.pending
@@ -343,7 +379,12 @@ async function load(project: string | null): Promise<void> {
     else if (!state.projects.includes(project)) state.projects = [...state.projects, project].sort()
     state.hovered = null
     if (state.selected !== null && !data.nodes.some((node) => node.id === state.selected)) state.selected = null
+    drag.cancel()
+    stopAppear()
+    leftWhileDragging = false
     fill(data)
+    float.reset()
+    stopAppear = appear(graph)
     renderProjects()
     renderCount()
     renderLegend()
@@ -512,18 +553,27 @@ projectSelect.addEventListener('change', () => {
 })
 
 renderer.on('enterNode', ({ node }) => {
+  leftWhileDragging = false
+  if (drag.dragging() !== null) return
   state.hovered = node
   stage.classList.add('brain-stage--pointer')
   refreshFocus()
 })
 
 renderer.on('leaveNode', () => {
+  if (drag.dragging() !== null) {
+    leftWhileDragging = true
+    return
+  }
   state.hovered = null
   stage.classList.remove('brain-stage--pointer')
   refreshFocus()
 })
 
-renderer.on('clickNode', ({ node }) => select(node))
+renderer.on('clickNode', ({ node }) => {
+  if (drag.consumeDrag()) return
+  select(node)
+})
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !side.hidden) closeSide()
