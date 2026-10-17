@@ -345,6 +345,10 @@ nodo resalta a sus vecinos y un clic abre el panel lateral con el cuerpo en
 Markdown (el mismo lector de las notas) y sus conexiones. La búsqueda llama a
 `gaze search` y lleva la cámara al resultado.
 
+Se dibuja como un cielo de constelaciones, siempre de noche: cada nodo es una
+estrella con halo del color de su tipo sobre un campo de estrellas con paralaje,
+y el titileo se apaga si el sistema pide reducir movimiento.
+
 Sin `gaze` instalado se puede revisar con datos de ejemplo
 (`src/cerebro/fixture.json`), solo en desarrollo:
 
