@@ -159,7 +159,7 @@ mod tests {
 
         let graph = refusal(Feature::Graph, &none).expect("refused");
         assert!(graph.message.contains("gaze"));
-        assert_eq!(graph.hint.as_deref(), Some("npm install -g @kikedealba/gaze && gaze setup"));
+        assert_eq!(graph.hint.as_deref(), Some("cargo install --locked --git https://github.com/KikeDeAlba/gaze && gaze setup"));
         let brain = status(&[Tool::Gaze], Modules { graph: true, ..Modules::default() });
         assert!(refusal(Feature::Graph, &brain).is_none());
         assert!(refusal(Feature::GraphSearch, &brain).expect("refused").message.contains("no ofrece"));
