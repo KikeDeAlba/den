@@ -16,6 +16,7 @@ import {
 } from './cerebro/api.ts'
 import { GAZE_FIXTURE } from './cerebro/flag.ts'
 import { bindTrackpad } from './cerebro/gestures.ts'
+import { LABEL_FONT, LABEL_SIZE, pickLabels } from './cerebro/labels.ts'
 import type { LayoutFrame, LayoutPin, LayoutRelease, LayoutRequest, LayoutStop } from './cerebro/layout.worker.ts'
 import { appear, bindDrag, startFloat } from './cerebro/motion.ts'
 import { EDGE_LABELS, fade, KIND_LABELS, mix, readPalette, SKY, type Palette } from './cerebro/palette.ts'
@@ -53,6 +54,7 @@ const state = {
   showToken: 0,
   hits: [] as BrainHit[],
   activeHit: -1,
+  labels: new Set<string>(),
 }
 
 const renderer = new Sigma<NodeAttributes, EdgeAttributes>(graph, stage, {
@@ -60,9 +62,9 @@ const renderer = new Sigma<NodeAttributes, EdgeAttributes>(graph, stage, {
     allowInvalidContainer: true,
     renderEdgeLabels: false,
     hideEdgesOnMove: false,
-    labelDensity: 0.12,
-    labelGridCellSize: 140,
-    labelRenderedSizeThreshold: 4,
+    labelDensity: 1,
+    labelGridCellSize: 60,
+    labelRenderedSizeThreshold: 0,
     nodePickingPadding: 5,
     antialiasNodes: true,
     zoomToSizeRatioFunction: (ratio) => Math.pow(ratio, 0.25),
@@ -125,7 +127,6 @@ function focusNode(): string | null {
   return state.hovered ?? state.selected
 }
 
-const LABEL_FONT = "'Instrument Sans', -apple-system, system-ui, sans-serif"
 const CORE_SCALE = 0.42
 const CORE_WHITE = 0.7
 
@@ -147,18 +148,18 @@ function nodeLook(node: string, attributes: NodeAttributes): Partial<NodeDisplay
     size: attributes.size * CORE_SCALE,
     opacity: Math.max(0, Math.min(1, attributes.glow)),
     labelColor: palette.label,
-    labelSize: 11,
+    labelSize: LABEL_SIZE,
     labelFont: LABEL_FONT,
     backdropColor: SKY.backdrop,
     backdropShadowColor: SKY.backdropShadow,
     backdropArea: 'label',
   }
   if (attributes.glow <= 0) return { ...look, labelVisibility: 'hidden' }
-  if (attributes.pinned) look.labelVisibility = 'visible'
   const focus = focusNode()
+  look.labelVisibility = node === focus || state.labels.has(node) ? 'visible' : 'hidden'
   if (focus === null) return look
-  if (node === focus) return { ...look, labelVisibility: 'visible', zIndex: 3 }
-  if (state.focus.has(node)) return { ...look, labelVisibility: 'visible', zIndex: 2 }
+  if (node === focus) return { ...look, zIndex: 3 }
+  if (state.focus.has(node)) return { ...look, zIndex: 2 }
   return { ...look, color: palette.faded, labelVisibility: 'hidden', zIndex: 0 }
 }
 
@@ -193,7 +194,29 @@ function refreshFocus(): void {
     })
   }
   renderer.refresh({ skipIndexation: true })
+  scheduleLabels()
 }
+
+let labelsDirty = false
+
+function scheduleLabels(): void {
+  if (labelsDirty) return
+  labelsDirty = true
+  renderer.scheduleRender()
+}
+
+function updateLabels(): void {
+  if (!labelsDirty) return
+  labelsDirty = false
+  const next = pickLabels(renderer, graph, { visible: nodeVisible, focus: focusNode(), neighbors: state.focus })
+  if (next.size === state.labels.size && [...next].every((node) => state.labels.has(node))) return
+  state.labels = next
+  renderer.scheduleRefresh({ skipIndexation: true })
+}
+
+renderer.on('afterRender', updateLabels)
+renderer.getCamera().on('updated', scheduleLabels)
+renderer.on('resize', scheduleLabels)
 
 function nodeSize(degree: number): number {
   return 2 + Math.min(9, Math.sqrt(Math.max(0, degree)) * 1.4)
@@ -303,6 +326,7 @@ worker.addEventListener('message', (event: MessageEvent<LayoutFrame>) => {
     },
     { attributes: ['x', 'y', 'baseX', 'baseY'] },
   )
+  scheduleLabels()
   if (frame.done && state.pending !== null) {
     const target = state.pending
     state.pending = null
@@ -416,7 +440,10 @@ async function load(project: string | null): Promise<void> {
     leftWhileDragging = false
     fill(data)
     float.reset()
-    stopAppear = appear(graph, () => renderer.refresh({ skipIndexation: true, schedule: true }))
+    stopAppear = appear(graph, () => {
+      renderer.refresh({ skipIndexation: true, schedule: true })
+      scheduleLabels()
+    })
     renderProjects()
     renderCount()
     renderLegend()
