@@ -394,7 +394,7 @@ export function doctorReport(): Promise<Report> {
   return invoke<Report>('doctor_report')
 }
 
-export type ToolName = 'bita' | 'inkwell' | 'tally' | 'atl' | 'recap'
+export type ToolName = 'bita' | 'inkwell' | 'tally' | 'atl' | 'recap' | 'gaze'
 
 export type ToolState = 'ready' | 'unresponsive' | 'broken-bin' | 'missing'
 
@@ -427,6 +427,8 @@ export interface Modules {
   liveAssistant: boolean
   autoAsk: boolean
   meetingKinds: boolean
+  graph: boolean
+  graphSearch: boolean
 }
 
 export interface ToolsStatus {
@@ -452,6 +454,8 @@ export const NO_MODULES: Modules = {
   liveAssistant: false,
   autoAsk: false,
   meetingKinds: false,
+  graph: false,
+  graphSearch: false,
 }
 
 export function toolsStatus(refresh = false): Promise<ToolsStatus> {
@@ -474,6 +478,10 @@ export function openNotes(entryId: number | null): Promise<void> {
 
 export function openReports(): Promise<void> {
   return invoke<void>('open_reports')
+}
+
+export function openBrain(): Promise<void> {
+  return invoke<void>('open_brain')
 }
 
 export function notesTakeFocus(): Promise<number | null> {
