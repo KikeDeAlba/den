@@ -64,6 +64,7 @@ el texto de un error:
 | Propuestas | `recap` e `inkwell` con `docs.propose` |
 | Sitios de Atlassian | `atl` respondiendo |
 | Reuniones, asistente en vivo | `recap` respondiendo |
+| Cerebro (grafo) | `gaze` con `memory.graph.read`; la búsqueda, además con `memory.search` |
 
 Una herramienta registrada que no contesta queda apagada hasta que vuelva a
 responder.
@@ -324,6 +325,35 @@ segundo clic reutiliza la misma ventana y la trae al frente; al cerrarla se
 esconde en lugar de destruirse. Mientras está abierta cuenta como ventana
 normal, así que macOS pasa a `Regular` y aparece en el Dock y en cmd+Tab. El
 botón solo aparece si el módulo de cronómetros (bita) está activo.
+
+## La ventana del cerebro
+
+El botón del grafo, junto a los reportes, abre el cerebro de los proyectos: lo
+que `gaze` guarda (reglas, hechos, decisiones, documentos, entradas, tickets,
+reuniones y memorias) dibujado como un grafo, al estilo de Obsidian. Es una
+ventana propia (`cerebro.html`) que se construye y se esconde igual que la de
+reportes, y el botón solo aparece si `gaze` está en el registro con
+`memory.graph.read`.
+
+Los datos salen de `gaze graph [--project P] --json`, `gaze show <id> --json` y
+`gaze search <q> --project P|--all --json`. El dibujo es WebGL (sigma.js sobre
+graphology), así que aguanta miles de nodos; ForceAtlas2 corre en un worker con
+un número acotado de iteraciones y va moviendo los nodos mientras calcula. El
+color es el tipo y el tamaño el grado. El selector cambia de proyecto (la lista
+sale de los nodos), la leyenda apaga tipos y clases de conexión, pasar sobre un
+nodo resalta a sus vecinos y un clic abre el panel lateral con el cuerpo en
+Markdown (el mismo lector de las notas) y sus conexiones. La búsqueda llama a
+`gaze search` y lleva la cámara al resultado.
+
+Sin `gaze` instalado se puede revisar con datos de ejemplo
+(`src/cerebro/fixture.json`), solo en desarrollo:
+
+```sh
+VITE_GAZE_FIXTURE=1 pnpm dev
+```
+
+y abrir `http://localhost:1420/cerebro.html`. La compilación de producción no
+incluye el fixture.
 
 ## El tamaño del texto
 

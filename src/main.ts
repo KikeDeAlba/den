@@ -18,6 +18,7 @@ import {
   onSnapshot,
   openNotes,
   openReports,
+  openBrain,
   pending,
   projects,
   jiraProjects,
@@ -46,6 +47,7 @@ import {
 import { element, iconButton, must } from './dom.ts'
 import { clock, human, startedAt } from './format.ts'
 import { timerDoc, todayNotes } from './notes-panel.ts'
+import { GAZE_FIXTURE } from './cerebro/flag.ts'
 import { renderSettings } from './settings.ts'
 import { assistantRow, liveMatches, pendingCount, proposalsCard, renderLiveSettings } from './live-panel.ts'
 import { projectColor, renderPending, renderRepos, renderWorked } from './tabs.ts'
@@ -66,6 +68,7 @@ const tabStrip = must<HTMLElement>('.tabs')
 const gear = must<HTMLButtonElement>('#open-settings')
 const notesButton = must<HTMLButtonElement>('#open-notes')
 const reportsButton = must<HTMLButtonElement>('#open-reports')
+const brainButton = must<HTMLButtonElement>('#open-brain')
 
 let tab: Tab = 'ahora'
 let latest: Snapshot = { running: [], todaySeconds: 0, problem: null }
@@ -114,6 +117,7 @@ function applyModules(): void {
   if (!enabled('meetingKinds') && launchKindValue !== '') setLaunchKind('')
   notesButton.hidden = !enabled('notes')
   reportsButton.hidden = !enabled('timers')
+  brainButton.hidden = !(enabled('graph') || GAZE_FIXTURE)
   if (!visibleTabs().includes(tab)) {
     tab = 'ahora'
     for (const button of tabStrip.querySelectorAll<HTMLButtonElement>('[role="tab"]')) {
@@ -655,6 +659,10 @@ async function start(): Promise<void> {
 
   reportsButton.addEventListener('click', () => {
     void openReports()
+  })
+
+  brainButton.addEventListener('click', () => {
+    void openBrain()
   })
 
   gear.addEventListener('click', () => {

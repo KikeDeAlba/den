@@ -15,6 +15,8 @@ pub enum Feature {
     Proposals,
     Meetings,
     Atlassian,
+    Graph,
+    GraphSearch,
 }
 
 impl Feature {
@@ -29,6 +31,8 @@ impl Feature {
             Feature::Proposals => modules.proposals,
             Feature::Meetings => modules.meetings,
             Feature::Atlassian => modules.atlassian,
+            Feature::Graph => modules.graph,
+            Feature::GraphSearch => modules.graph_search,
         }
     }
 
@@ -43,6 +47,8 @@ impl Feature {
             Feature::Proposals => "los cambios propuestos",
             Feature::Meetings => "las reuniones",
             Feature::Atlassian => "las conexiones con Atlassian",
+            Feature::Graph => "ver el cerebro de los proyectos",
+            Feature::GraphSearch => "buscar en el cerebro",
         }
     }
 
@@ -56,6 +62,7 @@ impl Feature {
             Feature::Jira => Tool::Tally,
             Feature::Proposals | Feature::Meetings => Tool::Recap,
             Feature::Atlassian => Tool::Atl,
+            Feature::Graph | Feature::GraphSearch => Tool::Gaze,
         }
     }
 }
@@ -149,5 +156,12 @@ mod tests {
         assert!(refusal(Feature::Meetings, &meetings).is_none());
         assert!(refusal(Feature::Proposals, &meetings).expect("refused").message.contains("inkwell"));
         assert!(refusal(Feature::Atlassian, &meetings).expect("refused").message.contains("atl"));
+
+        let graph = refusal(Feature::Graph, &none).expect("refused");
+        assert!(graph.message.contains("gaze"));
+        assert_eq!(graph.hint.as_deref(), Some("npm install -g @kikedealba/gaze && gaze setup"));
+        let brain = status(&[Tool::Gaze], Modules { graph: true, ..Modules::default() });
+        assert!(refusal(Feature::Graph, &brain).is_none());
+        assert!(refusal(Feature::GraphSearch, &brain).expect("refused").message.contains("no ofrece"));
     }
 }

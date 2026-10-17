@@ -263,6 +263,16 @@ pub fn open_reports(app: AppHandle) -> Result<(), Problem> {
 }
 
 #[tauri::command]
+pub fn open_brain(app: AppHandle) -> Result<(), Problem> {
+    crate::brain::open(&app).map_err(|error| {
+        Problem::new(
+            ProblemKind::Unreadable,
+            format!("No pude abrir la ventana del cerebro: {error}"),
+        )
+    })
+}
+
+#[tauri::command]
 pub fn notes_take_focus(app: AppHandle) -> Option<i64> {
     crate::notes::take_focus(&app)
 }

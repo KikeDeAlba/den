@@ -207,7 +207,7 @@ mod tests {
         let report = build(status_with(&[Tool::Bita]), Path::new("/nope/bita.db"));
         assert!(!report.blocked);
         let names: Vec<&str> = report.install.iter().map(|card| card.tool.as_str()).collect();
-        assert_eq!(names, vec!["inkwell", "tally", "atl", "recap"]);
+        assert_eq!(names, vec!["inkwell", "tally", "atl", "recap", "gaze"]);
         assert_eq!(report.install[1].command, "npm install -g @kikedealba/tally && tally setup");
         assert!(report.install[1].purpose.contains("Jira"));
         assert!(report.checks.iter().any(|check| check.id == "database"));
@@ -219,7 +219,7 @@ mod tests {
     fn nothing_installed_blocks_the_app() {
         let report = build(status_with(&[]), Path::new("/nope/bita.db"));
         assert!(report.blocked);
-        assert_eq!(report.install.len(), 5);
+        assert_eq!(report.install.len(), 6);
         assert!(!report.checks.iter().any(|check| check.id == "database"));
     }
 
@@ -231,7 +231,7 @@ mod tests {
         assert_eq!(docs.health, Health::Ok);
         assert!(docs.note.is_none());
         let names: Vec<&str> = report.install.iter().map(|card| card.tool.as_str()).collect();
-        assert_eq!(names, vec!["atl", "recap"]);
+        assert_eq!(names, vec!["atl", "recap", "gaze"]);
 
         status.inkwell_migrated = Some(false);
         let report = build(status, Path::new("/nope/bita.db"));

@@ -1,11 +1,13 @@
 mod activation;
 mod ask;
 mod atlassian_cmd;
+mod brain;
 mod cli;
 mod commands;
 mod coworkers;
 mod docs;
 mod doctor;
+mod gaze;
 mod worked;
 mod menu;
 mod model;
@@ -88,6 +90,10 @@ fn main() {
             tools::tools_status,
             commands::open_notes,
             commands::open_reports,
+            commands::open_brain,
+            gaze::gaze_graph,
+            gaze::gaze_show,
+            gaze::gaze_search,
             commands::notes_take_focus,
             notes_cmd::notes_tree,
             notes_cmd::notes_list,

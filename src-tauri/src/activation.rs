@@ -3,10 +3,11 @@ use tauri::{AppHandle, Manager};
 #[cfg(target_os = "macos")]
 const KEEP_ACCESSORY_ENV: &str = "BITA_KEEP_ACCESSORY";
 
-pub const NORMAL_WINDOWS: [&str; 3] = [
+pub const NORMAL_WINDOWS: [&str; 4] = [
     crate::notes::LABEL,
     crate::live_wide::LABEL,
     crate::reports::LABEL,
+    crate::brain::LABEL,
 ];
 
 pub fn wants_regular(windows: &[(&str, bool)], hiding: Option<&str>) -> bool {
@@ -107,5 +108,10 @@ mod tests {
     #[test]
     fn the_reports_window_is_a_normal_window() {
         assert!(super::NORMAL_WINDOWS.contains(&"reportes"));
+    }
+
+    #[test]
+    fn the_brain_window_is_a_normal_window() {
+        assert!(super::NORMAL_WINDOWS.contains(&"cerebro"));
     }
 }
