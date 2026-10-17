@@ -7,13 +7,14 @@ type BrainRenderer = Sigma<NodeAttributes, EdgeAttributes>
 
 const DRAG_THRESHOLD = 4
 const RELEASE_SLACK = 50
-const FLOAT_FRAME = 1000 / 10
+const FLOAT_FRAME = 1000 / 15
 const FLOAT_MAX_NODES = 1500
-const FLOAT_AMPLITUDE = 0.006
-const FLOAT_MIN_PERIOD = 6000
-const FLOAT_MAX_PERIOD = 12000
-const FLOAT_FOCUS_FACTOR = 0.3
-const FLOAT_EASE = 0.2
+const FLOAT_AMPLITUDE_PX = 2.9
+const FLOAT_MIN_PERIOD = 16000
+const FLOAT_MAX_PERIOD = 28000
+const FLOAT_NEIGHBOR_FACTOR = 0.3
+const FLOAT_EASE_TIME = 50
+const FLOAT_MIN_STEP_PX = 0.25
 const FLOAT_RAMP = 1500
 const FLOAT_FADE = 2500
 const FLOAT_IDLE = 30000
@@ -21,6 +22,7 @@ const APPEAR_TOTAL = 600
 const APPEAR_FADE = 220
 
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+const renderers = new WeakMap<BrainGraph, BrainRenderer>()
 
 export function prefersReducedMotion(): boolean {
   return reducedMotion.matches
@@ -46,6 +48,7 @@ export function bindDrag(renderer: BrainRenderer, graph: BrainGraph, stage: HTML
   let moved = false
   let dragged = false
   let releasedAt = Number.NEGATIVE_INFINITY
+  renderers.set(graph, renderer)
 
   const finish = (notify: boolean): void => {
     if (node === null) return
@@ -121,6 +124,7 @@ export interface FloatFocus {
 export interface FloatOptions {
   focus: () => FloatFocus
   dragging: () => string | null
+  renderer?: BrainRenderer
 }
 
 export interface FloatControl {
@@ -134,6 +138,8 @@ interface Wave {
   speedX: number
   speedY: number
   factor: number
+  offsetX: number
+  offsetY: number
 }
 
 function hash(text: string, seed: number): number {
@@ -156,24 +162,9 @@ function waveFor(node: string): Wave {
     speedX: period(hash(node, 3)),
     speedY: period(hash(node, 4)),
     factor: 1,
+    offsetX: 0,
+    offsetY: 0,
   }
-}
-
-function graphRadius(graph: BrainGraph): number {
-  if (graph.order === 0) return 0
-  let sumX = 0
-  let sumY = 0
-  graph.forEachNode((_node, attributes) => {
-    sumX += attributes.baseX
-    sumY += attributes.baseY
-  })
-  const centerX = sumX / graph.order
-  const centerY = sumY / graph.order
-  let radius = 0
-  graph.forEachNode((_node, attributes) => {
-    radius = Math.max(radius, Math.hypot(attributes.baseX - centerX, attributes.baseY - centerY))
-  })
-  return radius
 }
 
 export function startFloat(graph: BrainGraph, options: FloatOptions): FloatControl {
@@ -182,13 +173,25 @@ export function startFloat(graph: BrainGraph, options: FloatOptions): FloatContr
   let timer: ReturnType<typeof setTimeout> | null = null
   let last = 0
   let energy = 0
-  let radius = 0
+  let unit = 0
+  let pressed = false
   let displaced = false
+  let stale = true
   let activeAt = performance.now()
+  const renderer = options.renderer ?? renderers.get(graph)
 
-  const enabled = (): boolean => !reducedMotion.matches && graph.order > 0 && graph.order <= FLOAT_MAX_NODES
+  const measure = (): void => {
+    if (renderer === undefined) return
+    const origin = renderer.viewportToGraph({ x: 0, y: 0 })
+    const offset = renderer.viewportToGraph({ x: 1, y: 0 })
+    unit = Math.hypot(offset.x - origin.x, offset.y - origin.y)
+    stale = true
+  }
 
-  const halted = (): boolean => layoutActive || document.hidden || options.dragging() !== null
+  const enabled = (): boolean =>
+    renderer !== undefined && !reducedMotion.matches && graph.order > 0 && graph.order <= FLOAT_MAX_NODES
+
+  const halted = (): boolean => layoutActive || pressed || document.hidden || options.dragging() !== null
 
   const resting = (now: number): boolean => !document.hasFocus() || now - activeAt > FLOAT_IDLE
 
@@ -202,6 +205,10 @@ export function startFloat(graph: BrainGraph, options: FloatOptions): FloatContr
     last = 0
     if (!displaced) return
     displaced = false
+    for (const wave of waves.values()) {
+      wave.offsetX = 0
+      wave.offsetY = 0
+    }
     graph.updateEachNodeAttributes(
       (_node, attributes) => {
         attributes.x = attributes.baseX
@@ -219,7 +226,7 @@ export function startFloat(graph: BrainGraph, options: FloatOptions): FloatContr
       return
     }
     const now = performance.now()
-    if (last === 0) radius = graphRadius(graph)
+    if (last === 0) measure()
     const elapsed = last === 0 ? 0 : now - last
     last = now
     const rest = resting(now)
@@ -228,25 +235,43 @@ export function startFloat(graph: BrainGraph, options: FloatOptions): FloatContr
       settle()
       return
     }
-    const amplitude = radius * FLOAT_AMPLITUDE * (energy * energy * (3 - 2 * energy))
+    const amplitude = (FLOAT_AMPLITUDE_PX * (energy * energy * (3 - 2 * energy))) / Math.SQRT2
+    const ease = elapsed === 0 ? 1 : 1 - Math.exp(-elapsed / FLOAT_EASE_TIME)
     const { focus, neighbors } = options.focus()
-    displaced = true
-    graph.updateEachNodeAttributes(
-      (node, attributes) => {
-        let wave = waves.get(node)
-        if (wave === undefined) {
-          wave = waveFor(node)
-          waves.set(node, wave)
-        }
-        const target = node === focus || neighbors.has(node) ? FLOAT_FOCUS_FACTOR : 1
-        wave.factor += (target - wave.factor) * FLOAT_EASE
-        const reach = amplitude * wave.factor
-        attributes.x = attributes.baseX + Math.sin(now * wave.speedX + wave.phaseX) * reach
-        attributes.y = attributes.baseY + Math.sin(now * wave.speedY + wave.phaseY) * reach
-        return attributes
-      },
-      { attributes: ['x', 'y'] },
-    )
+    const offsets = new Map<string, { x: number; y: number }>()
+    let shift = 0
+    graph.forEachNode((node) => {
+      let wave = waves.get(node)
+      if (wave === undefined) {
+        wave = waveFor(node)
+        waves.set(node, wave)
+      }
+      const target = node === focus ? 0 : neighbors.has(node) ? FLOAT_NEIGHBOR_FACTOR : 1
+      wave.factor = Math.abs(target - wave.factor) < 0.05 ? target : wave.factor + (target - wave.factor) * ease
+      const reach = amplitude * wave.factor
+      const x = Math.sin(now * wave.speedX + wave.phaseX) * reach
+      const y = Math.sin(now * wave.speedY + wave.phaseY) * reach
+      offsets.set(node, { x, y })
+      const parked = reach === 0 && (wave.offsetX !== 0 || wave.offsetY !== 0)
+      shift = parked ? Number.POSITIVE_INFINITY : Math.max(shift, Math.abs(x - wave.offsetX), Math.abs(y - wave.offsetY))
+    })
+    if (stale || shift >= FLOAT_MIN_STEP_PX) {
+      stale = false
+      displaced = true
+      graph.updateEachNodeAttributes(
+        (node, attributes) => {
+          const wave = waves.get(node)
+          const offset = offsets.get(node)
+          if (wave === undefined || offset === undefined) return attributes
+          wave.offsetX = offset.x
+          wave.offsetY = offset.y
+          attributes.x = attributes.baseX + offset.x * unit
+          attributes.y = attributes.baseY + offset.y * unit
+          return attributes
+        },
+        { attributes: ['x', 'y'] },
+      )
+    }
     timer = setTimeout(step, FLOAT_FRAME)
   }
 
@@ -271,6 +296,24 @@ export function startFloat(graph: BrainGraph, options: FloatOptions): FloatContr
   window.addEventListener('blur', wake)
   document.addEventListener('visibilitychange', wake)
 
+  if (renderer !== undefined) {
+    const release = (): void => {
+      if (!pressed) return
+      pressed = false
+      wake()
+    }
+    renderer.getContainer().addEventListener('pointerdown', () => {
+      pressed = true
+      stop()
+      settle()
+    })
+    window.addEventListener('pointerup', release)
+    window.addEventListener('pointercancel', release)
+    window.addEventListener('blur', release)
+    renderer.getCamera().on('updated', measure)
+    renderer.on('resize', measure)
+  }
+
   return {
     setLayoutActive: (active) => {
       layoutActive = active
@@ -284,6 +327,7 @@ export function startFloat(graph: BrainGraph, options: FloatOptions): FloatContr
     reset: () => {
       stop()
       waves.clear()
+      stale = true
       displaced = false
       energy = 0
       last = 0
