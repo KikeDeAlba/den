@@ -15,6 +15,7 @@ import {
   type NodeKind,
 } from './cerebro/api.ts'
 import { GAZE_FIXTURE } from './cerebro/flag.ts'
+import { bindTrackpad } from './cerebro/gestures.ts'
 import type { LayoutFrame, LayoutRequest } from './cerebro/layout.worker.ts'
 import { EDGE_LABELS, KIND_LABELS, readPalette, type Palette } from './cerebro/palette.ts'
 import { kindDot, sideDetail, sideLoading, sideProblem, type SideHandlers } from './cerebro/side.ts'
@@ -73,12 +74,16 @@ const renderer = new Sigma<NodeAttributes, EdgeAttributes>(graph, stage, {
     allowInvalidContainer: true,
     renderEdgeLabels: false,
     hideEdgesOnMove: false,
-    labelDensity: 0.35,
+    labelDensity: 0.12,
+    labelGridCellSize: 140,
     labelRenderedSizeThreshold: 7,
+    zoomToSizeRatioFunction: (ratio) => Math.pow(ratio, 0.25),
   },
   nodeReducer: (node, _data, attributes) => nodeLook(node, attributes),
   edgeReducer: (edge, _data, attributes) => edgeLook(edge, attributes),
 })
+
+bindTrackpad(stage, renderer)
 
 const worker = new Worker(new URL('./cerebro/layout.worker.ts', import.meta.url), { type: 'module' })
 let layoutRun = 0
