@@ -205,7 +205,7 @@ BITA_DB_PATH=/tmp/bita-dev.db INKWELL_DB_PATH=/tmp/inkwell-dev.db \
 | `BITA_DB_PATH` | Usar otra base de datos |
 | `BITA_NODE` | Forzar un binario de node concreto para los scripts de las variables de arriba |
 | `INKWELL_DB_PATH`, `INKWELL_DOCS_DIR` | Usar otra base o directorio de inkwell; también los vigila Den |
-| `RECAP_STATE_DIR` | Leer el estado de recap (`active.json`, la reunión en curso) de otra carpeta; si no está, se usa `$XDG_STATE_HOME/recap` y luego `~/.local/state/recap` |
+| `RECAP_STATE_DIR` | Leer el estado de recap (`active.json`, la reunión en curso) de otra carpeta; si no está, se usa `$XDG_STATE_HOME/recap` (solo si `XDG_STATE_HOME` es una ruta absoluta) y luego `~/.local/state/recap` |
 | `BITA_KEEP_PANEL` | Abre el panel al arrancar y evita que se esconda al perder el foco, para poder usar las devtools |
 | `BITA_NO_OPEN_NOTES` | No abre la ventana de documentación al arrancar; deja solo el icono del tray |
 | `BITA_KEEP_ACCESSORY` | No cambia la activation policy al abrir las notas: sin icono en el Dock ni barra de menús |
