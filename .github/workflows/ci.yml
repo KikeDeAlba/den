@@ -10,8 +10,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  versions:
+    name: versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check versions match
+        run: ./scripts/check-versions.sh
+
   check:
     name: check (${{ matrix.os }})
+    needs: versions
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

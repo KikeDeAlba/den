@@ -31,6 +31,7 @@ npm install -g @kikedealba/inkwell && inkwell setup
 npm install -g @kikedealba/tally && tally setup
 npm install -g @kikedealba/atl && atl setup
 npm install -g @kikedealba/recap && recap setup
+npm install -g @kikedealba/gaze && gaze setup
 ```
 
 Cada manifiesto puede traer su propia pista de instalación (`install`); Den la
@@ -200,10 +201,11 @@ BITA_DB_PATH=/tmp/bita-dev.db INKWELL_DB_PATH=/tmp/inkwell-dev.db \
 | Variable | Para qué |
 |---|---|
 | `KIT_REGISTRY_DIR` | Leer otro registro de herramientas, por ejemplo uno de prueba |
-| `BITA_CLI`, `INKWELL_CLI`, `TALLY_CLI`, `ATL_CLI`, `RECAP_CLI` | Usar ese ejecutable o script en vez del registrado; un `.ts`/`.js` se corre con node |
+| `BITA_CLI`, `INKWELL_CLI`, `TALLY_CLI`, `ATL_CLI`, `RECAP_CLI`, `GAZE_CLI` | Usar ese ejecutable o script en vez del registrado; un `.ts`/`.js` se corre con node |
 | `BITA_DB_PATH` | Usar otra base de datos |
 | `BITA_NODE` | Forzar un binario de node concreto para los scripts de las variables de arriba |
 | `INKWELL_DB_PATH`, `INKWELL_DOCS_DIR` | Usar otra base o directorio de inkwell; también los vigila Den |
+| `RECAP_STATE_DIR` | Leer el estado de recap (`active.json`, la reunión en curso) de otra carpeta; si no está, se usa `$XDG_STATE_HOME/recap` (solo si `XDG_STATE_HOME` es una ruta absoluta) y luego `~/.local/state/recap` |
 | `BITA_KEEP_PANEL` | Abre el panel al arrancar y evita que se esconda al perder el foco, para poder usar las devtools |
 | `BITA_NO_OPEN_NOTES` | No abre la ventana de documentación al arrancar; deja solo el icono del tray |
 | `BITA_KEEP_ACCESSORY` | No cambia la activation policy al abrir las notas: sin icono en el Dock ni barra de menús |
@@ -224,8 +226,9 @@ modelo que entiende la app.
 
 Cada subproceso arranca con el entorno limpio: `PATH` con la carpeta del
 ejecutable registrado y las del sistema, `HOME`, el usuario, y solo las
-variables `KIT_*`, `XDG_*`, `BITA_*`, `INKWELL_*`, `RECAP_*` y `ATL_*` (más las
-de carpetas de Windows). Así las herramientas leen el mismo registro y las
+variables `KIT_*`, `XDG_*`, `BITA_*`, `INKWELL_*`, `RECAP_*`, `ATL_*`, `TALLY_*` y
+`GAZE_*`, más `APPDATA`, `LOCALAPPDATA`, `USERPROFILE`, `SystemRoot`, `TEMP`,
+`TMP`, `TMPDIR`, `LANG` y `PNPM_HOME`. Así las herramientas leen el mismo registro y las
 mismas rutas que Den.
 
 **El reloj no se le pide a bita.** Se lee `started_at` una vez y la cuenta la
