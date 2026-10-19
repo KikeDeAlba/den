@@ -193,10 +193,7 @@ impl Tool {
 
     pub fn default_install(self) -> String {
         let name = self.name();
-        match self {
-            Tool::Gaze => "cargo install --locked --git https://github.com/KikeDeAlba/gaze && gaze setup".to_string(),
-            _ => format!("npm install -g @kikedealba/{name} && {name} setup"),
-        }
+        format!("npm install -g @kikedealba/{name} && {name} setup")
     }
 
     pub fn purpose(self) -> &'static str {
@@ -1430,5 +1427,13 @@ esac"#
         assert!(passes_through("GAZE_HOME"));
         assert!(!passes_through("AWS_SECRET_ACCESS_KEY"));
         assert!(!passes_through("PATH"));
+    }
+
+    #[test]
+    fn every_known_tool_defaults_to_an_npm_install_hint() {
+        for tool in KNOWN {
+            let name = tool.name();
+            assert_eq!(tool.default_install(), format!("npm install -g @kikedealba/{name} && {name} setup"));
+        }
     }
 }
