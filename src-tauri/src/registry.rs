@@ -1428,4 +1428,12 @@ esac"#
         assert!(!passes_through("AWS_SECRET_ACCESS_KEY"));
         assert!(!passes_through("PATH"));
     }
+
+    #[test]
+    fn every_known_tool_defaults_to_an_npm_install_hint() {
+        for tool in KNOWN {
+            let name = tool.name();
+            assert_eq!(tool.default_install(), format!("npm install -g @kikedealba/{name} && {name} setup"));
+        }
+    }
 }
