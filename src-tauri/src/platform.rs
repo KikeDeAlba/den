@@ -1,6 +1,9 @@
 use std::env;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+const LAUNCHER_TIMEOUT: Duration = Duration::from_secs(3);
 
 #[cfg(windows)]
 const ESSENTIAL_ENV: &[&str] = &[
@@ -237,7 +240,45 @@ pub async fn open_as_text(path: &Path) -> Result<(), String> {
     if launches_on_open(&target) {
         return reveal(&target);
     }
+    if open_with_text_editor(&target).await {
+        return Ok(());
+    }
     open_path(&target)
+}
+
+async fn open_with_text_editor(target: &Path) -> bool {
+    let (Some(mime), Some(launcher), Some(uri)) = (on_path("xdg-mime"), on_path("gtk-launch"), file_uri(target)) else {
+        return false;
+    };
+    let mut query = tokio::process::Command::new(mime);
+    query.args(["query", "default", "text/plain"]).kill_on_drop(true);
+    let Ok(Ok(output)) = tokio::time::timeout(LAUNCHER_TIMEOUT, query.output()).await else {
+        return false;
+    };
+    let Some(application) = desktop_id(&String::from_utf8_lossy(&output.stdout)) else {
+        return false;
+    };
+    let mut launch = tokio::process::Command::new(launcher);
+    launch.arg(application).arg(uri).kill_on_drop(true);
+    matches!(
+        tokio::time::timeout(LAUNCHER_TIMEOUT, launch.status()).await,
+        Ok(Ok(status)) if status.success()
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn file_uri(path: &Path) -> Option<String> {
+    gtk::glib::filename_to_uri(path, None).ok().map(String::from)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn file_uri(_path: &Path) -> Option<String> {
+    None
+}
+
+fn desktop_id(answer: &str) -> Option<String> {
+    let line = answer.lines().map(str::trim).find(|line| !line.is_empty())?;
+    line.ends_with(".desktop").then(|| line.to_string())
 }
 
 pub struct ManagedRoot {
@@ -337,7 +378,10 @@ mod tests {
 
     use std::path::Path;
 
-    use super::{executable, home_from, join_dirs, launches_on_open, search_path, simplified_text, system_dirs};
+    use super::{
+        desktop_id, executable, file_uri, home_from, join_dirs, launches_on_open, search_path, simplified_text,
+        system_dirs,
+    };
 
     #[test]
     fn home_prefers_home_and_falls_back_to_the_user_profile() {
@@ -389,5 +433,28 @@ mod tests {
         let broken = PathBuf::from(if cfg!(windows) { "a\"b" } else { "a:b" });
         let joined = join_dirs(vec![broken, PathBuf::from("ok"), PathBuf::new()]);
         assert_eq!(joined, OsString::from("ok"));
+    }
+
+    #[test]
+    fn the_default_text_editor_is_read_from_xdg_mime() {
+        assert_eq!(desktop_id("org.gnome.TextEditor.desktop\n").as_deref(), Some("org.gnome.TextEditor.desktop"));
+        assert_eq!(desktop_id("\n  kate.desktop  \n").as_deref(), Some("kate.desktop"));
+        assert_eq!(desktop_id(""), None);
+        assert_eq!(desktop_id("no default\n"), None);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn the_text_editor_receives_a_file_uri() {
+        assert_eq!(
+            file_uri(Path::new("/tmp/mi reporte #1.csv")).as_deref(),
+            Some("file:///tmp/mi%20reporte%20%231.csv")
+        );
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    #[test]
+    fn only_linux_builds_file_uris_for_gtk_launch() {
+        assert_eq!(file_uri(Path::new("/tmp/a.csv")), None);
     }
 }
