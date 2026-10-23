@@ -293,13 +293,14 @@ mod platform {
         ICoreWebView2Environment6, ICoreWebView2PrintSettings, ICoreWebView2_7,
     };
     use webview2_com::PrintToPdfCompletedHandler;
-    use windows_core::{Interface, HSTRING};
+    use windows_core::{Interface, HRESULT, HSTRING};
 
     type Done = oneshot::Sender<Result<(), String>>;
 
     const LETTER_WIDTH_INCHES: f64 = 8.5;
     const LETTER_HEIGHT_INCHES: f64 = 11.0;
     const MARGIN_INCHES: f64 = 0.5;
+    const E_NOINTERFACE: HRESULT = HRESULT(0x8000_4002_u32 as i32);
 
     pub fn print(webview: PlatformWebview, destination: &Path, done: Done) {
         let done = Rc::new(Cell::new(Some(done)));
@@ -312,7 +313,13 @@ mod platform {
 
     fn start(webview: &PlatformWebview, destination: &Path, done: Rc<Cell<Option<Done>>>) -> Result<(), String> {
         let failed = |error: windows_core::Error| format!("WebView2 no pudo generar el PDF: {error}");
-        let outdated = |_| "Tu versión de WebView2 no sabe generar PDF; actualízala desde Windows Update.".to_string();
+        let outdated = |error: windows_core::Error| {
+            if error.code() == E_NOINTERFACE {
+                "Tu versión de WebView2 no sabe generar PDF; actualiza el runtime de WebView2.".to_string()
+            } else {
+                failed(error)
+            }
+        };
         let core = unsafe { webview.controller().CoreWebView2() }.map_err(failed)?;
         let core: ICoreWebView2_7 = core.cast().map_err(outdated)?;
         let environment: ICoreWebView2Environment6 = webview.environment().cast().map_err(outdated)?;
