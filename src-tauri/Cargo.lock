@@ -754,10 +754,11 @@ dependencies = [
 
 [[package]]
 name = "den"
-version = "0.22.2"
+version = "0.22.3"
 dependencies = [
  "chrono",
  "csv",
+ "gtk",
  "jiff",
  "notify",
  "notify-debouncer-full",
@@ -775,6 +776,9 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-single-instance",
  "tokio",
+ "webkit2gtk",
+ "webview2-com",
+ "windows-core",
  "zip",
 ]
 
