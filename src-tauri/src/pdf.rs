@@ -213,7 +213,142 @@ mod platform {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
+mod platform {
+    use std::cell::{Cell, RefCell};
+    use std::path::Path;
+    use std::rc::Rc;
+
+    use gtk::glib;
+    use gtk::{PageSetup, PaperSize, PrintSettings, Unit};
+    use tauri::webview::PlatformWebview;
+    use tokio::sync::oneshot;
+    use webkit2gtk::{PrintOperation, PrintOperationExt};
+
+    type Done = oneshot::Sender<Result<(), String>>;
+
+    const MARGIN_POINTS: f64 = 36.0;
+
+    thread_local! {
+        static ACTIVE: RefCell<Option<PrintOperation>> = const { RefCell::new(None) };
+    }
+
+    pub fn print(webview: PlatformWebview, destination: &Path, done: Done) {
+        let uri = match glib::filename_to_uri(destination, None) {
+            Ok(uri) => uri,
+            Err(error) => {
+                let _ = done.send(Err(format!("No pude preparar la ruta del PDF: {error}")));
+                return;
+            }
+        };
+
+        let settings = PrintSettings::new();
+        settings.set_printer("Print to File");
+        settings.set(gtk::PRINT_SETTINGS_OUTPUT_FILE_FORMAT.as_str(), Some("pdf"));
+        settings.set(gtk::PRINT_SETTINGS_OUTPUT_URI.as_str(), Some(uri.as_str()));
+
+        let page = PageSetup::new();
+        page.set_paper_size(&PaperSize::new(Some(gtk::PAPER_NAME_LETTER.as_str())));
+        page.set_top_margin(MARGIN_POINTS, Unit::Points);
+        page.set_bottom_margin(MARGIN_POINTS, Unit::Points);
+        page.set_left_margin(MARGIN_POINTS, Unit::Points);
+        page.set_right_margin(MARGIN_POINTS, Unit::Points);
+
+        let operation = PrintOperation::new(&webview.inner());
+        operation.set_print_settings(&settings);
+        operation.set_page_setup(&page);
+
+        let done = Rc::new(Cell::new(Some(done)));
+        let on_failure = Rc::clone(&done);
+        operation.connect_failed(move |_, error| {
+            if let Some(sender) = on_failure.take() {
+                let _ = sender.send(Err(format!("WebKitGTK no pudo generar el PDF: {error}")));
+            }
+        });
+        operation.connect_finished(move |_| {
+            if let Some(sender) = done.take() {
+                let _ = sender.send(Ok(()));
+            }
+            ACTIVE.with(|slot| {
+                slot.borrow_mut().take();
+            });
+        });
+
+        ACTIVE.with(|slot| {
+            *slot.borrow_mut() = Some(operation.clone());
+        });
+        operation.print();
+    }
+}
+
+#[cfg(windows)]
+mod platform {
+    use std::cell::Cell;
+    use std::path::Path;
+    use std::rc::Rc;
+
+    use tauri::webview::PlatformWebview;
+    use tokio::sync::oneshot;
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2Environment6, ICoreWebView2PrintSettings, ICoreWebView2_7,
+    };
+    use webview2_com::PrintToPdfCompletedHandler;
+    use windows_core::{Interface, HSTRING};
+
+    type Done = oneshot::Sender<Result<(), String>>;
+
+    const LETTER_WIDTH_INCHES: f64 = 8.5;
+    const LETTER_HEIGHT_INCHES: f64 = 11.0;
+    const MARGIN_INCHES: f64 = 0.5;
+
+    pub fn print(webview: PlatformWebview, destination: &Path, done: Done) {
+        let done = Rc::new(Cell::new(Some(done)));
+        if let Err(message) = start(&webview, destination, Rc::clone(&done)) {
+            if let Some(sender) = done.take() {
+                let _ = sender.send(Err(message));
+            }
+        }
+    }
+
+    fn start(webview: &PlatformWebview, destination: &Path, done: Rc<Cell<Option<Done>>>) -> Result<(), String> {
+        let failed = |error: windows_core::Error| format!("WebView2 no pudo generar el PDF: {error}");
+        let outdated = |_| "Tu versión de WebView2 no sabe generar PDF; actualízala desde Windows Update.".to_string();
+        let core = unsafe { webview.controller().CoreWebView2() }.map_err(failed)?;
+        let core: ICoreWebView2_7 = core.cast().map_err(outdated)?;
+        let environment: ICoreWebView2Environment6 = webview.environment().cast().map_err(outdated)?;
+        let settings = unsafe { environment.CreatePrintSettings() }.map_err(failed)?;
+        letter(&settings).map_err(failed)?;
+        let path = HSTRING::from(destination.as_os_str());
+        let handler = PrintToPdfCompletedHandler::create(Box::new(move |result, success| {
+            let outcome = match result {
+                Err(error) => Err(format!("WebView2 no pudo generar el PDF: {error}")),
+                Ok(()) if !success => Err("WebView2 no pudo generar el PDF.".to_string()),
+                Ok(()) => Ok(()),
+            };
+            if let Some(sender) = done.take() {
+                let _ = sender.send(outcome);
+            }
+            Ok(())
+        }));
+        unsafe { core.PrintToPdf(&path, &settings, &handler) }.map_err(failed)
+    }
+
+    fn letter(settings: &ICoreWebView2PrintSettings) -> windows_core::Result<()> {
+        unsafe {
+            settings.SetPageWidth(LETTER_WIDTH_INCHES)?;
+            settings.SetPageHeight(LETTER_HEIGHT_INCHES)?;
+            settings.SetMarginTop(MARGIN_INCHES)?;
+            settings.SetMarginBottom(MARGIN_INCHES)?;
+            settings.SetMarginLeft(MARGIN_INCHES)?;
+            settings.SetMarginRight(MARGIN_INCHES)?;
+            settings.SetShouldPrintBackgrounds(true)?;
+            settings.SetShouldPrintHeaderAndFooter(false)?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
 mod platform {
     use std::path::Path;
 
@@ -221,7 +356,7 @@ mod platform {
     use tokio::sync::oneshot;
 
     pub fn print(_webview: PlatformWebview, _destination: &Path, done: oneshot::Sender<Result<(), String>>) {
-        let _ = done.send(Err("Exportar a PDF solo funciona en macOS.".into()));
+        let _ = done.send(Err("Exportar a PDF no está disponible en este sistema.".into()));
     }
 }
 
