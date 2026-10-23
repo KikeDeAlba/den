@@ -1,6 +1,6 @@
 [package]
 name = "den"
-version = "0.22.2"
+version = "0.22.3"
 description = "Den, the desktop front end for the kikedealba tools"
 edition = "2021"
 
