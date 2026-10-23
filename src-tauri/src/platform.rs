@@ -237,7 +237,32 @@ pub async fn open_as_text(path: &Path) -> Result<(), String> {
     if launches_on_open(&target) {
         return reveal(&target);
     }
+    if open_with_text_editor(&target).await {
+        return Ok(());
+    }
     open_path(&target)
+}
+
+async fn open_with_text_editor(target: &Path) -> bool {
+    let (Some(mime), Some(launcher)) = (on_path("xdg-mime"), on_path("gtk-launch")) else {
+        return false;
+    };
+    let mut query = tokio::process::Command::new(mime);
+    query.args(["query", "default", "text/plain"]);
+    let Ok(output) = query.output().await else {
+        return false;
+    };
+    let Some(application) = desktop_id(&String::from_utf8_lossy(&output.stdout)) else {
+        return false;
+    };
+    let mut launch = tokio::process::Command::new(launcher);
+    launch.arg(application).arg(target);
+    launch.status().await.is_ok_and(|status| status.success())
+}
+
+fn desktop_id(answer: &str) -> Option<String> {
+    let line = answer.lines().map(str::trim).find(|line| !line.is_empty())?;
+    line.ends_with(".desktop").then(|| line.to_string())
 }
 
 pub struct ManagedRoot {
@@ -337,7 +362,7 @@ mod tests {
 
     use std::path::Path;
 
-    use super::{executable, home_from, join_dirs, launches_on_open, search_path, simplified_text, system_dirs};
+    use super::{desktop_id, executable, home_from, join_dirs, launches_on_open, search_path, simplified_text, system_dirs};
 
     #[test]
     fn home_prefers_home_and_falls_back_to_the_user_profile() {
@@ -389,5 +414,13 @@ mod tests {
         let broken = PathBuf::from(if cfg!(windows) { "a\"b" } else { "a:b" });
         let joined = join_dirs(vec![broken, PathBuf::from("ok"), PathBuf::new()]);
         assert_eq!(joined, OsString::from("ok"));
+    }
+
+    #[test]
+    fn the_default_text_editor_is_read_from_xdg_mime() {
+        assert_eq!(desktop_id("org.gnome.TextEditor.desktop\n").as_deref(), Some("org.gnome.TextEditor.desktop"));
+        assert_eq!(desktop_id("\n  kate.desktop  \n").as_deref(), Some("kate.desktop"));
+        assert_eq!(desktop_id(""), None);
+        assert_eq!(desktop_id("no default\n"), None);
     }
 }
