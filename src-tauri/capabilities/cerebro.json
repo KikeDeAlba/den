@@ -1,7 +1,0 @@
-{
-  "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "cerebro",
-  "description": "Permissions for the knowledge graph window",
-  "windows": ["cerebro"],
-  "permissions": ["core:default", "core:window:allow-start-dragging"]
-}
