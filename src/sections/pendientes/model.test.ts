@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'vitest'
 import type { BacklogItem } from '../../bita.ts'
 import { ageLabel, closePrompt, findKey, groupIssues, inSpace, matches, stateOf } from './model.ts'
 import { parsePendientesPath, pendientesRoute } from './route.ts'

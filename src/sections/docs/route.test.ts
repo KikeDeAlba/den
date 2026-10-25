@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'vitest'
 import { docsRoute, entryRoute, meetingRoute, pageRoute, parseDocsPath } from './route.ts'
 
 const split = (route: string): string[] => route.split('/').slice(1).map(decodeURIComponent)
