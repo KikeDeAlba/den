@@ -75,7 +75,7 @@ impl Smoke {
         Some(Self {
             database: root.join("bita.db"),
             root,
-            bin: [node, script],
+            bin: [OsString::from(node_path), script],
             fake,
         })
     }

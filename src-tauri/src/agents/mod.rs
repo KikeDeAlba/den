@@ -236,7 +236,7 @@ pub fn pty_env(bin: &[OsString], inherited: impl IntoIterator<Item = (OsString, 
         env.entry(OsString::from(key)).or_insert(value);
     }
     let mut path = registry::path_for(bin);
-    if let Some(existing) = inherited_path.filter(|value| !value.is_empty()) {
+    if let Some(existing) = inherited_path.as_deref().and_then(absolute_entries) {
         path.push(if cfg!(windows) { ";" } else { ":" });
         path.push(existing);
     }
@@ -250,6 +250,16 @@ pub fn pty_env(bin: &[OsString], inherited: impl IntoIterator<Item = (OsString, 
     let mut list: Vec<(OsString, OsString)> = env.into_iter().collect();
     list.sort();
     list
+}
+
+fn absolute_entries(path: &std::ffi::OsStr) -> Option<OsString> {
+    let kept: Vec<PathBuf> = std::env::split_paths(path)
+        .filter(|entry| !entry.as_os_str().is_empty() && entry.is_absolute())
+        .collect();
+    if kept.is_empty() {
+        return None;
+    }
+    std::env::join_paths(kept).ok()
 }
 
 fn directory(request: &SpawnRequest) -> Result<PathBuf, Problem> {
@@ -269,6 +279,12 @@ fn directory(request: &SpawnRequest) -> Result<PathBuf, Problem> {
 
 pub fn spec_for(cli_bin: &[OsString], database: &Path, request: &SpawnRequest, cols: u16, rows: u16) -> Result<PtySpec, Problem> {
     let (program, prefix) = cli_bin.split_first().ok_or_else(|| registry::missing_problem(Tool::Bita))?;
+    if !Path::new(program).is_absolute() {
+        return Err(failed(format!(
+            "El registro apunta a bita con una ruta incompleta ({}). Vuelve a correr bita setup.",
+            Path::new(program).display()
+        )));
+    }
     let mut args: Vec<String> = prefix.iter().map(|part| part.to_string_lossy().into_owned()).collect();
     args.extend(model::work_args(request).map_err(failed)?);
     args.push("--db-path".into());
@@ -659,6 +675,33 @@ mod tests {
     }
 
     #[test]
+    fn relative_and_empty_path_entries_are_not_inherited() {
+        let env = env_of(&[("PATH", "/usr/bin::.:bin:./node_modules/.bin:/custom/bin:")]);
+        let path = lookup(&env, "PATH").expect("path");
+        let entries: Vec<String> = std::env::split_paths(&path).map(|entry| entry.to_string_lossy().into_owned()).collect();
+        assert!(entries.iter().all(|entry| entry.starts_with('/')), "{path}");
+        assert!(path.ends_with(":/usr/bin:/custom/bin"), "{path}");
+        let only_relative = env_of(&[("PATH", ".:bin:")]);
+        let path = lookup(&only_relative, "PATH").expect("path");
+        assert!(std::env::split_paths(&path).all(|entry| entry.is_absolute()), "{path}");
+    }
+
+    #[test]
+    fn the_bita_program_must_be_an_absolute_path() {
+        let request = SpawnRequest {
+            harness: Some("claude".into()),
+            cwd: Some(std::env::temp_dir().to_string_lossy().into_owned()),
+            ..SpawnRequest::default()
+        };
+        for program in ["bita", "./bita", "bin/node", ""] {
+            let bin = [OsString::from(program), OsString::from("/opt/bita.js")];
+            let refused = spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).expect_err(program);
+            assert!(refused.message.contains("ruta incompleta"), "{program}: {}", refused.message);
+        }
+        assert!(spec_for(&[OsString::from("/usr/bin/node")], Path::new("/tmp/x.db"), &request, 80, 24).is_ok());
+    }
+
+    #[test]
     fn the_child_only_inherits_what_the_cli_policy_and_the_agents_need() {
         let env = env_of(&[
             ("DYLD_INSERT_LIBRARIES", "/tmp/evil.dylib"),
@@ -903,7 +946,11 @@ mod tests {
         std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).expect("chmod");
         let database = root.join("bita.db");
         let node = std::env::var_os("DEN_AGENT_SMOKE_NODE").unwrap_or_else(|| OsString::from("node"));
-        let bin = [node, script];
+        let found = std::process::Command::new("sh")
+            .args(["-c", &format!("command -v '{}'", node.to_string_lossy())])
+            .output()
+            .expect("which");
+        let bin = [OsString::from(String::from_utf8_lossy(&found.stdout).trim()), script];
         let added = std::process::Command::new(&bin[0])
             .arg(&bin[1])
             .args(["project", "add", "Smoke", "--json", "--db-path"])
