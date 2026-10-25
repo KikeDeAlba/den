@@ -302,10 +302,13 @@ fn directory(request: &SpawnRequest) -> Result<PathBuf, Problem> {
 
 pub fn spec_for(cli_bin: &[OsString], database: &Path, request: &SpawnRequest, cols: u16, rows: u16) -> Result<PtySpec, Problem> {
     let (program, prefix) = cli_bin.split_first().ok_or_else(|| registry::missing_problem(Tool::Bita))?;
-    if !Path::new(program).is_absolute() {
+    let relative = std::iter::once(program)
+        .chain(prefix.iter().filter(|part| !part.to_string_lossy().starts_with('-')))
+        .find(|part| !Path::new(part).is_absolute());
+    if let Some(part) = relative {
         return Err(failed(format!(
             "El registro apunta a bita con una ruta incompleta ({}). Vuelve a correr bita setup.",
-            Path::new(program).display()
+            Path::new(part).display()
         )));
     }
     let mut args: Vec<String> = prefix.iter().map(|part| part.to_string_lossy().into_owned()).collect();
@@ -735,7 +738,14 @@ mod tests {
             let refused = spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).expect_err(program);
             assert!(refused.message.contains("ruta incompleta"), "{program}: {}", refused.message);
         }
+        for script in ["bita.js", "./bita.js", "dist/bin/bita.js", ""] {
+            let bin = [OsString::from("/usr/bin/node"), OsString::from("--no-warnings"), OsString::from(script)];
+            let refused = spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).expect_err(script);
+            assert!(refused.message.contains("ruta incompleta"), "{script}: {}", refused.message);
+        }
         assert!(spec_for(&[OsString::from("/usr/bin/node")], Path::new("/tmp/x.db"), &request, 80, 24).is_ok());
+        let bin = [OsString::from("/usr/bin/node"), OsString::from("--no-warnings"), OsString::from("/opt/bita.js")];
+        assert!(spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).is_ok());
     }
 
     #[test]
