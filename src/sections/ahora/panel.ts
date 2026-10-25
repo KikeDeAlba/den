@@ -3,7 +3,6 @@ import {
   amendTimer,
   describeProblem,
   discardTimer,
-  doctorReport,
   isMeetingKind,
   MEETING_KINDS,
   liveState,
@@ -11,14 +10,10 @@ import {
   onDocsChanged,
   onToolsChanged,
   toolsStatus,
-  onLiveSettings,
   onLiveState,
   onLiveTranscript,
   pendingProposals,
   onSnapshot,
-  openNotes,
-  openReports,
-  openBrain,
   pending,
   projects,
   jiraProjects,
@@ -43,32 +38,78 @@ import {
   type WorkedView,
   type ToolsStatus,
   installHint,
-} from './bita.ts'
-import { element, iconButton, must } from './dom.ts'
-import { clock, human, startedAt } from './format.ts'
-import { timerDoc, todayNotes } from './notes-panel.ts'
-import { GAZE_FIXTURE } from './cerebro/flag.ts'
-import { renderSettings } from './settings.ts'
-import { assistantRow, liveMatches, pendingCount, proposalsCard, renderLiveSettings } from './live-panel.ts'
-import { projectColor, renderPending, renderRepos, renderWorked } from './tabs.ts'
+} from '../../bita.ts'
+import { element, icon, iconButton } from '../../dom.ts'
+import { clock, human, startedAt } from '../../format.ts'
+import { timerDoc, todayNotes } from '../../notes-panel.ts'
+import { assistantRow, liveMatches, proposalsCard } from '../../live-panel.ts'
+import { projectColor, renderPending, renderRepos, renderWorked } from '../../tabs.ts'
+import { go } from '../../shell/routes.ts'
 
 const TABS = ['ahora', 'hoy', 'jira', 'repos'] as const
 
 type Tab = (typeof TABS)[number]
 
-const view = must<HTMLElement>('#view')
-const todayTotal = must<HTMLElement>('#today-total')
-const barMark = must<HTMLElement>('.bar-mark')
-const launcher = must<HTMLElement>('#launcher')
-const launchForm = must<HTMLFormElement>('#launch-form')
-const launchTitle = must<HTMLInputElement>('#launch-title')
-const launchBlank = must<HTMLButtonElement>('#launch-blank')
-const launchKind = must<HTMLElement>('#launch-kind')
-const tabStrip = must<HTMLElement>('.tabs')
-const gear = must<HTMLButtonElement>('#open-settings')
-const notesButton = must<HTMLButtonElement>('#open-notes')
-const reportsButton = must<HTMLButtonElement>('#open-reports')
-const brainButton = must<HTMLButtonElement>('#open-brain')
+function tabButton(name: Tab, label: string): HTMLButtonElement {
+  const button = element('button', undefined, label) as HTMLButtonElement
+  button.type = 'button'
+  button.setAttribute('role', 'tab')
+  button.dataset['tab'] = name
+  button.setAttribute('aria-selected', String(name === 'ahora'))
+  return button
+}
+
+function kindButton(kind: string, label: string): HTMLButtonElement {
+  const button = element('button', undefined, label) as HTMLButtonElement
+  button.type = 'button'
+  button.setAttribute('role', 'radio')
+  button.dataset['kind'] = kind
+  button.setAttribute('aria-checked', String(kind === ''))
+  return button
+}
+
+const root = element('div', 'ahora')
+const head = element('div', 'ahora-head')
+const todayTotal = element('span', 'bar-total', '—')
+head.append(element('span', 'bar-label', 'Hoy'), todayTotal)
+
+const tabStrip = element('nav', 'tabs')
+tabStrip.setAttribute('role', 'tablist')
+tabStrip.setAttribute('aria-label', 'Vistas')
+tabStrip.append(tabButton('ahora', 'Ahora'), tabButton('hoy', 'Hoy'), tabButton('jira', 'Jira'), tabButton('repos', 'Repos'))
+
+const view = element('main', 'view')
+
+const launcher = element('footer', 'launcher')
+const launchForm = document.createElement('form')
+launchForm.className = 'launcher-row'
+const launchLabel = element('label', 'visually-hidden', 'Título del cronómetro') as HTMLLabelElement
+launchLabel.htmlFor = 'launch-title'
+const launchTitle = document.createElement('input')
+launchTitle.id = 'launch-title'
+launchTitle.type = 'text'
+launchTitle.autocomplete = 'off'
+launchTitle.spellcheck = false
+launchTitle.placeholder = '¿En qué trabajas?'
+const launchGo = document.createElement('button')
+launchGo.type = 'submit'
+launchGo.className = 'go'
+launchGo.setAttribute('aria-label', 'Arrancar')
+launchGo.append(icon('play', 13))
+launchForm.append(launchLabel, launchTitle, launchGo)
+const launchKind = element('div', 'kind-picker')
+launchKind.setAttribute('role', 'radiogroup')
+launchKind.setAttribute('aria-label', 'Tipo de cronómetro')
+launchKind.append(
+  kindButton('', 'Trabajo'),
+  kindButton('remote-meeting', 'Reunión remota'),
+  kindButton('in-person-meeting', 'Presencial'),
+)
+const launchBlank = element('button', 'quiet-link', 'o arranca en blanco') as HTMLButtonElement
+launchBlank.type = 'button'
+launcher.append(launchForm, launchKind, launchBlank)
+
+root.append(head, tabStrip, view, launcher)
 
 let tab: Tab = 'ahora'
 let latest: Snapshot = { running: [], todaySeconds: 0, problem: null }
@@ -84,7 +125,7 @@ let confirmingDiscard = false
 let failure: Problem | null = null
 let painted = ''
 let busy = false
-let inSettings = false
+let started = false
 let notesOfToday: NoteRow[] = []
 let live: LiveView | null = null
 let proposals: PendingMeeting[] = []
@@ -109,15 +150,12 @@ function applyModules(): void {
     const name = button.dataset['tab'] ?? ''
     button.hidden = !isTab(name) || !visibleTabs().includes(name)
   }
-  tabStrip.hidden = inSettings || visibleTabs().length < 2
+  tabStrip.hidden = visibleTabs().length < 2
   for (const button of launchKind.querySelectorAll<HTMLButtonElement>('[data-kind]')) {
     button.hidden = button.dataset['kind'] !== '' && !enabled('meetingKinds')
   }
   launchKind.hidden = !enabled('meetingKinds')
   if (!enabled('meetingKinds') && launchKindValue !== '') setLaunchKind('')
-  notesButton.hidden = !enabled('notes')
-  reportsButton.hidden = !enabled('timers')
-  brainButton.hidden = !(enabled('graph') || GAZE_FIXTURE)
   if (!visibleTabs().includes(tab)) {
     tab = 'ahora'
     for (const button of tabStrip.querySelectorAll<HTMLButtonElement>('[role="tab"]')) {
@@ -133,7 +171,7 @@ function missingBita(): HTMLElement {
   box.append(element('code', 'problem-hint', installHint(tools, 'bita')))
   const open = element('button', 'ghost-button wide', 'Ver las herramientas') as HTMLButtonElement
   open.type = 'button'
-  open.addEventListener('click', () => void showSettings())
+  open.addEventListener('click', () => go('ajustes'))
   box.append(open)
   return box
 }
@@ -461,13 +499,12 @@ async function loadLive(): Promise<void> {
   } catch {
     live = null
   }
-  if (!inSettings) paint()
+  paint()
 }
 
 async function loadProposals(): Promise<void> {
   if (!enabled('proposals')) {
     proposals = []
-    notesButton.classList.remove('icon-button--dot')
     return
   }
   try {
@@ -475,19 +512,7 @@ async function loadProposals(): Promise<void> {
   } catch {
     proposals = []
   }
-  notesButton.classList.toggle('icon-button--dot', pendingCount(proposals) > 0)
-  if (!inSettings) paint()
-}
-
-function showLiveSettings(): void {
-  inSettings = true
-  tabStrip.hidden = true
-  launcher.hidden = true
-  painted = ''
-  const project = live?.project ?? latest.running.find((timer) => timer.projectName !== null)?.projectName ?? null
-  renderLiveSettings(view, live?.shortcut ?? 'Ctrl+Alt+Space', project, () => {
-    void showSettings()
-  })
+  paint()
 }
 
 function tickClocks(): void {
@@ -499,10 +524,9 @@ function tickClocks(): void {
 
 function paint(): void {
   todayTotal.textContent = human(latest.todaySeconds)
-  barMark.dataset['idle'] = String(latest.running.length === 0)
-  launcher.hidden = inSettings || tab !== 'ahora' || editing !== null || !enabled('timers')
+  launcher.hidden = tab !== 'ahora' || editing !== null || !enabled('timers')
 
-  if (inSettings || tab !== 'ahora') return
+  if (tab !== 'ahora') return
 
   const current = signature()
   if (current === painted) {
@@ -580,34 +604,7 @@ async function reposAction(
   }
 }
 
-async function showSettings(): Promise<void> {
-  inSettings = true
-  tabStrip.hidden = true
-  launcher.hidden = true
-  painted = ''
-  busyView()
-  try {
-    const report = await doctorReport()
-    if (!inSettings) return
-    renderSettings(
-      view,
-      report,
-      () => {
-        inSettings = false
-        showTab(tab)
-      },
-      () => {
-        void showSettings()
-      },
-      showLiveSettings,
-    )
-  } catch (error) {
-    if (inSettings) failureView(error)
-  }
-}
-
 function showTab(next: Tab): void {
-  inSettings = false
   tab = visibleTabs().includes(next) ? next : 'ahora'
   applyModules()
   painted = ''
@@ -623,7 +620,7 @@ function showTab(next: Tab): void {
 }
 
 async function start(): Promise<void> {
-  const tabs = document.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+  const tabs = tabStrip.querySelectorAll<HTMLButtonElement>('[role="tab"]')
   for (const button of tabs) {
     button.addEventListener('click', () => {
       const name = button.dataset['tab']
@@ -653,39 +650,14 @@ async function start(): Promise<void> {
     button.addEventListener('click', () => setLaunchKind(button.dataset['kind'] ?? ''))
   }
 
-  notesButton.addEventListener('click', () => {
-    void openNotes(null)
-  })
-
-  reportsButton.addEventListener('click', () => {
-    void openReports()
-  })
-
-  brainButton.addEventListener('click', () => {
-    void openBrain()
-  })
-
-  gear.addEventListener('click', () => {
-    if (inSettings) {
-      inSettings = false
-      showTab(tab)
-      return
-    }
-    void showSettings()
-  })
-
   onSnapshot((value) => {
     latest = value
-    if (!inSettings) paint()
+    paint()
   })
 
   onDocsChanged(() => {
     void loadTodayNotes()
     void loadProposals()
-  })
-
-  onLiveSettings(() => {
-    showLiveSettings()
   })
 
   onLiveState(() => {
@@ -697,7 +669,7 @@ async function start(): Promise<void> {
     if (live === null || live.active?.meetingId !== update.meetingId) return
     const hadLines = live.transcript.length > 0
     live.transcript = update.transcript
-    if (!hadLines && !inSettings) paint()
+    if (!hadLines) paint()
   })
 
   document.addEventListener('visibilitychange', () => {
@@ -727,7 +699,7 @@ async function start(): Promise<void> {
 
   const nothing = tools !== null && !tools.modules.timers && !tools.modules.notes && !tools.modules.meetings
   if (nothing || (enabled('timers') && latest.problem !== null)) {
-    void showSettings()
+    go('ajustes')
     return
   }
 
@@ -751,8 +723,19 @@ function applyTools(status: ToolsStatus): void {
   void loadTodayNotes()
   void loadLive()
   void loadProposals()
-  if (inSettings) return
   showTab(tab)
 }
 
-void start()
+export function mountPanel(host: HTMLElement): void {
+  host.replaceChildren(root)
+  if (started) {
+    showTab(tab)
+    return
+  }
+  started = true
+  void start().catch((error: unknown) => failureView(error))
+}
+
+export function refreshPanel(): void {
+  if (started) showTab(tab)
+}

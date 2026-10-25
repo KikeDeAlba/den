@@ -1,0 +1,21 @@
+[data-section='ahora'] {
+  overflow: hidden;
+}
+
+[data-section='ahora'] .ahora {
+  height: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  padding-top: 8px;
+}
+
+[data-section='ahora'] .ahora-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 4px 14px 0;
+}

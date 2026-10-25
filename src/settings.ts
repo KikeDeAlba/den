@@ -110,7 +110,7 @@ export function renderSettings(
 
   const leave = element('div', 'leave')
   leave.append(
-    element('p', 'leave-note', 'Den vive en la barra: no tiene ventana ni icono en el Dock.'),
+    element('p', 'leave-note', 'Cerrar la ventana no detiene Den: el reloj sigue en la barra de menús.'),
   )
   const stop = element('button', 'danger-button wide', 'Salir de Den') as HTMLButtonElement
   stop.type = 'button'

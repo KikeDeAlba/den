@@ -1,6 +1,6 @@
 import {
   liveModeSet,
-  liveOpenSettings,
+  navigate,
   liveTranscriptFull,
   recapConfig,
   type AnswerSource,
@@ -287,7 +287,7 @@ function paintBar(): void {
     status.title = 'Abrir los ajustes del asistente'
     status.append(element('span', 'wide-detect-dot'), element('span', '', on ? 'Detección automática' : 'Detección apagada'))
     status.addEventListener('click', () => {
-      void liveOpenSettings()
+      void navigate('ajustes/asistente')
     })
     bar.append(status)
   }

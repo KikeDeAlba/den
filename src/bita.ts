@@ -9,7 +9,7 @@ export const SYNC_FINISHED_EVENT = 'bita://confluence-synced'
 export const LIVE_ANSWER_EVENT = 'bita://live-answer'
 export const LIVE_STATE_EVENT = 'bita://live-state'
 export const LIVE_TRANSCRIPT_EVENT = 'bita://live-transcript'
-export const LIVE_SETTINGS_EVENT = 'bita://live-settings'
+export const NAVIGATE_EVENT = 'den://navigate'
 export const NOTES_MEETING_EVENT = 'bita://notes-meeting'
 export const TOOLS_EVENT = 'bita://tools-changed'
 
@@ -1444,8 +1444,14 @@ export function liveModeSet(mode: LiveMode): Promise<void> {
   return invoke('live_mode_set', { mode })
 }
 
-export function liveOpenSettings(): Promise<void> {
-  return invoke('live_open_settings')
+export function navigate(route: string): Promise<void> {
+  return invoke('navigate_to', { route })
+}
+
+export function onNavigate(handler: (route: string) => void): void {
+  void listen<string>(NAVIGATE_EVENT, (event) => {
+    handler(event.payload)
+  }).catch(() => undefined)
 }
 
 export function openSourceFile(path: string): Promise<void> {
@@ -1507,12 +1513,6 @@ export function onLiveState(handler: () => void): void {
 export function onLiveTranscript(handler: (update: LiveTranscriptUpdate) => void): void {
   void listen<LiveTranscriptUpdate>(LIVE_TRANSCRIPT_EVENT, (event) => {
     handler(event.payload)
-  })
-}
-
-export function onLiveSettings(handler: () => void): void {
-  void listen(LIVE_SETTINGS_EVENT, () => {
-    handler()
   })
 }
 
