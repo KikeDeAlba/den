@@ -1,5 +1,8 @@
+use std::fs::{DirBuilder, File, OpenOptions};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tauri::WebviewWindow;
 use tokio::sync::oneshot;
@@ -12,6 +15,7 @@ const PRINT_TIMEOUT: Duration = Duration::from_secs(90);
 const SETTLE_POLL: Duration = Duration::from_millis(250);
 const SETTLE_TRIES: usize = 40;
 const NAME_MAX_CHARS: usize = 120;
+const CLAIM_TRIES: usize = 10_000;
 
 pub(crate) fn sanitize(file_name: &str) -> String {
     sanitize_with(file_name, "pdf")
@@ -28,7 +32,7 @@ pub(crate) fn sanitize_with(file_name: &str, extension: &str) -> String {
         .unwrap_or(trimmed);
     let cleaned: String = base
         .chars()
-        .map(|c| if c.is_control() || matches!(c, '/' | '\\' | ':') { '-' } else { c })
+        .map(|c| if c.is_control() || is_bidi(c) || matches!(c, '/' | '\\' | ':') { '-' } else { c })
         .collect();
     let cleaned = cleaned.trim().trim_start_matches('.').trim();
     let short: String = cleaned.chars().take(NAME_MAX_CHARS).collect();
@@ -40,19 +44,77 @@ pub(crate) fn sanitize_with(file_name: &str, extension: &str) -> String {
     }
 }
 
-pub(crate) fn unique_path(dir: &Path, stem: &str) -> PathBuf {
-    unique_path_with(dir, stem, "pdf")
+fn is_bidi(c: char) -> bool {
+    matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
 }
 
-pub(crate) fn unique_path_with(dir: &Path, stem: &str, extension: &str) -> PathBuf {
-    let first = dir.join(format!("{stem}.{extension}"));
-    if !first.exists() {
-        return first;
+pub(crate) fn create_unique(dir: &Path, stem: &str, extension: &str) -> io::Result<(PathBuf, File)> {
+    for n in 1..=CLAIM_TRIES {
+        let name = if n == 1 { format!("{stem}.{extension}") } else { format!("{stem} ({n}).{extension}") };
+        let candidate = dir.join(name);
+        match OpenOptions::new().write(true).create_new(true).open(&candidate) {
+            Ok(file) => return Ok((candidate, file)),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
     }
-    (2..)
-        .map(|n| dir.join(format!("{stem} ({n}).{extension}")))
-        .find(|candidate| !candidate.exists())
-        .unwrap_or(first)
+    Err(io::Error::new(io::ErrorKind::AlreadyExists, "no free file name left"))
+}
+
+pub(crate) fn write_unique(dir: &Path, stem: &str, extension: &str, bytes: &[u8]) -> io::Result<PathBuf> {
+    if bytes.is_empty() {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "nothing to write"));
+    }
+    let (target, mut file) = create_unique(dir, stem, extension)?;
+    let written = file.write_all(bytes).and_then(|()| file.sync_all());
+    drop(file);
+    match written {
+        Ok(()) => Ok(target),
+        Err(error) => {
+            let _ = std::fs::remove_file(&target);
+            Err(error)
+        }
+    }
+}
+
+struct Scratch {
+    dir: PathBuf,
+}
+
+impl Scratch {
+    fn new() -> io::Result<Self> {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|since| since.as_nanos()).unwrap_or(0);
+        let base = std::env::temp_dir();
+        for _ in 0..CLAIM_TRIES {
+            let n = NEXT.fetch_add(1, Ordering::Relaxed);
+            let dir = base.join(format!("den-pdf-{}-{nanos}-{n}", std::process::id()));
+            let mut builder = DirBuilder::new();
+            #[cfg(unix)]
+            std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+            match builder.create(&dir) {
+                Ok(()) => return Ok(Self { dir }),
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error),
+            }
+        }
+        Err(io::Error::new(io::ErrorKind::AlreadyExists, "no free scratch folder left"))
+    }
+
+    fn file(&self, name: &str) -> PathBuf {
+        self.dir.join(name)
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+fn complete_pdf(bytes: &[u8]) -> bool {
+    let tail = &bytes[bytes.len().saturating_sub(1024)..];
+    bytes.starts_with(b"%PDF-") && tail.windows(5).any(|window| window == b"%%EOF")
 }
 
 fn failed(message: impl Into<String>) -> Problem {
@@ -66,10 +128,11 @@ pub async fn export_pdf(window: WebviewWindow, file_name: String) -> Result<Stri
         .ok_or_else(|| failed("No sé cuál es tu carpeta de inicio."))?;
     std::fs::create_dir_all(&downloads)
         .map_err(|error| failed(format!("No pude preparar {}: {error}", downloads.display())))?;
-    let target = unique_path(&downloads, &sanitize(&file_name));
+    let scratch = Scratch::new().map_err(|error| failed(format!("No pude preparar una carpeta temporal: {error}")))?;
+    let staging = scratch.file("print.pdf");
 
     let (sender, receiver) = oneshot::channel::<Result<(), String>>();
-    let destination = target.clone();
+    let destination = staging.clone();
     window
         .with_webview(move |webview| {
             platform::print(webview, &destination, sender);
@@ -83,23 +146,29 @@ pub async fn export_pdf(window: WebviewWindow, file_name: String) -> Result<Stri
         Ok(Ok(Ok(()))) => {}
     }
 
-    settle(&target).await?;
+    let bytes = settle(&staging).await?;
+    let target = write_unique(&downloads, &sanitize(&file_name), "pdf", &bytes)
+        .map_err(|error| failed(format!("No pude guardar el PDF en {}: {error}", downloads.display())))?;
+    drop(scratch);
     let _ = crate::media::reveal(&target).await;
     Ok(target.display().to_string())
 }
 
-async fn settle(target: &Path) -> Result<(), Problem> {
+async fn settle(staging: &Path) -> Result<Vec<u8>, Problem> {
     let mut last = 0;
     for _ in 0..SETTLE_TRIES {
-        let size = std::fs::metadata(target).map(|meta| meta.len()).unwrap_or(0);
+        let size = std::fs::metadata(staging).map(|meta| meta.len()).unwrap_or(0);
         if size > 0 && size == last {
-            return Ok(());
+            let bytes = std::fs::read(staging).map_err(|error| failed(format!("No pude leer el PDF generado: {error}")))?;
+            if complete_pdf(&bytes) {
+                return Ok(bytes);
+            }
         }
         last = size;
         sleep(SETTLE_POLL).await;
     }
     if last > 0 {
-        return Ok(());
+        return Err(failed("La impresión dejó un PDF incompleto."));
     }
     Err(failed("La impresión no dejó ningún PDF."))
 }
@@ -369,7 +438,12 @@ mod platform {
 
 #[cfg(test)]
 mod tests {
-    use super::{sanitize, unique_path};
+    use super::{complete_pdf, create_unique, sanitize, write_unique, Scratch};
+    use std::path::{Path, PathBuf};
+
+    fn claim(dir: &Path, stem: &str, extension: &str) -> PathBuf {
+        create_unique(dir, stem, extension).expect("claim").0
+    }
     use std::fs;
 
     #[test]
@@ -386,11 +460,72 @@ mod tests {
         let root = std::env::temp_dir().join(format!("bita-pdf-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("root");
-        assert_eq!(unique_path(&root, "pagina"), root.join("pagina.pdf"));
-        fs::write(root.join("pagina.pdf"), "x").expect("first");
-        assert_eq!(unique_path(&root, "pagina"), root.join("pagina (2).pdf"));
-        fs::write(root.join("pagina (2).pdf"), "x").expect("second");
-        assert_eq!(unique_path(&root, "pagina"), root.join("pagina (3).pdf"));
+        assert_eq!(claim(&root, "pagina", "pdf"), root.join("pagina.pdf"));
+        assert_eq!(claim(&root, "pagina", "pdf"), root.join("pagina (2).pdf"));
+        fs::write(root.join("pagina (3).pdf"), "x").expect("third");
+        assert_eq!(claim(&root, "pagina", "pdf"), root.join("pagina (4).pdf"));
+        assert_eq!(fs::read(root.join("pagina (3).pdf")).expect("kept"), b"x");
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_planted_symlink_is_never_followed() {
+        let root = std::env::temp_dir().join(format!("bita-pdf-link-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("root");
+        let victim = root.join("victim.txt");
+        fs::write(&victim, "secret").expect("victim");
+        std::os::unix::fs::symlink(&victim, root.join("grabacion.mov")).expect("link");
+        let (path, _) = create_unique(&root, "grabacion", "mov").expect("claim");
+        assert_eq!(path, root.join("grabacion (2).mov"));
+        assert_eq!(fs::read(&victim).expect("victim"), b"secret");
+        let dangling = root.join("missing.txt");
+        std::os::unix::fs::symlink(&dangling, root.join("otro.pdf")).expect("dangling");
+        assert_eq!(claim(&root, "otro", "pdf"), root.join("otro (2).pdf"));
+        assert!(!dangling.exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn bidi_controls_never_reach_a_file_name() {
+        assert_eq!(sanitize("factura\u{202E}fdp.exe"), "factura-fdp.exe");
+        assert_eq!(sanitize("a\u{2066}b\u{2069}c"), "a-b-c");
+    }
+
+    #[test]
+    fn nothing_to_write_leaves_no_file_behind() {
+        let root = std::env::temp_dir().join(format!("bita-pdf-empty-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("root");
+        assert!(write_unique(&root, "vacio", "pdf", b"").is_err());
+        assert_eq!(fs::read_dir(&root).expect("list").count(), 0);
+        let path = write_unique(&root, "lleno", "pdf", b"%PDF-1.7 x %%EOF").expect("write");
+        assert_eq!(fs::read(&path).expect("read"), b"%PDF-1.7 x %%EOF");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_scratch_folder_is_private_and_gone_once_dropped() {
+        let scratch = Scratch::new().expect("scratch");
+        let staged = scratch.file("print.pdf");
+        fs::write(&staged, b"partial").expect("stage");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = fs::metadata(staged.parent().expect("dir")).expect("meta").permissions().mode();
+            assert_eq!(mode & 0o777, 0o700);
+        }
+        let dir = staged.parent().expect("dir").to_path_buf();
+        drop(scratch);
+        assert!(!dir.exists());
+    }
+
+    #[test]
+    fn only_a_finished_pdf_counts_as_complete() {
+        assert!(complete_pdf(b"%PDF-1.7\n1 0 obj\n%%EOF\n"));
+        assert!(!complete_pdf(b"%PDF-1.7\n1 0 obj\n"));
+        assert!(!complete_pdf(b"hello %%EOF"));
+        assert!(!complete_pdf(b""));
     }
 }

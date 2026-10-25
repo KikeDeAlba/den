@@ -325,7 +325,6 @@ function build(host: HTMLElement): void {
   main.setAttribute('aria-label', 'Backlog')
 
   const top = element('div', 'bl-top')
-  top.setAttribute('data-tauri-drag-region', '')
   unfold = button('icon-button bl-unfold', glyph('panel', 14))
   unfold.setAttribute('aria-label', 'Desplegar el árbol')
   unfold.addEventListener('click', () => actions?.onExpandRail())
@@ -554,7 +553,6 @@ function paintDetail(): void {
   const busy = context.busy.has(item.id)
 
   const bar = element('div', 'bl-detail-bar')
-  bar.setAttribute('data-tauri-drag-region', '')
   const copy = button('bl-btn bl-btn--small', glyph(context.copied === key ? 'check' : 'copy', 12))
   copy.setAttribute('aria-label', context.copied === key ? 'Clave copiada' : 'Copiar la clave')
   copy.title = context.copied === key ? 'Copiada' : 'Copiar la clave'

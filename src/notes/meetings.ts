@@ -179,7 +179,6 @@ export function renderMeetings(host: HTMLElement, context: MeetingsContext): voi
 
   const view = element('div', 'meetings')
   const bar = element('div', 'reader-bar')
-  bar.setAttribute('data-tauri-drag-region', '')
   if (!context.railOpen) {
     const unfold = document.createElement('button')
     unfold.type = 'button'

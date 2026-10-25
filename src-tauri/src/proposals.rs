@@ -7,6 +7,7 @@ use tauri::AppHandle;
 use crate::ask::Answer;
 use crate::cli::CallOptions;
 use crate::docs::Feature;
+use crate::meeting::meeting_id as valid_meeting;
 use crate::model::{Problem, ProblemKind};
 use crate::recap::recap_call;
 
@@ -239,17 +240,6 @@ fn valid_branch(branch: &str) -> Result<&str, Problem> {
         Ok(branch)
     } else {
         Err(Problem::new(ProblemKind::CliFailed, format!("«{branch}» no es una rama de los docs.")))
-    }
-}
-
-fn valid_meeting(id: &str) -> Result<&str, Problem> {
-    let ok = !id.is_empty()
-        && !id.starts_with('-')
-        && id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
-    if ok {
-        Ok(id)
-    } else {
-        Err(Problem::new(ProblemKind::CliFailed, format!("«{id}» no es el id de una reunión.")))
     }
 }
 

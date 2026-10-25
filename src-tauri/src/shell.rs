@@ -1,4 +1,5 @@
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
+use tauri::webview::PageLoadEvent;
+use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
 use crate::model::{Problem, ProblemKind};
 
@@ -11,10 +12,20 @@ const HEIGHT: f64 = 820.0;
 const MIN_WIDTH: f64 = 900.0;
 const MIN_HEIGHT: f64 = 600.0;
 const SCREEN_SHARE: f64 = 0.9;
-#[cfg(target_os = "macos")]
-const TRAFFIC_X: f64 = 16.0;
-#[cfg(target_os = "macos")]
-const TRAFFIC_Y: f64 = 13.0;
+
+pub fn navigation_allowed(url: &Url, dev: Option<&Url>) -> bool {
+    let app_origin = match url.scheme() {
+        "tauri" => url.host_str() == Some("localhost"),
+        "http" | "https" => url.host_str() == Some("tauri.localhost"),
+        _ => false,
+    };
+    app_origin || dev.is_some_and(|dev| dev.origin() == url.origin())
+}
+
+pub fn navigation_guard(app: &AppHandle) -> impl Fn(&Url) -> bool + Send + 'static {
+    let dev = if tauri::is_dev() { app.config().build.dev_url.clone() } else { None };
+    move |url| navigation_allowed(url, dev.as_ref())
+}
 
 pub fn fit(wanted: f64, available: Option<f64>, minimum: f64) -> f64 {
     match available {
@@ -62,21 +73,29 @@ pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .transparent(false)
         .center()
         .visible(false)
-        .on_navigation(|url| url.scheme() == "tauri" || url.host_str() == Some("localhost"));
+        .initialization_script(crate::titlebar::css_script())
+        .on_page_load(|window, payload| {
+            if payload.event() == PageLoadEvent::Finished {
+                crate::titlebar::refresh(&window);
+            }
+        })
+        .on_navigation(navigation_guard(app));
 
     #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
-        .hidden_title(true)
-        .traffic_light_position(tauri::LogicalPosition::new(TRAFFIC_X, TRAFFIC_Y));
+        .hidden_title(true);
 
     let window = builder.build()?;
+    crate::titlebar::pin(&window);
     let target = window.clone();
-    window.on_window_event(move |event| {
-        if let WindowEvent::CloseRequested { api, .. } = event {
+    window.on_window_event(move |event| match event {
+        WindowEvent::CloseRequested { api, .. } => {
             api.prevent_close();
             let _ = target.hide();
         }
+        WindowEvent::Destroyed => crate::titlebar::unpin(&target),
+        _ => {}
     });
     Ok(window)
 }
@@ -123,7 +142,27 @@ pub fn navigate_to(app: AppHandle, route: String) -> Result<(), Problem> {
 
 #[cfg(test)]
 mod tests {
-    use super::{fit, normalize, LABEL, NAVIGATE_EVENT};
+    use super::{fit, navigation_allowed, normalize, LABEL, NAVIGATE_EVENT};
+    use tauri::Url;
+
+    fn url(text: &str) -> Url {
+        Url::parse(text).expect("url")
+    }
+
+    #[test]
+    fn only_the_app_origin_and_the_dev_server_may_load() {
+        let dev = url("http://localhost:1420");
+        assert!(navigation_allowed(&url("tauri://localhost/index.html"), None));
+        assert!(navigation_allowed(&url("http://tauri.localhost/live.html"), None));
+        assert!(navigation_allowed(&url("http://localhost:1420/#/docs"), Some(&dev)));
+        assert!(!navigation_allowed(&url("http://localhost:1420/"), None));
+        assert!(!navigation_allowed(&url("http://localhost:8080/"), Some(&dev)));
+        assert!(!navigation_allowed(&url("http://localhost/"), Some(&dev)));
+        assert!(!navigation_allowed(&url("https://localhost:1420/"), Some(&dev)));
+        assert!(!navigation_allowed(&url("https://example.com/"), Some(&dev)));
+        assert!(!navigation_allowed(&url("tauri://evil/"), None));
+        assert!(!navigation_allowed(&url("file:///etc/passwd"), None));
+    }
 
     #[test]
     fn a_large_screen_gets_the_full_size() {

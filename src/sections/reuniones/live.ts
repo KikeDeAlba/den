@@ -12,6 +12,7 @@ import {
   type MeetingSegment,
 } from '../../bita.ts'
 import { element, icon } from '../../dom.ts'
+import { attachSash } from '../../notes/sash.ts'
 import { originOf, type Origin } from '../../live/origin.ts'
 import {
   autoBadge,
@@ -104,7 +105,12 @@ export function createLiveView(hooks: LiveHooks): LiveMeetingView {
   const caption = element('p', 'rl-caption')
   caption.hidden = true
   assist.append(questions, answer)
-  body.append(transcript, assist)
+  const divider = element('div', 'sash rl-sash')
+  divider.setAttribute('role', 'separator')
+  divider.setAttribute('aria-orientation', 'vertical')
+  divider.setAttribute('aria-label', 'Ancho de las preguntas')
+  divider.tabIndex = 0
+  body.append(transcript, assist, divider)
   root.append(head, body, foot)
 
   let lines: MeetingSegment[] = []
@@ -121,6 +127,8 @@ export function createLiveView(hooks: LiveHooks): LiveMeetingView {
   let notice: string | null = null
   let noticeTimer = 0
   let clockTimer = 0
+  let started = false
+  let stopSash: (() => void) | null = null
   let draft = ''
   const painted = { head: '', list: '', answer: '', marks: '' }
 
@@ -695,8 +703,47 @@ export function createLiveView(hooks: LiveHooks): LiveMeetingView {
     if (clock !== null) clock.textContent = subtitle()
   }
 
+  function onScreen(): boolean {
+    return root.isConnected && root.closest('[hidden]') === null
+  }
+
+  function move(step: number): void {
+    if (items.length === 0) return
+    const index = items.findIndex((item) => item.key === selected)
+    const next = items[Math.min(items.length - 1, Math.max(0, index === -1 ? 0 : index + step))]
+    if (next === undefined || next.key === selected) return
+    pick(next.key)
+    questions.querySelector<HTMLElement>('.rl-item--on')?.scrollIntoView?.({ block: 'nearest' })
+  }
+
   function onKey(event: KeyboardEvent): void {
-    if (event.key === 'Escape' && fullscreen && root.isConnected && !root.closest('[hidden]')) void setFullscreen(false)
+    if (!onScreen()) return
+    if (event.key === 'Escape' && fullscreen) {
+      void setFullscreen(false)
+      return
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    if (event.metaKey || event.ctrlKey || event.altKey) return
+    const target = event.target
+    if (target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) {
+      return
+    }
+    event.preventDefault()
+    move(event.key === 'ArrowDown' ? 1 : -1)
+  }
+
+  function onFocus(): void {
+    if (onScreen()) void loadConfig()
+  }
+
+  function startClock(): void {
+    window.clearInterval(clockTimer)
+    clockTimer = window.setInterval(tick, 1000)
+  }
+
+  function stopClock(): void {
+    window.clearInterval(clockTimer)
+    clockTimer = 0
   }
 
   buildTranscript()
@@ -708,8 +755,22 @@ export function createLiveView(hooks: LiveHooks): LiveMeetingView {
     start() {
       resetTranscript()
       paint()
-      clockTimer = window.setInterval(tick, 1000)
+      started = true
+      startClock()
       window.addEventListener('keydown', onKey)
+      window.addEventListener('focus', onFocus)
+      stopSash = attachSash({
+        handle: divider,
+        root: body,
+        variable: '--questions-open',
+        side: 'right',
+        storageKey: 'den.reuniones.questions-width',
+        initial: 340,
+        min: 240,
+        max: 560,
+        readerMin: 360,
+        otherWidth: () => 0,
+      })
       void session.reload()
       void loadConfig()
     },
@@ -717,12 +778,25 @@ export function createLiveView(hooks: LiveHooks): LiveMeetingView {
       void loadConfig()
     },
     receive(event) {
-      if (event.type === 'live-state') session.stateChanged()
+      if (event.type === 'hidden') {
+        stopClock()
+        if (fullscreen) void setFullscreen(false)
+      } else if (event.type === 'visible') {
+        if (started) {
+          startClock()
+          tick()
+        }
+        void loadConfig()
+      } else if (event.type === 'live-state') session.stateChanged()
       else if (event.type === 'live-transcript') session.transcribed(event.update)
       else if (event.type === 'live-answer') session.answered(event.answer)
     },
     dispose() {
-      window.clearInterval(clockTimer)
+      started = false
+      stopClock()
+      stopSash?.()
+      stopSash = null
+      window.removeEventListener('focus', onFocus)
       window.clearTimeout(noticeTimer)
       window.clearTimeout(confirmTimer)
       window.removeEventListener('keydown', onKey)

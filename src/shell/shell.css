@@ -3,11 +3,16 @@ body {
   background: var(--inset);
 }
 
+:root {
+  --topbar-height: 38px;
+  --traffic-inset: 84px;
+}
+
 .shell {
   height: 100%;
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr);
-  grid-template-rows: 38px minmax(0, 1fr);
+  grid-template-rows: var(--topbar-height) minmax(0, 1fr);
   background: var(--inset);
 }
 
@@ -21,7 +26,7 @@ body {
 }
 
 html[data-os='macos'] .topbar {
-  padding-left: 84px;
+  padding-left: var(--traffic-inset);
 }
 
 .topbar-title {

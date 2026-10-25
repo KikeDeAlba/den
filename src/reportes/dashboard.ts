@@ -39,7 +39,6 @@ import {
   kpis,
   legendItem,
   loading,
-  markIcon,
   notice,
   pill,
   primaryAction,
@@ -64,13 +63,6 @@ export function dashboard(app: App): HTMLElement {
 
 function rail(app: App): HTMLElement {
   const aside = element('aside', 'report-rail')
-  const head = element('div', 'report-rail-head')
-  head.setAttribute('data-tauri-drag-region', '')
-  const mark = element('span', 'report-rail-mark')
-  mark.append(markIcon())
-  head.append(mark, element('span', 'report-rail-word', 'Den'), element('span', 'report-rail-sub', '· reportes'))
-  aside.append(head)
-
   const report = app.main.report
   if (report !== null && report.projects.length > 0) aside.append(projectFilter(app, report))
   return aside

@@ -45,7 +45,7 @@ export function createSections(
       try {
         entry.module.receive?.({ type: 'hidden' })
       } catch (error) {
-        fail(entry.host, error)
+        broke(section, entry, error)
       }
       return
     }
@@ -96,8 +96,9 @@ export function createSections(
 
   return {
     async show(route) {
-      if (current !== null && current !== route.section) leave(current)
+      const previous = current
       current = route.section
+      if (previous !== null && previous !== route.section) leave(previous)
       const entry = entries.get(route.section)
       if (entry !== undefined && entry.state === 'failed') release(route.section, entry)
       const live = entries.get(route.section)
@@ -107,15 +108,20 @@ export function createSections(
       }
       live.host.hidden = false
       live.path = route.path
-      if (live.state === 'ready') live.module?.update(route.path)
+      if (live.state !== 'ready' || live.module === null) return
+      try {
+        live.module.update(route.path)
+      } catch (error) {
+        broke(route.section, live, error)
+      }
     },
     broadcast(event) {
-      for (const entry of entries.values()) {
+      for (const [section, entry] of [...entries]) {
         if (entry.state !== 'ready') continue
         try {
           entry.module?.receive?.(event)
         } catch (error) {
-          fail(entry.host, error)
+          broke(section, entry, error)
         }
       }
     },

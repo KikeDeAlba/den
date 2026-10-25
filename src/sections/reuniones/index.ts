@@ -196,7 +196,10 @@ export function mount(host: HTMLElement, path: readonly string[]): void {
 export function receive(event: ShellEvent): void {
   if (event.type === 'meeting-media') void load()
   else if (event.type === 'tools') tools = event.tools
-  else live?.receive(event)
+  else {
+    if (event.type === 'visible') void load()
+    live?.receive(event)
+  }
 }
 
 export function update(path: readonly string[]): void {

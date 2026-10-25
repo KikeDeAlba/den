@@ -35,7 +35,13 @@ vi.mock('../bita.ts', async (original) => {
 
 import { NO_MODULES, type Snapshot, type ToolsStatus } from '../bita.ts'
 import type { ShellEvent } from '../sections/section.ts'
-import { moduleEnabled, needsSetup, shellState, startHub } from './hub.ts'
+
+type Hub = typeof import('./hub.ts')
+
+let moduleEnabled: Hub['moduleEnabled']
+let needsSetup: Hub['needsSetup']
+let shellState: Hub['shellState']
+let startHub: Hub['startHub']
 
 const idle: Snapshot = { running: [], todaySeconds: 0, problem: null }
 
@@ -49,7 +55,13 @@ function tools(timers: boolean, proposals = true): ToolsStatus {
   }
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  vi.resetModules()
+  const hub = await import('./hub.ts')
+  moduleEnabled = hub.moduleEnabled
+  needsSetup = hub.needsSetup
+  shellState = hub.shellState
+  startHub = hub.startHub
   api.handlers.clear()
   api.snapshot.mockReset()
   api.refresh.mockReset()
@@ -142,5 +154,89 @@ describe('startHub', () => {
     api.pendingProposals.mockResolvedValue([])
     await startHub(() => undefined)
     expect(shellState().snapshot.problem?.message).toBe('falta bita')
+  })
+
+  it('reloads proposals when the window turns visible and announces hidden otherwise', async () => {
+    api.snapshot.mockResolvedValue(idle)
+    api.toolsStatus.mockResolvedValue(tools(true))
+    api.refresh.mockResolvedValue(idle)
+    api.pendingProposals.mockResolvedValue([])
+    const events: ShellEvent[] = []
+    await startHub((event) => events.push(event))
+    await vi.waitFor(() => expect(api.pendingProposals).toHaveBeenCalledTimes(1))
+    const state = vi.spyOn(document, 'visibilityState', 'get')
+    state.mockReturnValue('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(events.at(-1)).toEqual({ type: 'hidden' })
+    const before = api.pendingProposals.mock.calls.length
+    state.mockReturnValue('visible')
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(events.at(-1)).toEqual({ type: 'visible' })
+    await vi.waitFor(() => expect(api.pendingProposals.mock.calls.length).toBeGreaterThan(before))
+  })
+
+  it('reloads proposals on live state changes and forwards transcripts untouched', async () => {
+    api.snapshot.mockResolvedValue(idle)
+    api.toolsStatus.mockResolvedValue(tools(true))
+    api.refresh.mockResolvedValue(idle)
+    api.pendingProposals.mockResolvedValue([])
+    const events: ShellEvent[] = []
+    await startHub((event) => events.push(event))
+    await vi.waitFor(() => expect(api.pendingProposals).toHaveBeenCalledTimes(1))
+    const update = { meetingId: 'm1', segments: [] }
+    api.handlers.get('transcript')!(update)
+    expect(events.at(-1)).toEqual({ type: 'live-transcript', update })
+    expect(api.pendingProposals).toHaveBeenCalledTimes(1)
+    api.handlers.get('live')!()
+    expect(events.some((event) => event.type === 'live-state')).toBe(true)
+    await vi.waitFor(() => expect(api.pendingProposals).toHaveBeenCalledTimes(2))
+  })
+
+  it('keeps the newest proposals when an older load finishes last', async () => {
+    api.snapshot.mockResolvedValue(idle)
+    api.toolsStatus.mockResolvedValue(tools(true))
+    api.refresh.mockResolvedValue(idle)
+    let releaseOld: (value: unknown[]) => void = () => undefined
+    api.pendingProposals
+      .mockResolvedValueOnce([])
+      .mockImplementationOnce(() => new Promise((done) => (releaseOld = done as typeof releaseOld)))
+      .mockResolvedValueOnce([{ entryId: 2 }])
+    const events: ShellEvent[] = []
+    await startHub((event) => events.push(event))
+    await vi.waitFor(() => expect(api.pendingProposals).toHaveBeenCalledTimes(1))
+    api.handlers.get('docs')!()
+    api.handlers.get('docs')!()
+    await vi.waitFor(() => expect(api.pendingProposals).toHaveBeenCalledTimes(3))
+    releaseOld([{ entryId: 1 }])
+    await new Promise((done) => setTimeout(done, 0))
+    expect(shellState().proposals).toEqual([{ entryId: 2 }])
+  })
+
+  it('falls back to no proposals when loading them fails', async () => {
+    api.snapshot.mockResolvedValue(idle)
+    api.toolsStatus.mockResolvedValue(tools(true))
+    api.refresh.mockResolvedValue(idle)
+    api.pendingProposals.mockRejectedValue(new Error('boom'))
+    const events: ShellEvent[] = []
+    await startHub((event) => events.push(event))
+    await vi.waitFor(() => expect(events.at(-1)).toEqual({ type: 'proposals', proposals: [] }))
+  })
+
+  it('registers its listeners only once when started twice', async () => {
+    api.snapshot.mockResolvedValue(idle)
+    api.toolsStatus.mockResolvedValue(tools(true))
+    api.refresh.mockResolvedValue(idle)
+    api.pendingProposals.mockResolvedValue([])
+    const first: ShellEvent[] = []
+    const second: ShellEvent[] = []
+    await startHub((event) => first.push(event))
+    api.handlers.clear()
+    await startHub((event) => second.push(event))
+    expect(api.handlers.size).toBe(0)
+    const state = vi.spyOn(document, 'visibilityState', 'get')
+    state.mockReturnValue('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(second.filter((event) => event.type === 'hidden')).toHaveLength(1)
+    expect(first.filter((event) => event.type === 'hidden')).toHaveLength(0)
   })
 })

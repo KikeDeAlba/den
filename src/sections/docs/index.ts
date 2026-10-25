@@ -50,7 +50,7 @@ import { renderSpaceSettings } from '../../notes/space-settings.ts'
 import { renderStorage, spaceStorageTotal } from '../../notes/storage.ts'
 import { closeSwitcher, isSwitcherOpen, toggleSwitcher, withPages } from '../../notes/switcher.ts'
 import { formatRoute, go, parseRoute } from '../../shell/routes.ts'
-import { isSpaceShortcut, onSpaceChange, rememberedSpace, rememberSpace } from '../../shell/space.ts'
+import { inkwellProject, isSpaceShortcut, onSpaceChange, rememberedSpace, rememberSpace } from '../../shell/space.ts'
 import type { ShellEvent } from '../section.ts'
 import { docsRoute, parseDocsPath, pendientesRoute, type DocsTarget, type DocsView } from '../../shell/links.ts'
 import './docs.css'
@@ -96,6 +96,7 @@ const NARROW_MAX_PX = 1100
 let narrow = false
 let asidePeek = false
 let stopNarrowWatch: (() => void) | null = null
+let stopSashes: Array<() => void> = []
 let logOpen = true
 let scale = rememberedScale()
 let meetingTab: MeetingTab = 'document'
@@ -250,7 +251,7 @@ async function loadConfluenceLinks(space: Space | null): Promise<void> {
   if (base === null) return
   confluenceLinks.set(space.projectSlug, new Map())
   try {
-    const mappings = await confluenceSyncStatus(space.projectSlug)
+    const mappings = await confluenceSyncStatus(inkwellProject(space))
     const links = new Map(
       mappings.map((mapping) => [mapping.pageId, `${base}/wiki/pages/viewpage.action?pageId=${encodeURIComponent(mapping.confluenceId)}`]),
     )
@@ -300,7 +301,14 @@ function readerState(): ReaderState {
     video: videoActions(),
     history: can('history'),
     confluenceUrl: confluenceUrl(opened),
+    inkwellProject: pageProject(opened),
   }
+}
+
+function pageProject(page: PageDocument | null): string | null {
+  if (page === null) return null
+  const space = spaces.find((candidate) => candidate.projectSlug === page.projectSlug)
+  return space === undefined ? page.projectName : inkwellProject(space)
 }
 
 function readyView(): MeetingRecord | null {
@@ -948,7 +956,7 @@ function runQuery(value: string): void {
 async function search(value: string, token: number): Promise<void> {
   const space = scope === 'space' ? currentSpace() : null
   try {
-    const payload = await notesSearchPages(value, space?.projectSlug ?? null)
+    const payload = await notesSearchPages(value, space === null ? null : inkwellProject(space))
     if (searchToken !== token) return
     const pages = space === null ? allPages() : spacePages(space)
     const allowed = new Set(pages.map((page) => page.pageId))
@@ -1167,30 +1175,33 @@ function build(host: HTMLElement): Dom {
   root.append(rail, reader, aside, railSash, asideSash)
   host.replaceChildren(root)
 
-  attachSash({
-    handle: railSash,
-    root,
-    variable: '--rail-open',
-    side: 'left',
-    storageKey: 'bita.notes.rail-width',
-    initial: 240,
-    min: 180,
-    max: 520,
-    readerMin: 420,
-    otherWidth: () => aside.getBoundingClientRect().width,
-  })
-  attachSash({
-    handle: asideSash,
-    root,
-    variable: '--aside-open',
-    side: 'right',
-    storageKey: 'bita.notes.aside-width',
-    initial: 200,
-    min: 160,
-    max: 440,
-    readerMin: 420,
-    otherWidth: () => rail.getBoundingClientRect().width,
-  })
+  stopSashes.forEach((stop) => stop())
+  stopSashes = [
+    attachSash({
+      handle: railSash,
+      root,
+      variable: '--rail-open',
+      side: 'left',
+      storageKey: 'bita.notes.rail-width',
+      initial: 240,
+      min: 180,
+      max: 520,
+      readerMin: 420,
+      otherWidth: () => aside.getBoundingClientRect().width,
+    }),
+    attachSash({
+      handle: asideSash,
+      root,
+      variable: '--aside-open',
+      side: 'right',
+      storageKey: 'bita.notes.aside-width',
+      initial: 200,
+      min: 160,
+      max: 440,
+      readerMin: 420,
+      otherWidth: () => rail.getBoundingClientRect().width,
+    }),
+  ]
   return { host, root, rail, reader, aside }
 }
 
@@ -1209,7 +1220,6 @@ function applyModules(next: Modules): void {
 function listenOnce(): void {
   if (listening) return
   listening = true
-  window.addEventListener('keydown', keys)
   onMediaJobs(() => {
     if (!alive) return
     readerPainted = ''
@@ -1222,6 +1232,7 @@ export function receive(event: ShellEvent): void {
   if (!alive) return
   switch (event.type) {
     case 'docs-changed':
+    case 'visible':
       void loadTree()
       if (selected?.kind === 'page') void loadPage(selected.id, true)
       break
@@ -1251,6 +1262,7 @@ export async function mount(host: HTMLElement, path: readonly string[]): Promise
   stopNarrowWatch = watchNarrow(dom.root)
   initProse(dom.root)
   listenOnce()
+  window.addEventListener('keydown', keys)
   stopSpaceWatch = onSpaceChange((slug) => {
     if (slug !== activeSpace && treeLoaded) switchSpace(slug)
   })
@@ -1271,6 +1283,7 @@ export function update(path: readonly string[]): void {
 
 export function unmount(): void {
   alive = false
+  window.removeEventListener('keydown', keys)
   closeSwitcher()
   stopPlayback()
   spy?.disconnect()
@@ -1279,6 +1292,8 @@ export function unmount(): void {
   stopSpaceWatch = null
   stopNarrowWatch?.()
   stopNarrowWatch = null
+  stopSashes.forEach((stop) => stop())
+  stopSashes = []
   asidePeek = false
   dom = null
   treeLoaded = false

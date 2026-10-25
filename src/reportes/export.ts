@@ -1,5 +1,6 @@
 import { copyText, describeProblem, exportPdf } from '../bita.ts'
 import { element, icon } from '../dom.ts'
+import { printRoot, printWith } from '../print.ts'
 import type { App, Destination, ExportState } from './app.ts'
 import { overtimeCurrency } from './dashboard.ts'
 import { colorMap, filterReport, OTHERS_COLOR, plural, presetChoice, projectKey, projectLabel, summaryText, type PresetId } from './model.ts'
@@ -378,19 +379,10 @@ async function run(app: App, state: ExportState): Promise<void> {
 }
 
 async function printPdf(app: App, state: ExportState, report: ReportView): Promise<string> {
-  document.getElementById('print-root')?.remove()
-  const root = element('div', 'print-root')
-  root.id = 'print-root'
+  const root = printRoot('tiempo')
   const colors = state.report === null ? new Map<string, string>() : colorMap(state.report)
   root.append(paper(report, paperOptions(app, state, colors)))
-  document.body.append(root)
-  try {
-    document.body.classList.add('printing')
-    return await exportPdf(fileBase(state))
-  } finally {
-    document.body.classList.remove('printing')
-    root.remove()
-  }
+  return printWith(root, () => exportPdf(fileBase(state)))
 }
 
 export function tilde(path: string): string {

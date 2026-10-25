@@ -723,9 +723,6 @@ export interface PendingAsk {
   channel?: 'mic' | 'system' | string
 }
 
-export type LiveMode = 'compact' | 'wide'
-
-
 export interface LiveView {
   active: ActiveMeeting | null
   title: string | null
@@ -737,7 +734,6 @@ export interface LiveView {
   pendingAsks: PendingAsk[]
   shortcut: string
   visible: boolean
-  mode: LiveMode
 }
 
 export interface LiveTranscriptUpdate {
@@ -1039,6 +1035,7 @@ export interface PageNode {
 
 export interface Space {
   projectId: number | null
+  projectKey?: string | null
   projectName: string | null
   projectSlug: string
   active: boolean
@@ -1133,52 +1130,6 @@ export interface PageDocument extends Omit<PageNode, 'children'> {
   backlog?: PageBacklogItem[]
 }
 
-export interface SearchMatch {
-  offset: number
-  length: number
-  line: number
-  section: string | null
-  prefix: string
-  match: string
-  suffix: string
-  snippet: string
-}
-
-export interface SearchHit {
-  entryId: number
-  projectId: number | null
-  projectName: string | null
-  projectSlug: string
-  title: string
-  docTitle: string
-  localDay: string
-  month: string
-  relPath: string
-  path: string
-  matchCount: number
-  matches: SearchMatch[]
-  byteSize: number
-  recordedAt: string
-  file: DocFile
-}
-
-export interface SearchMeta {
-  query: string
-  documentsWithMatches: number
-  totalMatches: number
-  scanned: { documents: number; bytes: number; missing: number; elapsedMs: number }
-  truncated: boolean
-}
-
-export interface ListMeta {
-  root: string
-  timezone: string
-  page: { limit: number; offset: number; returned: number; total: number; hasMore: boolean }
-  counts: { withDoc: number; withoutDoc: number }
-  files: { verified: number; ok: number; changed: number; missing: number; unverified: number }
-  warnings: string[]
-}
-
 export interface CliPayload<D, M> {
   data: D
   meta: M
@@ -1188,31 +1139,12 @@ export function notesTree(): Promise<CliPayload<{ projects: TreeProject[]; space
   return invoke('notes_tree')
 }
 
-export function notesList(
-  project: string | null,
-  limit = 200,
-  offset = 0,
-): Promise<CliPayload<NoteRow[], ListMeta>> {
-  return invoke('notes_list', { project, limit, offset })
-}
-
-export function notesToday(): Promise<CliPayload<NoteRow[], ListMeta>> {
-  return invoke('notes_today')
-}
-
 export function pageDocument(pageId: number): Promise<CliPayload<PageDocument, TreeMeta>> {
   return invoke('page_document', { pageId })
 }
 
 export function notesDocument(entryId: number): Promise<CliPayload<NoteDocument, TreeMeta>> {
   return invoke('notes_document', { entryId })
-}
-
-export function notesSearch(
-  query: string,
-  project: string | null,
-): Promise<CliPayload<SearchHit[], SearchMeta>> {
-  return invoke('notes_search', { query, project })
 }
 
 export function backlogList(): Promise<CliPayload<BacklogItem[], BacklogMeta>> {
@@ -1302,10 +1234,6 @@ export function exportReport(
   return invoke<string>('export_report', { format, report, include, groupBy, fileName: fileName ?? null })
 }
 
-export function revealInFinder(path: string): Promise<void> {
-  return invoke<void>('reveal_in_finder', { path })
-}
-
 export function atlassianSites(check: boolean): Promise<AtlassianSite[]> {
   return invoke<AtlassianSite[]>('atlassian_sites', { check })
 }
@@ -1390,8 +1318,8 @@ export function meetingSummary(id: string): Promise<MeetingSummary> {
   return invoke<MeetingSummary>('meeting_summary', { id })
 }
 
-export function meetingDownload(dir: string, recording: string, title: string): Promise<string> {
-  return invoke<string>('meeting_download', { dir, recording, title })
+export function meetingDownload(id: string, title: string): Promise<string> {
+  return invoke<string>('meeting_download', { id, title })
 }
 
 export function openMeetingFolder(dir: string): Promise<void> {
@@ -1468,10 +1396,6 @@ export function liveAsk(question: string | null): Promise<number> {
   return invoke<number>('live_ask', { question })
 }
 
-export function liveCancel(): Promise<boolean> {
-  return invoke<boolean>('live_cancel')
-}
-
 export function liveSources(project: string): Promise<LiveSources | null> {
   return invoke<LiveSources | null>('live_sources', { project })
 }
@@ -1492,8 +1416,8 @@ export function liveTranscriptFull(): Promise<LiveFullTranscript | null> {
   return invoke<LiveFullTranscript | null>('live_transcript_full')
 }
 
-export function liveModeSet(mode: LiveMode): Promise<void> {
-  return invoke('live_mode_set', { mode })
+export function liveOpenMeetings(): Promise<void> {
+  return invoke('live_open_meetings')
 }
 
 export function navigate(route: string): Promise<void> {

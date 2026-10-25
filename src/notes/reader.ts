@@ -58,6 +58,7 @@ export interface ReaderState {
   video: VideoActions | null
   history: boolean
   confluenceUrl?: string | null
+  inkwellProject: string | null
 }
 
 export function renderReader(host: HTMLElement, state: ReaderState, handlers: ReaderHandlers): void {
@@ -90,7 +91,7 @@ export function renderReader(host: HTMLElement, state: ReaderState, handlers: Re
   }
   const query = state.query.trim()
   const extra = {
-    project: state.page.projectName,
+    project: state.inkwellProject,
     onSeek: handlers.onSeek,
     onCopy: handlers.onCopy,
     onLink: handlers.onOpenExternal,
@@ -111,7 +112,6 @@ export function renderReader(host: HTMLElement, state: ReaderState, handlers: Re
 
 function bar(state: ReaderState, handlers: ReaderHandlers): HTMLElement {
   const row = element('div', 'reader-bar')
-  row.setAttribute('data-tauri-drag-region', '')
 
   if (!state.railOpen) {
     row.append(iconAction('panelLeft', 'Desplegar el árbol', handlers.onExpandRail))

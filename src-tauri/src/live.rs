@@ -94,12 +94,18 @@ pub struct PendingAsk {
     pub channel: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum LiveMode {
-    #[default]
-    Compact,
-    Wide,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Toggle {
+    Show,
+    Hide,
+}
+
+pub fn toggle_action(visible: bool) -> Toggle {
+    if visible {
+        Toggle::Hide
+    } else {
+        Toggle::Show
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -115,7 +121,6 @@ pub struct LiveView {
     pub pending_asks: Vec<PendingAsk>,
     pub shortcut: String,
     pub visible: bool,
-    pub mode: LiveMode,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -140,8 +145,6 @@ pub struct FullTranscript {
 struct StoredSettings {
     #[serde(default)]
     shortcut: Option<String>,
-    #[serde(default)]
-    mode: Option<LiveMode>,
 }
 
 #[derive(Default)]
@@ -358,7 +361,7 @@ fn build(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .focused(false)
         .visible(false)
         .accept_first_mouse(true)
-        .on_navigation(|url| url.scheme() == "tauri" || url.host_str() == Some("localhost"));
+        .on_navigation(crate::shell::navigation_guard(app));
     if let Some((x, y)) = corner(app) {
         builder = builder.position(x, y);
     }
@@ -418,43 +421,10 @@ fn hide_compact(app: &AppHandle) {
     }
 }
 
-fn open_meetings(app: &AppHandle, focus: bool) -> tauri::Result<()> {
-    if focus {
-        return crate::shell::navigate(app, MEETINGS_ROUTE);
-    }
-    let window = crate::shell::create(app)?;
-    window.show()?;
-    window.emit_to(crate::shell::LABEL, crate::shell::NAVIGATE_EVENT, MEETINGS_ROUTE)?;
-    Ok(())
-}
-
-fn open_mode(app: &AppHandle, mode: LiveMode, focus: bool) -> tauri::Result<()> {
-    match mode {
-        LiveMode::Compact => open_compact(app)?,
-        LiveMode::Wide => {
-            hide_compact(app);
-            open_meetings(app, focus)?;
-        }
-    }
+pub fn show(app: &AppHandle) -> tauri::Result<()> {
+    open_compact(app)?;
     let _ = app.emit(STATE_EVENT, ());
     Ok(())
-}
-
-pub fn mode(app: &AppHandle) -> LiveMode {
-    stored_settings(app).mode.unwrap_or_default()
-}
-
-pub fn open_passive(app: &AppHandle) -> tauri::Result<()> {
-    open_mode(app, mode(app), false)
-}
-
-pub fn switch_mode(app: &AppHandle, wanted: LiveMode) -> Result<(), Problem> {
-    let mut settings = stored_settings(app);
-    settings.mode = Some(wanted);
-    let stored = store_settings(app, &settings);
-    open_mode(app, wanted, true)
-        .map_err(|error| Problem::new(ProblemKind::Unreadable, format!("No pude abrir el asistente: {error}")))?;
-    stored
 }
 
 pub fn hide(app: &AppHandle) {
@@ -462,12 +432,20 @@ pub fn hide(app: &AppHandle) {
     let _ = app.emit(STATE_EVENT, ());
 }
 
-pub fn toggle(app: &AppHandle) {
-    if is_visible(app) {
-        hide(app);
-    } else {
-        let _ = open_passive(app);
+pub fn toggle(app: &AppHandle) -> Toggle {
+    let action = toggle_action(is_visible(app));
+    match action {
+        Toggle::Hide => hide(app),
+        Toggle::Show => {
+            let _ = show(app);
+        }
     }
+    action
+}
+
+fn open_meetings(app: &AppHandle) -> tauri::Result<()> {
+    hide(app);
+    crate::shell::navigate(app, MEETINGS_ROUTE)
 }
 
 fn settings_path(app: &AppHandle) -> Option<PathBuf> {
@@ -494,7 +472,9 @@ fn store_settings(app: &AppHandle, settings: &StoredSettings) -> Result<(), Prob
 }
 
 pub fn shortcut_fired(app: &AppHandle) {
-    let _ = open_passive(app);
+    if toggle(app) == Toggle::Hide {
+        return;
+    }
     if app.state::<LiveSession>().active().is_none() {
         let _ = app.emit(
             ask::ANSWER_EVENT,
@@ -588,7 +568,7 @@ async fn started(app: &AppHandle, active: ActiveMeeting) {
     }
     let opens = live_config().await.map(|config| config.enabled && config.open_window).unwrap_or(false);
     if opens {
-        let _ = open_passive(app);
+        let _ = show(app);
     }
     let _ = app.emit(STATE_EVENT, ());
 }
@@ -719,7 +699,6 @@ fn view(app: &AppHandle) -> LiveView {
         pending_asks: inner.pending_asks.clone(),
         shortcut,
         visible: is_visible(app),
-        mode: mode(app),
     }
 }
 
@@ -735,8 +714,9 @@ pub fn live_transcript_full(app: AppHandle) -> Option<FullTranscript> {
 }
 
 #[tauri::command]
-pub fn live_mode_set(app: AppHandle, mode: LiveMode) -> Result<(), Problem> {
-    switch_mode(&app, mode)
+pub fn live_open_meetings(app: AppHandle) -> Result<(), Problem> {
+    open_meetings(&app)
+        .map_err(|error| Problem::new(ProblemKind::Unreadable, format!("No pude abrir Reuniones: {error}")))
 }
 
 #[tauri::command]
@@ -746,7 +726,7 @@ pub fn live_state(app: AppHandle) -> LiveView {
 
 #[tauri::command]
 pub fn live_show(app: AppHandle) -> Result<(), Problem> {
-    open_passive(&app)
+    show(&app)
         .map_err(|error| Problem::new(ProblemKind::Unreadable, format!("No pude abrir el asistente: {error}")))
 }
 
@@ -763,9 +743,13 @@ pub fn live_ask(app: AppHandle, question: Option<String>) -> Result<u64, Problem
     ask::start(&app, question)
 }
 
-#[tauri::command]
-pub fn live_cancel() -> bool {
-    ask::cancel()
+async fn fetch_sources(project: &str) -> Result<Option<Value>, Problem> {
+    match recap_call(&["ask", "--sources", "--project", project], CALL_TIMEOUT).await {
+        Ok(data) => Ok(Some(data)),
+        Err(RecapError::Missing) => Ok(None),
+        Err(RecapError::Failed(_)) => Ok(None),
+        Err(error) => Err(error.into()),
+    }
 }
 
 #[tauri::command]
@@ -774,11 +758,48 @@ pub async fn live_sources(project: String) -> Result<Option<Value>, Problem> {
     if project.is_empty() {
         return Ok(None);
     }
-    match recap_call(&["ask", "--sources", "--project", &project], CALL_TIMEOUT).await {
-        Ok(data) => Ok(Some(data)),
-        Err(RecapError::Missing) => Ok(None),
-        Err(RecapError::Failed(_)) => Ok(None),
-        Err(error) => Err(error.into()),
+    fetch_sources(&project).await
+}
+
+fn active_project(app: &AppHandle) -> Option<String> {
+    let session = app.state::<LiveSession>();
+    let mut inner = session.lock();
+    inner.active.as_ref()?;
+    if inner.project.is_none() {
+        inner.project = project_of(app, inner.entry_id);
+    }
+    inner.project.clone().filter(|project| !project.trim().is_empty())
+}
+
+pub fn source_roots(sources: &Value) -> Vec<PathBuf> {
+    let docs = sources.get("docsRoot").and_then(Value::as_str).into_iter();
+    let repos = sources
+        .get("repos")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|repo| repo.get("exists").and_then(Value::as_bool).unwrap_or(false))
+        .filter_map(|repo| repo.get("path").and_then(Value::as_str));
+    docs.chain(repos)
+        .map(PathBuf::from)
+        .filter(|root| root.is_absolute())
+        .filter_map(|root| fs::canonicalize(root).ok())
+        .filter(|root| root.is_dir())
+        .collect()
+}
+
+pub fn within_sources(target: &Path, roots: &[PathBuf]) -> bool {
+    roots.iter().any(|root| target.starts_with(root))
+}
+
+async fn live_source_file(app: &AppHandle, target: &Path) -> Result<(), Problem> {
+    let outside = || Problem::new(ProblemKind::CliFailed, format!("{} no es una fuente de esta reunión.", target.display()));
+    let project = active_project(app).ok_or_else(outside)?;
+    let sources = fetch_sources(&project).await?.ok_or_else(outside)?;
+    if within_sources(target, &source_roots(&sources)) {
+        Ok(())
+    } else {
+        Err(outside())
     }
 }
 
@@ -882,8 +903,11 @@ pub fn openable_file(path: &str) -> Result<PathBuf, Problem> {
 }
 
 #[tauri::command]
-pub async fn open_source_file(path: String) -> Result<(), Problem> {
+pub async fn open_source_file(app: AppHandle, window: WebviewWindow, path: String) -> Result<(), Problem> {
     let target = openable_file(&path)?;
+    if window.label() != crate::shell::LABEL {
+        live_source_file(&app, &target).await?;
+    }
     let Some(editor) = crate::cli::editor_override() else {
         return crate::platform::open_as_text(&target)
             .await
@@ -901,7 +925,8 @@ pub async fn open_source_file(path: String) -> Result<(), Problem> {
 mod tests {
     use super::{
         config_value, increment, openable_file, parse_active, parse_asking, parse_config, read_asking, read_asking_dir,
-        read_pending_asks, state_dir_from, tail, AskPhase, LiveMode, StoredSettings,
+        read_pending_asks, source_roots, state_dir_from, tail, toggle_action, within_sources, AskPhase, StoredSettings,
+        Toggle,
     };
     use serde_json::json;
     use std::path::PathBuf;
@@ -1161,17 +1186,19 @@ mod tests {
     }
 
     #[test]
-    fn the_remembered_mode_defaults_to_compact_and_survives_the_shortcut() {
+    fn settings_from_the_old_wide_mode_still_load_their_shortcut() {
         let empty: StoredSettings = serde_json::from_str("{}").expect("empty");
-        assert_eq!(empty.mode.unwrap_or_default(), LiveMode::Compact);
-        let older: StoredSettings = serde_json::from_str(r#"{"shortcut":"Ctrl+Alt+Space"}"#).expect("older");
-        assert_eq!(older.mode, None);
+        assert_eq!(empty.shortcut, None);
         let wide: StoredSettings = serde_json::from_str(r#"{"shortcut":"Ctrl+Alt+A","mode":"wide"}"#).expect("wide");
-        assert_eq!(wide.mode, Some(LiveMode::Wide));
         assert_eq!(wide.shortcut.as_deref(), Some("Ctrl+Alt+A"));
         let text = serde_json::to_string(&wide).expect("serialize");
-        assert!(text.contains(r#""mode":"wide""#));
-        assert!(serde_json::from_str::<StoredSettings>(r#"{"mode":"huge"}"#).is_err());
+        assert!(!text.contains("mode"));
+    }
+
+    #[test]
+    fn the_shortcut_always_toggles_the_mini_window() {
+        assert_eq!(toggle_action(false), Toggle::Show);
+        assert_eq!(toggle_action(true), Toggle::Hide);
     }
 
     #[test]
@@ -1183,5 +1210,51 @@ mod tests {
         std::fs::write(&file, "x").expect("write");
         assert!(openable_file(&file.display().to_string()).is_ok());
         let _ = std::fs::remove_file(&file);
+    }
+
+    #[test]
+    fn the_live_window_only_opens_files_inside_the_meeting_sources() {
+        let root = std::env::temp_dir().join(format!("bita-live-sources-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let docs = root.join("docs");
+        let repo = root.join("repo");
+        let gone = root.join("gone");
+        let other = root.join("other");
+        for dir in [&docs, &repo, &other] {
+            std::fs::create_dir_all(dir).expect("dir");
+        }
+        let sources = json!({
+            "project": "den",
+            "docsRoot": docs.display().to_string(),
+            "repos": [
+                {"path": repo.display().to_string(), "slug": "den", "exists": true},
+                {"path": other.display().to_string(), "slug": "otro", "exists": false},
+                {"path": gone.display().to_string(), "slug": "ido", "exists": true},
+                {"path": "relative", "slug": "rel", "exists": true}
+            ]
+        });
+        let roots = source_roots(&sources);
+        assert_eq!(roots.len(), 2);
+        let inside = repo.join("src").join("main.rs");
+        std::fs::create_dir_all(inside.parent().expect("parent")).expect("src");
+        std::fs::write(&inside, "x").expect("inside");
+        let page = docs.join("page.md");
+        std::fs::write(&page, "x").expect("page");
+        let stray = other.join("secret.txt");
+        std::fs::write(&stray, "x").expect("stray");
+        let opened = |path: &PathBuf| openable_file(&path.display().to_string()).expect("openable");
+        assert!(within_sources(&opened(&inside), &roots));
+        assert!(within_sources(&opened(&page), &roots));
+        assert!(!within_sources(&opened(&stray), &roots));
+        let escape = repo.join("..").join("other").join("secret.txt");
+        assert!(!within_sources(&opened(&escape), &roots));
+        #[cfg(unix)]
+        {
+            let link = repo.join("link.txt");
+            std::os::unix::fs::symlink(&stray, &link).expect("link");
+            assert!(!within_sources(&opened(&link), &roots));
+        }
+        assert!(source_roots(&json!({})).is_empty());
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

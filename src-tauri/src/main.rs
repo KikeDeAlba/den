@@ -28,6 +28,7 @@ mod report;
 mod shell;
 mod state;
 mod sync;
+mod titlebar;
 mod tools;
 mod tray;
 mod watch;
@@ -62,7 +63,6 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::snapshot,
             commands::refresh,
-            commands::cli_info,
             commands::projects,
             commands::jira_projects,
             commands::start_timer,
@@ -91,11 +91,8 @@ fn main() {
             gaze::gaze_show,
             gaze::gaze_search,
             notes_cmd::notes_tree,
-            notes_cmd::notes_list,
-            notes_cmd::notes_today,
             notes_cmd::notes_document,
             notes_cmd::page_document,
-            notes_cmd::notes_search,
             notes_cmd::backlog_list,
             notes_cmd::backlog_set_status,
             notes_cmd::backlog_set_kind,
@@ -118,7 +115,6 @@ fn main() {
             media::meeting_prune,
             media::meeting_delete,
             media::storage_report,
-            media::reveal_in_finder,
             pdf::export_pdf,
             report_export::export_report,
             coworker_export::export_coworker_report,
@@ -134,14 +130,13 @@ fn main() {
             live::live_show,
             live::live_hide,
             live::live_ask,
-            live::live_cancel,
             live::live_sources,
             live::recap_config,
             live::recap_config_set,
             live::live_shortcut_set,
             live::open_source_file,
             live::live_transcript_full,
-            live::live_mode_set,
+            live::live_open_meetings,
             shell::navigate_to,
             proposals::docs_branch_diff,
             proposals::page_history,
@@ -164,7 +159,9 @@ fn main() {
                     let _ = shell::show(app);
                 }
                 tray::QUIT | menu::QUIT => agents::request_quit(app),
-                menu::LIVE => live::toggle(app),
+                menu::LIVE => {
+                    live::toggle(app);
+                }
                 _ => {}
             }
         })

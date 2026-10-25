@@ -1,6 +1,7 @@
 import { describeProblem } from '../bita.ts'
 import type { App, ExportState, View } from './app.ts'
 import { clearSalaryField, coworkersView, coworkerState, forgetSalary, prepareCoworkers } from './coworkers.ts'
+import { isPrinting } from '../print.ts'
 import { dashboard } from './dashboard.ts'
 import { detail } from './detail.ts'
 import { exportView } from './export.ts'
@@ -53,7 +54,7 @@ export function mountReports(root: HTMLElement, preset: PresetId): Reports {
   }
 
   function render(): void {
-    if (disposed || document.body.classList.contains('printing')) return
+    if (disposed || isPrinting()) return
     const viewKey = app.view.name === 'detail' ? `detail:${projectKey(app.view.projectId)}` : app.view.name
     const sameView = viewKey === lastView
     const scroll = sameView ? root.scrollTop : 0

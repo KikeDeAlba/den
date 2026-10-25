@@ -18,20 +18,36 @@ import { element, icon } from '../../dom.ts'
 import { closeSwitcher, isSwitcherOpen, toggleSwitcher, withPages } from '../../notes/switcher.ts'
 import { modKey } from '../../platform.ts'
 import { formatRoute, go, parseRoute } from '../../shell/routes.ts'
-import { isSpaceShortcut, onSpaceChange, rememberedSpace, rememberSpace } from '../../shell/space.ts'
+import { inkwellProject, isSpaceShortcut, onSpaceChange, rememberedSpace, rememberSpace } from '../../shell/space.ts'
 import { projectColor } from '../../shell/colors.ts'
 import {
+  activeFilters,
   ageLabel,
+  ALL_PAGES,
   closePrompt,
+  defaultFilters,
+  filtersForSpace,
   findKey,
+  groupByPage,
   groupIssues,
   inSpace,
   keyOf,
   matches,
+  meetingEntryIds,
+  ORIGIN_LABEL,
+  originOf,
+  otherKind,
+  pagesOf,
+  passes,
   STATE_LABEL,
   stateOf,
+  type BacklogOrigin,
+  type CreatedFilter,
+  type Filters,
+  type Grouping,
   type IssueGroup,
   type IssueState,
+  type StatusFilter,
 } from './model.ts'
 import type { ShellEvent } from '../section.ts'
 import { pageRoute, parsePendientesPath, pendientesRoute, type PendientesTarget } from '../../shell/links.ts'
@@ -47,6 +63,7 @@ interface Draft {
 }
 
 const LAYOUT_KEY = 'den.pendientes.layout'
+const GROUPING_KEY = 'den.pendientes.grouping'
 const COPIED_MS = 1500
 const STATE_CLASS: Record<IssueState, string> = {
   finding: 'pend-tone--finding',
@@ -56,7 +73,6 @@ const STATE_CLASS: Record<IssueState, string> = {
 
 let host: HTMLElement | null = null
 let alive = false
-let listening = false
 let stopSpaceWatch: (() => void) | null = null
 
 let spaces: Space[] = []
@@ -65,9 +81,16 @@ let failure: Problem | null = null
 let actionFailure: string | null = null
 let modules: Modules | null = null
 let activeSpace: string | null = rememberedSpace()
+let routeSpace: string | null = null
 let selectedId: number | null = null
 let query = ''
 let layout: Layout = rememberedLayout()
+let grouping: Grouping = rememberedGrouping()
+let filters: Filters = defaultFilters()
+let filtersOpen = false
+let meetingIds = new Set<number>()
+let loadTicket = 0
+let shownSignature: string | null = null
 let creating: Draft | null = null
 let saving = false
 let copied: string | null = null
@@ -82,6 +105,29 @@ function rememberedLayout(): Layout {
   } catch {
     return 'list'
   }
+}
+
+function rememberedGrouping(): Grouping {
+  try {
+    return localStorage.getItem(GROUPING_KEY) === 'page' ? 'page' : 'state'
+  } catch {
+    return 'state'
+  }
+}
+
+function setGrouping(next: Grouping): void {
+  grouping = next
+  try {
+    localStorage.setItem(GROUPING_KEY, next)
+  } catch {
+    grouping = next
+  }
+  paint()
+}
+
+function setFilter<K extends keyof Filters>(key: K, value: Filters[K]): void {
+  filters = { ...filters, [key]: value }
+  paint()
 }
 
 function setLayout(next: Layout): void {
@@ -109,7 +155,8 @@ function spaceItems(): BacklogItem[] {
 }
 
 function shownItems(): BacklogItem[] {
-  return spaceItems().filter((item) => matches(item, query))
+  const now = new Date()
+  return spaceItems().filter((item) => matches(item, query) && passes(item, filters, now, meetingIds))
 }
 
 function selectedItem(): BacklogItem | null {
@@ -148,11 +195,12 @@ function chooseDefaultSpace(): void {
 
 function switchSpace(slug: string): void {
   if (!spaces.some((space) => space.projectSlug === slug)) return
+  rememberSpace(slug)
   if (slug === activeSpace) return
   activeSpace = slug
-  rememberSpace(slug)
   selectedId = null
   creating = null
+  filters = filtersForSpace(filters, spaceItems())
   paint()
   reflectRoute()
 }
@@ -170,14 +218,17 @@ function jumpTo(item: BacklogItem): void {
   if (owner !== undefined && owner.projectSlug !== activeSpace) {
     activeSpace = owner.projectSlug
     rememberSpace(owner.projectSlug)
+    filters = filtersForSpace(filters, spaceItems())
   }
   query = ''
+  if (!passes(item, filters, new Date(), meetingIds)) filters = defaultFilters()
   select(item.id)
 }
 
 function applyTarget(target: PendientesTarget): void {
   if (items === null || spaces.length === 0) {
     if (target.space !== null) activeSpace = target.space
+    routeSpace = target.space
     pendingKey = target.key
     return
   }
@@ -189,19 +240,31 @@ function applyTarget(target: PendientesTarget): void {
   reflectRoute()
 }
 
+function signature(): string {
+  return JSON.stringify([modules?.backlog ?? null, activeSpace, selectedId, failure, spaces, items])
+}
+
 async function load(): Promise<void> {
+  const mine = ++loadTicket
+  let status: Modules | null
   try {
-    modules = (await toolsStatus()).modules
+    status = (await toolsStatus()).modules
   } catch {
-    modules = null
+    status = null
   }
+  if (mine !== loadTicket) return
+  modules = status
   if (!available()) {
     items = []
-    paint()
+    refresh()
     return
   }
   const [tree, list] = await Promise.allSettled([notesTree(), backlogList()])
-  if (tree.status === 'fulfilled') spaces = tree.value.data.spaces ?? []
+  if (mine !== loadTicket) return
+  if (tree.status === 'fulfilled') {
+    spaces = tree.value.data.spaces ?? []
+    meetingIds = meetingEntryIds(spaces)
+  }
   if (list.status === 'fulfilled') {
     items = list.value.data
     failure = null
@@ -211,6 +274,8 @@ async function load(): Promise<void> {
   }
   if (tree.status === 'rejected' && failure === null) failure = describeProblem(tree.reason)
   chooseDefaultSpace()
+  if (routeSpace !== null && routeSpace === activeSpace) rememberSpace(routeSpace)
+  routeSpace = null
   if (pendingKey !== null) {
     const key = pendingKey
     pendingKey = null
@@ -218,6 +283,11 @@ async function load(): Promise<void> {
     if (item !== undefined) jumpTo(item)
   }
   if (selectedId !== null && selectedItem() === null) selectedId = null
+  refresh()
+}
+
+function refresh(): void {
+  if (shownSignature !== null && shownSignature === signature() && host?.querySelector('.pend') !== null) return
   paint()
 }
 
@@ -270,13 +340,14 @@ function convert(item: BacklogItem, kind: BacklogKind): void {
 
 async function create(draft: Draft): Promise<void> {
   const title = draft.title.trim()
-  if (title.length === 0 || saving) return
+  const space = currentSpace()
+  if (title.length === 0 || saving || space === null) return
   saving = true
   actionFailure = null
   paint()
   try {
     const body = draft.body.trim()
-    const payload = await backlogAdd(draft.kind, title, body.length > 0 ? body : null, draft.pageId, activeSpace)
+    const payload = await backlogAdd(draft.kind, title, body.length > 0 ? body : null, draft.pageId, inkwellProject(space))
     items = [...(items ?? []), payload.data]
     creating = null
     selectedId = payload.data.id
@@ -325,6 +396,7 @@ function header(): HTMLElement {
   const input = document.createElement('input')
   input.type = 'search'
   input.className = 'pend-search-input'
+  input.dataset['focus'] = 'search'
   input.value = query
   input.autocomplete = 'off'
   input.spellcheck = false
@@ -362,6 +434,27 @@ function header(): HTMLElement {
     toggles.append(button)
   }
 
+  const count = activeFilters(filters)
+  const filter = document.createElement('button')
+  filter.type = 'button'
+  filter.className = count > 0 ? 'pend-filter pend-filter--on' : 'pend-filter'
+  filter.setAttribute('aria-expanded', String(filtersOpen))
+  filter.setAttribute('aria-controls', 'pend-filters')
+  filter.dataset['focus'] = 'filters'
+  filter.append(element('span', '', 'Filtros'))
+  if (count > 0) filter.append(element('span', 'pend-badge', String(count)))
+  filter.addEventListener('click', () => {
+    filtersOpen = !filtersOpen
+    paint()
+  })
+
+  const group = textButton('pend-layout-option pend-grouping', grouping === 'page' ? 'Agrupar: página' : 'Agrupar: estado', () =>
+    setGrouping(grouping === 'page' ? 'state' : 'page'),
+  )
+  group.setAttribute('aria-pressed', String(grouping === 'page'))
+  group.dataset['focus'] = 'grouping'
+  group.disabled = layout === 'board'
+
   const add = document.createElement('button')
   add.type = 'button'
   add.className = 'pend-new'
@@ -381,10 +474,78 @@ function header(): HTMLElement {
     element('h1', 'pend-title', 'Pendientes y hallazgos'),
     element('span', 'pend-spacer'),
     search,
+    filter,
+    group,
     toggles,
     add,
   )
   return bar
+}
+
+function choice<T extends string>(name: string, value: T, options: readonly (readonly [T, string])[], pick: (next: T) => void): HTMLElement {
+  const wrap = element('label', 'pend-filter-field')
+  const select = document.createElement('select')
+  select.className = 'pend-filter-select'
+  select.dataset['focus'] = `filter-${name}`
+  for (const [optionValue, text] of options) {
+    const option = document.createElement('option')
+    option.value = optionValue
+    option.textContent = text
+    option.selected = optionValue === value
+    select.append(option)
+  }
+  select.addEventListener('change', () => pick(select.value as T))
+  wrap.append(element('span', 'pend-label', name), select)
+  return wrap
+}
+
+function filterStrip(): HTMLElement {
+  const strip = element('div', 'pend-filters')
+  strip.id = 'pend-filters'
+  strip.setAttribute('role', 'group')
+  strip.setAttribute('aria-label', 'Filtros')
+  const status: readonly (readonly [StatusFilter, string])[] = [
+    ['all', 'Todos'],
+    ['open', 'Abiertos'],
+    ['resolved', 'Resueltos'],
+  ]
+  const kinds: readonly (readonly [Filters['kind'], string])[] = [
+    ['all', 'Todos'],
+    ['pending', 'Pendientes'],
+    ['finding', 'Hallazgos'],
+  ]
+  const pages: readonly (readonly [string, string])[] = [
+    [ALL_PAGES, 'Todas'],
+    ...pagesOf(spaceItems()).map((page) => [page.key, page.label] as const),
+  ]
+  const origins: readonly (readonly ['all' | BacklogOrigin, string])[] = [
+    ['all', 'Todos'],
+    ['meeting', ORIGIN_LABEL.meeting],
+    ['extracted', ORIGIN_LABEL.extracted],
+    ['manual', ORIGIN_LABEL.manual],
+  ]
+  const created: readonly (readonly [CreatedFilter, string])[] = [
+    ['any', 'Cuando sea'],
+    ['today', 'Hoy'],
+    ['week', 'Esta semana'],
+    ['old', 'Hace más de 14 días'],
+  ]
+  strip.append(
+    choice('Estado', filters.status, status, (next) => setFilter('status', next)),
+    choice('Tipo', filters.kind, kinds, (next) => setFilter('kind', next)),
+    choice('Página', filters.page, pages, (next) => setFilter('page', next)),
+    choice('Origen', filters.origin, origins, (next) => setFilter('origin', next)),
+    choice('Creado', filters.created, created, (next) => setFilter('created', next)),
+  )
+  if (activeFilters(filters) > 0) {
+    strip.append(
+      textButton('quiet-link pend-filter-clear', 'Quitar filtros', () => {
+        filters = defaultFilters()
+        paint()
+      }),
+    )
+  }
+  return strip
 }
 
 function openSwitcher(anchor: HTMLElement): void {
@@ -411,6 +572,7 @@ function listRow(item: BacklogItem, now: Date): HTMLElement {
     element('span', 'pend-key', keyOf(item)),
     element('span', state === 'resolved' ? 'pend-row-title pend-done' : 'pend-row-title', item.title),
     element('span', 'pend-row-page', pageLabel(item)),
+    element('span', 'pend-row-origin', ORIGIN_LABEL[originOf(item, meetingIds)]),
     element('span', 'pend-age', ageLabel(item.status === 'resolved' ? item.resolvedAt : item.createdAt, now)),
   )
   row.addEventListener('click', () => select(item.id))
@@ -438,6 +600,7 @@ function card(item: BacklogItem, now: Date): HTMLElement {
 
 function emptyNote(): string {
   if (query.trim().length > 0) return `Nada coincide con «${query.trim()}».`
+  if (activeFilters(filters) > 0) return 'Nada coincide con los filtros.'
   return 'Este espacio todavía no tiene pendientes ni hallazgos.'
 }
 
@@ -474,6 +637,15 @@ function issues(): HTMLElement {
       board.append(column)
     }
     section.append(board)
+    return section
+  }
+  if (grouping === 'page') {
+    for (const group of groupByPage(shown)) {
+      const block = element('div', 'pend-group')
+      block.append(element('span', 'pend-group-label', `${group.label} · ${group.items.length}`))
+      for (const item of group.items) block.append(listRow(item, now))
+      section.append(block)
+    }
     return section
   }
   for (const group of groups) {
@@ -547,10 +719,13 @@ function detail(): HTMLElement {
   if (pageId === null) page.append(element('span', 'pend-quiet', 'Sin página'))
   else page.append(textButton('quiet-link pend-page-link', pageLabel(item), () => go(pageRoute(pageId, space?.projectSlug ?? null))))
 
+  const origin = element('div', 'pend-field')
+  origin.append(label('Origen'), element('span', 'pend-detail-origin', ORIGIN_LABEL[originOf(item, meetingIds)]))
+
   const ask = element('div', 'pend-field')
   ask.append(label('Pedírselo a Claude'), copyButton('pend-prompt', closePrompt(item), closePrompt(item), 'Copiar'))
 
-  aside.append(top, element('h2', 'pend-detail-title', item.title), project, description, page, ask)
+  aside.append(top, element('h2', 'pend-detail-title', item.title), project, description, page, origin, ask)
 
   if (item.status === 'resolved') {
     const how = element('div', 'pend-field')
@@ -561,6 +736,7 @@ function detail(): HTMLElement {
     const how = element('label', 'pend-field')
     const area = document.createElement('textarea')
     area.className = 'pend-input pend-textarea'
+    area.dataset['focus'] = `resolution-${item.id}`
     area.rows = 2
     area.placeholder = 'Cómo se resolvió (opcional)'
     area.value = resolutions.get(item.id) ?? ''
@@ -576,8 +752,11 @@ function detail(): HTMLElement {
     done.disabled = working
     actions.append(done)
   }
-  if (item.status === 'open' && item.kind === 'finding') {
-    const turn = textButton('quiet-link', 'Convertir en pendiente', () => convert(item, 'pending'))
+  if (item.status === 'open') {
+    const other = otherKind(item.kind)
+    const turn = textButton('quiet-link pend-convert', other === 'pending' ? 'Convertir en pendiente' : 'Convertir en hallazgo', () =>
+      convert(item, other),
+    )
     turn.disabled = working
     actions.append(turn)
   }
@@ -615,12 +794,13 @@ function form(draft: Draft): HTMLElement[] {
   const title = document.createElement('input')
   title.type = 'text'
   title.className = 'pend-input pend-form-title'
+  title.dataset['focus'] = 'new-title'
   title.placeholder = 'Título'
   title.setAttribute('aria-label', 'Título')
   title.value = draft.title
   title.addEventListener('input', () => {
     draft.title = title.value
-    submit.disabled = saving || draft.title.trim().length === 0
+    submit.disabled = saving || currentSpace() === null || draft.title.trim().length === 0
   })
   title.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
@@ -631,6 +811,7 @@ function form(draft: Draft): HTMLElement[] {
 
   const body = document.createElement('textarea')
   body.className = 'pend-input pend-textarea'
+  body.dataset['focus'] = 'new-body'
   body.rows = 4
   body.placeholder = 'Descripción (opcional)'
   body.setAttribute('aria-label', 'Descripción')
@@ -641,6 +822,7 @@ function form(draft: Draft): HTMLElement[] {
 
   const page = document.createElement('select')
   page.className = 'pend-input'
+  page.dataset['focus'] = 'new-page'
   page.setAttribute('aria-label', 'Página')
   const none = document.createElement('option')
   none.value = ''
@@ -659,7 +841,7 @@ function form(draft: Draft): HTMLElement[] {
 
   const actions = element('div', 'pend-actions')
   const submit = textButton('primary-button pend-resolve', saving ? 'Guardando…' : 'Crear', () => void create(draft))
-  submit.disabled = saving || draft.title.trim().length === 0
+  submit.disabled = saving || currentSpace() === null || draft.title.trim().length === 0
   const cancel = textButton('quiet-link', 'Cancelar', () => {
     creating = null
     actionFailure = null
@@ -682,21 +864,57 @@ function paintBody(): void {
   body.replaceChildren(issues(), detail())
 }
 
+interface FocusMark {
+  key: string
+  start: number | null
+  end: number | null
+}
+
+function focusMark(): FocusMark | null {
+  const focused = document.activeElement
+  if (!(focused instanceof HTMLElement) || host === null || !host.contains(focused)) return null
+  const key = focused.dataset['focus']
+  if (key === undefined) return null
+  const typed = focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement
+  let start: number | null = null
+  let end: number | null = null
+  if (typed) {
+    try {
+      start = focused.selectionStart
+      end = focused.selectionEnd
+    } catch {
+      start = null
+    }
+  }
+  return { key, start, end }
+}
+
+function restoreFocus(root: HTMLElement, mark: FocusMark | null): void {
+  if (mark === null) return
+  const target = root.querySelector<HTMLElement>(`[data-focus="${mark.key}"]`)
+  if (target === null) return
+  target.focus()
+  if ((target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) && mark.start !== null) {
+    try {
+      target.setSelectionRange(mark.start, mark.end ?? mark.start)
+    } catch {
+      return
+    }
+  }
+}
+
 function paint(): void {
   if (host === null) return
-  const focused = document.activeElement
-  const keepSearch = focused instanceof HTMLInputElement && focused.classList.contains('pend-search-input')
-  const caret = keepSearch ? focused.selectionStart : null
+  const mark = focusMark()
   const root = element('div', 'pend')
   const body = element('div', 'pend-body')
   body.append(issues(), detail())
-  root.append(header(), body)
+  root.append(header())
+  if (filtersOpen) root.append(filterStrip())
+  root.append(body)
   host.replaceChildren(root)
-  if (keepSearch) {
-    const input = root.querySelector<HTMLInputElement>('.pend-search-input')
-    input?.focus()
-    if (input !== null && caret !== null) input.setSelectionRange(caret, caret)
-  }
+  shownSignature = signature()
+  restoreFocus(root, mark)
 }
 
 function keys(event: KeyboardEvent): void {
@@ -716,15 +934,9 @@ function keys(event: KeyboardEvent): void {
   }
 }
 
-function listenOnce(): void {
-  if (listening) return
-  listening = true
-  window.addEventListener('keydown', keys)
-}
-
 export function receive(event: ShellEvent): void {
   if (!alive) return
-  if (event.type === 'docs-changed') {
+  if (event.type === 'docs-changed' || event.type === 'visible') {
     void load()
   } else if (event.type === 'tools') {
     modules = event.tools.modules
@@ -735,7 +947,7 @@ export function receive(event: ShellEvent): void {
 export async function mount(target: HTMLElement, path: readonly string[]): Promise<void> {
   host = target
   alive = true
-  listenOnce()
+  window.addEventListener('keydown', keys)
   stopSpaceWatch = onSpaceChange((slug) => {
     if (slug !== activeSpace) switchSpace(slug)
   })
@@ -751,8 +963,10 @@ export function update(path: readonly string[]): void {
 
 export function unmount(): void {
   alive = false
+  window.removeEventListener('keydown', keys)
   closeSwitcher()
   stopSpaceWatch?.()
   stopSpaceWatch = null
   host = null
+  shownSignature = null
 }
