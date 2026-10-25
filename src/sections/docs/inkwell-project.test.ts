@@ -20,6 +20,8 @@ const api = vi.hoisted(() => ({
   confluenceSyncStatus: vi.fn(),
   searchTranscripts: vi.fn(),
   projects: vi.fn(),
+  pageDocument: vi.fn(),
+  meetingForEntry: vi.fn(),
 }))
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -37,6 +39,68 @@ vi.mock('../../bita.ts', async (original) => ({
   ...(await original<typeof import('../../bita.ts')>()),
   ...api,
 }))
+
+const MEETING = { entryId: 9, kind: 'meeting', startedAt: '2026-10-20T10:00:00Z', stoppedAt: null, durationSeconds: 60 }
+
+const PAGE = {
+  pageId: 5,
+  parentId: null,
+  projectId: 4,
+  projectName: 'DP Caja de pagos',
+  projectSlug: 'dp-caja-de-pagos',
+  slug: 'api',
+  title: 'API',
+  relPath: 'api.md',
+  byteSize: 10,
+  issues: [],
+  meetings: [MEETING],
+  recordedAt: '2026-10-20T10:00:00Z',
+  status: 'active',
+  entryCount: 0,
+  durationSeconds: 0,
+  durationHuman: '0m',
+  sectionCount: 0,
+  headingCount: 0,
+  childCount: 0,
+  depth: 0,
+  position: 0,
+  ancestors: [],
+  children: [],
+  doc: {
+    path: '/docs/api.md',
+    relPath: 'api.md',
+    markdown: '# API',
+    frontMatter: {},
+    frontMatterValid: true,
+    preamble: '',
+    outline: [],
+    file: { status: 'ok', path: '/docs/api.md', checksum: null, recordedChecksum: '', byteSize: 10, recordedByteSize: 10, mtime: null },
+  },
+  entries: [],
+  worklogIssues: [],
+}
+
+const VIEW = {
+  id: 'm-9',
+  title: 'Revisión',
+  mode: 'remote',
+  status: 'done',
+  dir: '/tmp/m-9',
+  startedAt: '2026-10-20T10:00:00Z',
+  durationSeconds: 60,
+  recording: null,
+  summaryMarkdown: null,
+  segments: [],
+  frames: [],
+  hasVideo: false,
+  storage: null,
+  video: null,
+  videoRemovedAt: null,
+  answers: [],
+  proposals: [
+    { n: 1, pageId: 5, pageTitle: 'API', section: null, title: 'Agregar timeout', rationale: null, quotes: [], branch: null, sha: null, status: 'pending', appliedSha: null },
+  ],
+}
 
 const SPACE = {
   projectId: 4,
@@ -71,6 +135,8 @@ describe('docs talks to inkwell by project key', () => {
     api.confluenceSyncStatus.mockResolvedValue([])
     api.searchTranscripts.mockResolvedValue([])
     api.projects.mockResolvedValue([])
+    api.pageDocument.mockResolvedValue({ data: PAGE, meta: {} })
+    api.meetingForEntry.mockResolvedValue(VIEW)
     host = document.createElement('section')
     host.dataset['section'] = 'docs'
     document.body.append(host)
@@ -96,5 +162,17 @@ describe('docs talks to inkwell by project key', () => {
     input.dispatchEvent(new Event('input'))
     await flush(250)
     expect(api.notesSearchPages).toHaveBeenCalledWith('cobro', 'CDP')
+  })
+
+  it('checks the confluence links of a meeting proposal with the inkwell key, not the name', async () => {
+    section.update(['dp-caja-de-pagos', '5'])
+    await flush()
+    api.confluenceSyncStatus.mockClear()
+    const tab = [...host.querySelectorAll<HTMLButtonElement>('button')].find((node) => node.textContent?.includes('Cambios propuestos'))
+    expect(tab).toBeDefined()
+    tab?.click()
+    await flush()
+    expect(api.confluenceSyncStatus).toHaveBeenCalledWith('CDP')
+    expect(api.confluenceSyncStatus).not.toHaveBeenCalledWith('DP Caja de pagos')
   })
 })

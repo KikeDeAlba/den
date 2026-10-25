@@ -301,7 +301,14 @@ function readerState(): ReaderState {
     video: videoActions(),
     history: can('history'),
     confluenceUrl: confluenceUrl(opened),
+    inkwellProject: pageProject(opened),
   }
+}
+
+function pageProject(page: PageDocument | null): string | null {
+  if (page === null) return null
+  const space = spaces.find((candidate) => candidate.projectSlug === page.projectSlug)
+  return space === undefined ? page.projectName : inkwellProject(space)
 }
 
 function readyView(): MeetingRecord | null {
