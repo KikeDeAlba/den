@@ -480,10 +480,6 @@ export function openReports(): Promise<void> {
   return invoke<void>('open_reports')
 }
 
-export function openBrain(): Promise<void> {
-  return invoke<void>('open_brain')
-}
-
 export function notesTakeFocus(): Promise<number | null> {
   return invoke<number | null>('notes_take_focus')
 }

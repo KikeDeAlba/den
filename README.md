@@ -329,24 +329,28 @@ esconde en lugar de destruirse. Mientras está abierta cuenta como ventana
 normal, así que macOS pasa a `Regular` y aparece en el Dock y en cmd+Tab. El
 botón solo aparece si el módulo de cronómetros (bita) está activo.
 
-## La ventana del cerebro
+## El cerebro
 
-El botón del grafo, junto a los reportes, abre el cerebro de los proyectos: lo
-que `gaze` guarda (reglas, hechos, decisiones, documentos, entradas, tickets,
-reuniones y memorias) dibujado como un grafo, al estilo de Obsidian. Es una
-ventana propia (`cerebro.html`) que se construye y se esconde igual que la de
-reportes, y el botón solo aparece si `gaze` está en el registro con
-`memory.graph.read`.
+La sección Cerebro (⌘7) muestra el cerebro del espacio elegido: lo que `gaze`
+guarda (reglas, hechos, decisiones, documentos, entradas, tickets, reuniones y
+memorias) dibujado como un grafo, al estilo de Obsidian. El espacio sale del
+selector compartido (⌘K, `den.space`) y se pasa tal cual a
+`gaze graph --project <espacio>`; sin espacios se dibuja el cerebro entero.
 
 Los datos salen de `gaze graph [--project P] --json`, `gaze show <id> --json` y
 `gaze search <q> --project P|--all --json`. El dibujo es WebGL (sigma.js sobre
 graphology), así que aguanta miles de nodos; ForceAtlas2 corre en un worker con
 un número acotado de iteraciones y va moviendo los nodos mientras calcula. El
-color es el tipo y el tamaño el grado. El selector cambia de proyecto (la lista
-sale de los nodos), la leyenda apaga tipos y clases de conexión, pasar sobre un
-nodo resalta a sus vecinos y un clic abre el panel lateral con el cuerpo en
-Markdown (el mismo lector de las notas) y sus conexiones. La búsqueda llama a
-`gaze search` y lleva la cámara al resultado.
+color es el tipo y el tamaño el grado. La leyenda apaga tipos y clases de
+conexión, pasar sobre un nodo resalta a sus vecinos y un clic llena el panel
+lateral con un fragmento de la nota y sus conexiones. «Abrir la nota» (o la
+barra espaciadora) la abre casi a pantalla completa con el mismo lector de
+Markdown de Documentación, y sus conexiones llevan de una nota a otra. La
+búsqueda llama a `gaze search` y lleva la cámara al resultado.
+
+Sigma y graphology viven solo en el bloque de esta sección, que se carga al
+entrar y se desmonta al salir: se apagan el renderer, el worker y los
+temporizadores.
 
 Se dibuja como un cielo de constelaciones, siempre de noche: cada nodo es una
 estrella con halo del color de su tipo sobre un campo de estrellas con paralaje,
@@ -362,7 +366,7 @@ Sin `gaze` instalado se puede revisar con datos de ejemplo
 VITE_GAZE_FIXTURE=1 pnpm dev
 ```
 
-y abrir `http://localhost:1420/cerebro.html`. La compilación de producción no
+y abrir `http://localhost:1420/#/cerebro`. La compilación de producción no
 incluye el fixture.
 
 ## El tamaño del texto
