@@ -116,7 +116,7 @@ pub fn navigate_to(app: AppHandle, route: String) -> Result<(), Problem> {
 
 #[cfg(test)]
 mod tests {
-    use super::{fit, normalize};
+    use super::{fit, normalize, LABEL, NAVIGATE_EVENT};
 
     #[test]
     fn a_large_screen_gets_the_full_size() {
@@ -143,5 +143,57 @@ mod tests {
         assert_eq!(normalize("#/ajustes/asistente/"), "ajustes/asistente");
         assert_eq!(normalize("/tiempo"), "tiempo");
         assert_eq!(normalize(" ahora "), "ahora");
+    }
+
+    #[test]
+    fn the_window_and_event_names_are_the_ones_the_frontend_listens_to() {
+        assert_eq!(LABEL, "main");
+        assert_eq!(NAVIGATE_EVENT, "den://navigate");
+        let bita = include_str!("../../src/bita.ts");
+        assert!(bita.contains(&format!("NAVIGATE_EVENT = '{NAVIGATE_EVENT}'")));
+    }
+
+    #[test]
+    fn an_empty_or_bare_route_normalises_to_nothing() {
+        assert_eq!(normalize(""), "");
+        assert_eq!(normalize("#"), "");
+        assert_eq!(normalize("#/"), "");
+        assert_eq!(normalize("///"), "");
+        assert_eq!(normalize("   "), "");
+    }
+
+    #[test]
+    fn normalising_twice_changes_nothing() {
+        for route in ["#/ajustes/asistente/", "/tiempo", " ahora ", "##/docs", "docs/den/readme"] {
+            assert_eq!(normalize(&normalize(route)), normalize(route));
+        }
+    }
+
+    #[test]
+    fn a_nested_route_keeps_its_inner_slashes() {
+        assert_eq!(normalize("#/docs/den/readme"), "docs/den/readme");
+    }
+
+    #[test]
+    fn an_exact_fit_on_the_edge_of_the_share_is_kept() {
+        assert_eq!(fit(1152.0, Some(1280.0), 900.0), 1152.0);
+        assert_eq!(fit(1280.0, Some(1500.0), 900.0), 1280.0);
+    }
+
+    #[test]
+    fn a_zero_or_negative_work_area_leaves_the_wanted_size() {
+        assert_eq!(fit(1280.0, Some(0.0), 900.0), 1280.0);
+        assert_eq!(fit(1280.0, Some(-10.0), 900.0), 1280.0);
+    }
+
+    #[test]
+    fn a_wanted_size_below_the_minimum_is_raised_to_it() {
+        assert_eq!(fit(500.0, Some(2000.0), 900.0), 900.0);
+    }
+
+    #[test]
+    fn the_default_window_fits_the_minimum_screen_it_supports() {
+        assert_eq!(fit(1280.0, Some(1000.0), 900.0), 900.0);
+        assert_eq!(fit(820.0, Some(700.0), 600.0), 630.0);
     }
 }

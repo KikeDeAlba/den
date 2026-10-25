@@ -217,7 +217,9 @@ fn truncate(text: &str, limit: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_clock, format_title, header_text, list_key, row_text, tooltip_for, truncate, TOOLTIP};
+    use super::{
+        by_start, format_clock, format_title, header_text, list_key, row_text, tooltip_for, truncate, TOOLTIP,
+    };
     use crate::model::LiveTimer;
 
     fn timer(
@@ -332,5 +334,118 @@ mod tests {
         let renamed = timer(733, "2026-09-20T05:48:20Z", 3600, Some("Otro"), false);
         assert_eq!(list_key(&[&before]), list_key(&[&later]));
         assert_ne!(list_key(&[&before]), list_key(&[&renamed]));
+    }
+
+    #[test]
+    fn a_tie_on_start_time_leads_with_the_lower_id() {
+        let running = vec![
+            timer(9, "2026-09-20T05:00:00Z", 60, Some("Nueve"), false),
+            timer(4, "2026-09-20T05:00:00Z", 60, Some("Cuatro"), false),
+        ];
+        assert_eq!(format_title(&running), "0:01 +1");
+        let ordered: Vec<i64> = by_start(&running).iter().map(|row| row.id).collect();
+        assert_eq!(ordered, vec![4, 9]);
+    }
+
+    #[test]
+    fn three_timers_count_two_behind_the_oldest() {
+        let running = vec![
+            timer(3, "2026-09-20T07:00:00Z", 10, None, true),
+            timer(1, "2026-09-20T05:00:00Z", 7200, Some("Pharma STI"), false),
+            timer(2, "2026-09-20T06:00:00Z", 10, None, false),
+        ];
+        assert_eq!(format_title(&running), "2:00 +2");
+    }
+
+    #[test]
+    fn the_menu_lists_timers_oldest_first_whatever_the_input_order() {
+        let running = vec![
+            timer(2, "2026-09-20T06:00:00Z", 10, None, false),
+            timer(1, "2026-09-20T05:00:00Z", 10, None, false),
+        ];
+        let ordered: Vec<i64> = by_start(&running).iter().map(|row| row.id).collect();
+        assert_eq!(ordered, vec![1, 2]);
+        assert!(by_start(&[]).is_empty());
+    }
+
+    #[test]
+    fn truncation_cuts_exactly_past_the_limit() {
+        assert_eq!(truncate("123456789012", 12), "123456789012");
+        assert_eq!(truncate("1234567890123", 12), "12345678901\u{2026}");
+    }
+
+    #[test]
+    fn truncation_counts_characters_not_bytes() {
+        assert_eq!(truncate("ñandú ñandú", 12), "ñandú ñandú");
+        assert_eq!(truncate("áéíóúáéíóúáéíóú", 12), "áéíóúáéíóúá\u{2026}");
+    }
+
+    #[test]
+    fn truncation_does_not_leave_a_space_before_the_ellipsis() {
+        assert_eq!(truncate("Plataforma  de Reservas", 12), "Plataforma\u{2026}");
+    }
+
+    #[test]
+    fn truncation_to_zero_or_one_keeps_only_the_ellipsis() {
+        assert_eq!(truncate("bita", 0), "\u{2026}");
+        assert_eq!(truncate("bita", 1), "\u{2026}");
+    }
+
+    #[test]
+    fn a_negative_clock_reads_as_zero() {
+        assert_eq!(format_clock(-90), "0:00");
+        assert_eq!(format_clock(i64::MIN), "0:00");
+    }
+
+    #[test]
+    fn a_blank_title_reads_as_unnamed_in_the_menu() {
+        let mut blank = timer(1, "2026-09-20T05:00:00Z", 60, None, false);
+        blank.title = Some("   ".into());
+        assert_eq!(row_text(&blank), "Sin nombre · 0:01");
+        blank.title = Some("".into());
+        assert_eq!(row_text(&blank), "Sin nombre · 0:01");
+    }
+
+    #[test]
+    fn a_menu_title_is_trimmed() {
+        let mut padded = timer(1, "2026-09-20T05:00:00Z", 60, Some("Pharma STI"), false);
+        padded.title = Some("  Revisión  ".into());
+        assert_eq!(row_text(&padded), "Revisión · Pharma STI · 0:01");
+    }
+
+    #[test]
+    fn a_menu_row_keeps_the_whole_project_name() {
+        let long = timer(1, "2026-09-20T05:00:00Z", 60, Some("Plataforma de Reservas"), false);
+        assert_eq!(row_text(&long), "Algo · Plataforma de Reservas · 0:01");
+    }
+
+    #[test]
+    fn the_list_key_changes_with_membership_order_draft_and_title() {
+        let one = timer(1, "2026-09-20T05:00:00Z", 60, Some("A"), false);
+        let two = timer(2, "2026-09-20T06:00:00Z", 60, Some("B"), false);
+        assert_ne!(list_key(&[&one]), list_key(&[&one, &two]));
+        assert_ne!(list_key(&[&one, &two]), list_key(&[&two, &one]));
+        let mut drafted = one.clone();
+        drafted.draft = true;
+        assert_ne!(list_key(&[&one]), list_key(&[&drafted]));
+        let mut retitled = one.clone();
+        retitled.title = Some("Otro".into());
+        assert_ne!(list_key(&[&one]), list_key(&[&retitled]));
+        assert_eq!(list_key(&[]), "");
+    }
+
+    #[test]
+    fn the_list_key_does_not_confuse_a_missing_project_with_a_missing_title() {
+        let mut titled = timer(1, "2026-09-20T05:00:00Z", 60, None, false);
+        titled.title = Some("X".into());
+        let mut projected = timer(1, "2026-09-20T05:00:00Z", 60, Some("X"), false);
+        projected.title = None;
+        assert_ne!(list_key(&[&titled]), list_key(&[&projected]));
+    }
+
+    #[test]
+    fn the_menu_header_counts_one_as_singular_and_many_as_plural() {
+        assert_eq!(header_text(2), "2 cronómetros corriendo");
+        assert_eq!(header_text(10), "10 cronómetros corriendo");
     }
 }

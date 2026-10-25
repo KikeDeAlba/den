@@ -92,7 +92,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{route_of, SECTIONS};
+    use super::{route_of, GO_PREFIX, LIVE, LIVE_WIDE, SECTIONS};
 
     #[test]
     fn go_items_carry_their_route() {
@@ -107,5 +107,46 @@ mod tests {
         assert_eq!(SECTIONS[0].2, "CmdOrCtrl+1");
         assert_eq!(SECTIONS[6].2, "CmdOrCtrl+7");
         assert_eq!(SECTIONS[7], ("ajustes", "Ajustes", "CmdOrCtrl+,"));
+    }
+
+    #[test]
+    fn the_first_seven_sections_take_cmd_1_through_7_in_order() {
+        for (index, (_, _, accelerator)) in SECTIONS.iter().take(7).enumerate() {
+            assert_eq!(*accelerator, format!("CmdOrCtrl+{}", index + 1));
+        }
+    }
+
+    #[test]
+    fn section_routes_are_unique_and_lowercase() {
+        let routes: std::collections::HashSet<_> = SECTIONS.iter().map(|(route, _, _)| *route).collect();
+        assert_eq!(routes.len(), SECTIONS.len());
+        assert!(SECTIONS.iter().all(|(route, _, _)| route.chars().all(|c| c.is_ascii_lowercase())));
+    }
+
+    #[test]
+    fn every_section_has_a_label() {
+        assert!(SECTIONS.iter().all(|(_, label, _)| !label.trim().is_empty()));
+    }
+
+    #[test]
+    fn every_go_id_round_trips_to_its_route() {
+        for (route, _, _) in SECTIONS {
+            assert_eq!(route_of(&format!("{GO_PREFIX}{route}")), Some(route));
+        }
+    }
+
+    #[test]
+    fn the_window_items_never_read_as_a_go_route() {
+        assert_eq!(route_of(LIVE), None);
+        assert_eq!(route_of(LIVE_WIDE), None);
+        assert_eq!(route_of(""), None);
+        assert_eq!(route_of("quit"), None);
+    }
+
+    #[test]
+    fn a_go_id_is_matched_only_by_its_prefix() {
+        assert_eq!(route_of("x-go:tiempo"), None);
+        assert_eq!(route_of("GO:tiempo"), None);
+        assert_eq!(route_of("go:docs/den/readme"), Some("docs/den/readme"));
     }
 }
