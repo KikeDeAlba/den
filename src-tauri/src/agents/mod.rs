@@ -16,7 +16,7 @@ use tauri::plugin::TauriPlugin;
 use tauri::{AppHandle, Emitter, Manager, Runtime, Window, Wry};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
-use crate::cli::Cli;
+use crate::cli::{node, Cli};
 use crate::model::{Problem, ProblemKind};
 use crate::platform;
 use crate::registry::{self, Tool};
@@ -141,22 +141,81 @@ fn sink(channel: Channel<InvokeResponseBody>) -> pty::Sink {
     Box::new(move |chunk| channel.send(InvokeResponseBody::Raw(chunk)).is_ok())
 }
 
-pub fn pty_env(bin: &[OsString], inherited: impl Iterator<Item = (String, String)>) -> Vec<(String, String)> {
-    let mut env: HashMap<String, String> = inherited.collect();
+const AGENT_ENV_PREFIXES: [&str; 12] = [
+    "ANTHROPIC_",
+    "CLAUDE_",
+    "OPENAI_",
+    "CODEX_",
+    "GEMINI_",
+    "GOOGLE_",
+    "VERTEX_",
+    "OPENCODE_",
+    "OPENROUTER_",
+    "AZURE_",
+    "AWS_",
+    "LC_",
+];
+const AGENT_ENV_VARS: [&str; 20] = [
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+    "ALL_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+    "all_proxy",
+    "NODE_EXTRA_CA_CERTS",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "SHELL",
+    "USER",
+    "LOGNAME",
+    "SSH_AUTH_SOCK",
+    "EDITOR",
+    "VISUAL",
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "GITLAB_TOKEN",
+];
+const BLOCKED_ENV_PREFIXES: [&str; 5] = ["DYLD_", "LD_", "DEN_", "TAURI_", "WEBKIT_"];
+const BLOCKED_ENV_VARS: [&str; 1] = ["NODE_OPTIONS"];
+
+pub fn agent_env_passes(key: &str) -> bool {
+    if BLOCKED_ENV_PREFIXES.iter().any(|prefix| key.starts_with(prefix)) || BLOCKED_ENV_VARS.contains(&key) {
+        return false;
+    }
+    platform::is_essential(key)
+        || registry::passes_through(key)
+        || AGENT_ENV_PREFIXES.iter().any(|prefix| key.starts_with(prefix))
+        || AGENT_ENV_VARS.contains(&key)
+}
+
+pub fn pty_env(bin: &[OsString], inherited: impl IntoIterator<Item = (OsString, OsString)>) -> Vec<(OsString, OsString)> {
+    let mut inherited_path = None;
+    let mut env: HashMap<OsString, OsString> = HashMap::new();
+    for (key, value) in inherited {
+        if key == "PATH" {
+            inherited_path = Some(value);
+        } else if key.to_str().is_some_and(agent_env_passes) {
+            env.insert(key, value);
+        }
+    }
+    for (key, value) in node::identity() {
+        env.entry(OsString::from(key)).or_insert(value);
+    }
     let mut path = registry::path_for(bin);
-    if let Some(existing) = env.get("PATH").filter(|value| !value.is_empty()) {
+    if let Some(existing) = inherited_path.filter(|value| !value.is_empty()) {
         path.push(if cfg!(windows) { ";" } else { ":" });
         path.push(existing);
     }
-    env.insert("PATH".into(), path.to_string_lossy().into_owned());
+    env.insert("PATH".into(), path);
     env.insert("TERM".into(), "xterm-256color".into());
     env.insert("COLORTERM".into(), "truecolor".into());
-    env.remove("NO_COLOR");
     env.entry("LANG".into()).or_insert_with(|| "en_US.UTF-8".into());
     if let Some(home) = platform::home() {
-        env.entry("HOME".into()).or_insert_with(|| home.to_string_lossy().into_owned());
+        env.insert("HOME".into(), home.into_os_string());
     }
-    let mut list: Vec<(String, String)> = env.into_iter().collect();
+    let mut list: Vec<(OsString, OsString)> = env.into_iter().collect();
     list.sort();
     list
 }
@@ -185,7 +244,7 @@ pub fn spec_for(cli_bin: &[OsString], database: &Path, request: &SpawnRequest, c
         program: PathBuf::from(program),
         args,
         cwd: directory(request)?,
-        env: pty_env(cli_bin, std::env::vars()),
+        env: pty_env(cli_bin, std::env::vars_os()),
         cols: if cols == 0 { DEFAULT_COLS } else { cols },
         rows: if rows == 0 { DEFAULT_ROWS } else { rows },
     })
@@ -476,18 +535,75 @@ mod tests {
         assert_eq!(sessions_args(Some("/tmp/den"), 10), ["sessions", "ls", "--cwd", "/tmp/den", "--limit", "10"]);
     }
 
+    fn env_of(pairs: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
+        pty_env(
+            &[OsString::from("/opt/bita/bin/bita")],
+            pairs.iter().map(|(key, value)| (OsString::from(key), OsString::from(value))),
+        )
+    }
+
+    fn lookup(env: &[(OsString, OsString)], key: &str) -> Option<String> {
+        env.iter().find(|(name, _)| name == key).map(|(_, value)| value.to_string_lossy().into_owned())
+    }
+
     #[test]
     fn the_terminal_gets_colors_and_a_usable_path() {
-        let env = pty_env(
-            &[OsString::from("/opt/bita/bin/bita")],
-            vec![("NO_COLOR".to_string(), "1".to_string()), ("PATH".to_string(), "/custom/bin".to_string())].into_iter(),
-        );
-        let get = |key: &str| env.iter().find(|(name, _)| name == key).map(|(_, value)| value.clone());
-        assert_eq!(get("TERM").as_deref(), Some("xterm-256color"));
-        assert_eq!(get("NO_COLOR"), None);
-        let path = get("PATH").expect("path");
+        let env = env_of(&[("NO_COLOR", "1"), ("PATH", "/custom/bin")]);
+        assert_eq!(lookup(&env, "TERM").as_deref(), Some("xterm-256color"));
+        assert_eq!(lookup(&env, "NO_COLOR"), None);
+        let path = lookup(&env, "PATH").expect("path");
         assert!(path.starts_with("/opt/bita/bin"));
         assert!(path.ends_with("/custom/bin"));
+    }
+
+    #[test]
+    fn the_child_only_inherits_what_the_cli_policy_and_the_agents_need() {
+        let env = env_of(&[
+            ("DYLD_INSERT_LIBRARIES", "/tmp/evil.dylib"),
+            ("LD_PRELOAD", "/tmp/evil.so"),
+            ("NODE_OPTIONS", "--require /tmp/evil.js"),
+            ("DEN_AGENT_SMOKE_BITA", "/tmp/bita.js"),
+            ("TAURI_ENV_DEBUG", "1"),
+            ("WEBKIT_DISABLE_COMPOSITING_MODE", "1"),
+            ("RANDOM_SECRET", "x"),
+            ("ANTHROPIC_API_KEY", "sk-ant"),
+            ("OPENAI_API_KEY", "sk-oa"),
+            ("GEMINI_API_KEY", "g"),
+            ("HTTPS_PROXY", "http://proxy:3128"),
+            ("no_proxy", "localhost"),
+            ("BITA_DB_PATH", "/tmp/bita.db"),
+            ("TMPDIR", "/tmp/den"),
+        ]);
+        for blocked in [
+            "DYLD_INSERT_LIBRARIES",
+            "LD_PRELOAD",
+            "NODE_OPTIONS",
+            "DEN_AGENT_SMOKE_BITA",
+            "TAURI_ENV_DEBUG",
+            "WEBKIT_DISABLE_COMPOSITING_MODE",
+            "RANDOM_SECRET",
+        ] {
+            assert_eq!(lookup(&env, blocked), None, "{blocked}");
+        }
+        for kept in ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "HTTPS_PROXY", "no_proxy", "BITA_DB_PATH", "TMPDIR"] {
+            assert!(lookup(&env, kept).is_some(), "{kept}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn values_that_are_not_utf8_pass_through_without_panicking() {
+        use std::os::unix::ffi::OsStringExt;
+        let raw = OsString::from_vec(vec![b'/', b't', 0xff, b'p']);
+        let env = pty_env(
+            &[OsString::from("/opt/bita/bin/bita")],
+            vec![
+                (OsString::from("TMPDIR"), raw.clone()),
+                (OsString::from_vec(vec![b'X', 0xfe]), OsString::from("1")),
+            ],
+        );
+        assert!(env.iter().any(|(key, value)| key == "TMPDIR" && *value == raw));
+        assert!(!env.iter().any(|(key, _)| key.to_str().is_none()));
     }
 
     #[test]
@@ -582,10 +698,10 @@ mod tests {
             ..SpawnRequest::default()
         };
         let mut spec = spec_for(&bin, &database, &request, 80, 24).expect("spec");
-        spec.env.retain(|(key, _)| key != "HOME" && !key.starts_with("BITA_"));
-        spec.env.push(("HOME".into(), root.join("home").to_string_lossy().into_owned()));
-        spec.env.push(("BITA_HARNESS_BIN_CLAUDE".into(), fake.to_string_lossy().into_owned()));
-        spec.env.push(("BITA_DB_PATH".into(), database.to_string_lossy().into_owned()));
+        spec.env.retain(|(key, _)| key != "HOME" && !key.to_string_lossy().starts_with("BITA_"));
+        spec.env.push(("HOME".into(), root.join("home").into_os_string()));
+        spec.env.push(("BITA_HARNESS_BIN_CLAUDE".into(), fake.clone().into_os_string()));
+        spec.env.push(("BITA_DB_PATH".into(), database.clone().into_os_string()));
         let (sender, receiver) = std::sync::mpsc::channel();
         let pty = Arc::new(Pty::spawn(&spec, move |code| {
             let _ = sender.send(code);

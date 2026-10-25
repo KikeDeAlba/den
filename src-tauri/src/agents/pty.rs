@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::ffi::OsString;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -23,7 +24,7 @@ pub struct PtySpec {
     pub program: PathBuf,
     pub args: Vec<String>,
     pub cwd: Option<PathBuf>,
-    pub env: Vec<(String, String)>,
+    pub env: Vec<(OsString, OsString)>,
     pub cols: u16,
     pub rows: u16,
 }
@@ -132,6 +133,7 @@ impl Pty {
             })
             .map_err(io_error)?;
         let mut command = CommandBuilder::new(&spec.program);
+        command.env_clear();
         command.args(&spec.args);
         if let Some(cwd) = &spec.cwd {
             command.cwd(cwd);
@@ -282,7 +284,7 @@ mod tests {
             program: PathBuf::from("/bin/sh"),
             args: vec!["-c".into(), script.into()],
             cwd: None,
-            env: vec![("TERM".into(), "xterm-256color".into())],
+            env: vec![("TERM".into(), "xterm-256color".into()), ("PATH".into(), "/usr/bin:/bin".into())],
             cols: 80,
             rows: 24,
         }
