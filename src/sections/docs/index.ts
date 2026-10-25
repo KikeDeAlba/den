@@ -1226,6 +1226,7 @@ export function receive(event: ShellEvent): void {
   if (!alive) return
   switch (event.type) {
     case 'docs-changed':
+    case 'visible':
       void loadTree()
       if (selected?.kind === 'page') void loadPage(selected.id, true)
       break

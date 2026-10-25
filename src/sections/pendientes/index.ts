@@ -728,7 +728,7 @@ function listenOnce(): void {
 
 export function receive(event: ShellEvent): void {
   if (!alive) return
-  if (event.type === 'docs-changed') {
+  if (event.type === 'docs-changed' || event.type === 'visible') {
     void load()
   } else if (event.type === 'tools') {
     modules = event.tools.modules
