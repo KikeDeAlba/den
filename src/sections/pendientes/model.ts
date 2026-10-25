@@ -1,4 +1,4 @@
-import type { BacklogItem } from '../../bita.ts'
+import type { BacklogItem, BacklogKind, PageNode, Space } from '../../bita.ts'
 
 export type IssueState = 'finding' | 'pending' | 'resolved'
 
@@ -79,4 +79,114 @@ export function ageLabel(iso: string | null, now: Date): string {
 
 export function closePrompt(item: Pick<BacklogItem, 'id' | 'key'>): string {
   return `cierra ${keyOf(item)}`
+}
+
+export type BacklogOrigin = 'meeting' | 'extracted' | 'manual'
+export type StatusFilter = 'all' | 'open' | 'resolved'
+export type CreatedFilter = 'any' | 'today' | 'week' | 'old'
+export type Grouping = 'state' | 'page'
+
+export interface Filters {
+  status: StatusFilter
+  kind: 'all' | BacklogKind
+  page: string
+  origin: 'all' | BacklogOrigin
+  created: CreatedFilter
+}
+
+export interface PageGroup {
+  key: string
+  label: string
+  items: BacklogItem[]
+}
+
+export const ALL_PAGES = 'all'
+export const NO_PAGE = 'none'
+const OLD_DAYS = 14
+const WEEK_DAYS = 7
+
+export const ORIGIN_LABEL: Record<BacklogOrigin, string> = {
+  meeting: 'Reunión',
+  extracted: 'Extraída',
+  manual: 'Manual',
+}
+
+export function defaultFilters(): Filters {
+  return { status: 'all', kind: 'all', page: ALL_PAGES, origin: 'all', created: 'any' }
+}
+
+export function activeFilters(filters: Filters): number {
+  const base = defaultFilters()
+  return (Object.keys(base) as (keyof Filters)[]).filter((key) => filters[key] !== base[key]).length
+}
+
+export function meetingEntryIds(spaces: readonly Space[]): Set<number> {
+  const ids = new Set<number>()
+  const walk = (pages: readonly PageNode[]): void => {
+    for (const page of pages) {
+      for (const meeting of page.meetings ?? []) ids.add(meeting.entryId)
+      walk(page.children ?? [])
+    }
+  }
+  for (const space of spaces) walk(space.pages)
+  return ids
+}
+
+export function originOf(item: Pick<BacklogItem, 'entryId' | 'source'>, meetingIds: ReadonlySet<number>): BacklogOrigin {
+  if (item.entryId !== null && meetingIds.has(item.entryId)) return 'meeting'
+  return item.source === 'extracted' ? 'extracted' : 'manual'
+}
+
+export function pageKeyOf(item: Pick<BacklogItem, 'pageId'>): string {
+  return item.pageId === null ? NO_PAGE : String(item.pageId)
+}
+
+function daysSince(iso: string, now: Date): number {
+  const then = Date.parse(iso)
+  if (Number.isNaN(then)) return 0
+  return Math.max(0, Math.floor((now.getTime() - then) / DAY_MS))
+}
+
+export function passes(item: BacklogItem, filters: Filters, now: Date, meetingIds: ReadonlySet<number>): boolean {
+  if (filters.status !== 'all' && item.status !== filters.status) return false
+  if (filters.kind !== 'all' && item.kind !== filters.kind) return false
+  if (filters.page !== ALL_PAGES && pageKeyOf(item) !== filters.page) return false
+  if (filters.origin !== 'all' && originOf(item, meetingIds) !== filters.origin) return false
+  const days = daysSince(item.createdAt, now)
+  if (filters.created === 'today' && days !== 0) return false
+  if (filters.created === 'week' && days > WEEK_DAYS) return false
+  if (filters.created === 'old' && days <= OLD_DAYS) return false
+  return true
+}
+
+export function pagesOf(items: readonly BacklogItem[]): { key: string; label: string }[] {
+  const seen = new Map<string, string>()
+  for (const item of items) {
+    const key = pageKeyOf(item)
+    if (!seen.has(key)) seen.set(key, item.pageTitle ?? 'Sin página')
+  }
+  return [...seen.entries()]
+    .map(([key, label]) => ({ key, label }))
+    .sort((left, right) => (left.key === NO_PAGE ? 1 : right.key === NO_PAGE ? -1 : left.label.localeCompare(right.label, 'es')))
+}
+
+export function groupByPage(items: readonly BacklogItem[]): PageGroup[] {
+  const groups = new Map<string, PageGroup>()
+  for (const item of items) {
+    const key = pageKeyOf(item)
+    const group = groups.get(key) ?? { key, label: item.pageTitle ?? 'Sin página', items: [] }
+    group.items.push(item)
+    groups.set(key, group)
+  }
+  const list = [...groups.values()]
+  for (const group of list) group.items.sort(newestFirst)
+  return list.sort((left, right) => {
+    if (left.key === NO_PAGE) return 1
+    if (right.key === NO_PAGE) return -1
+    return (right.items[0]?.createdAt ?? '').localeCompare(left.items[0]?.createdAt ?? '')
+  })
+}
+
+export function otherKind(kind: BacklogKind): BacklogKind {
+  return kind === 'finding' ? 'pending' : 'finding'
 }
