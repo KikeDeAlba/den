@@ -147,4 +147,17 @@ describe('createSections', () => {
     expect(hosts(content, 'cerebro')).toHaveLength(0)
     expect(sections.current()).toBe('ahora')
   })
+
+  it('tells a kept section that it was hidden when leaving it', async () => {
+    const content = document.createElement('main')
+    const agents = fakeModule()
+    const brain = fakeModule({ keepAlive: false })
+    const sections = createSections(content, loaders({ agentes: () => Promise.resolve(agents), cerebro: () => Promise.resolve(brain) }), vi.fn())
+    await sections.show({ section: 'agentes', path: [] })
+    await sections.show({ section: 'cerebro', path: [] })
+    expect(agents.receive).toHaveBeenCalledWith({ type: 'hidden' })
+    expect(hosts(content, 'agentes')[0]?.hidden).toBe(true)
+    await sections.show({ section: 'ahora', path: [] })
+    expect(brain.receive).not.toHaveBeenCalled()
+  })
 })

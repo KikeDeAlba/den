@@ -142,6 +142,10 @@ where
     env::join_paths(kept).unwrap_or_default()
 }
 
+pub fn is_essential(key: &str) -> bool {
+    ESSENTIAL_ENV.contains(&key)
+}
+
 pub fn essential_env() -> Vec<(&'static str, OsString)> {
     ESSENTIAL_ENV
         .iter()

@@ -6,11 +6,11 @@ fn read(relative: &str) -> String {
     fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(relative)).expect(relative)
 }
 
-fn registered() -> BTreeSet<String> {
-    let main = read("src/main.rs");
-    let start = main.find("generate_handler![").expect("handler");
-    let end = start + main[start..].find("])").expect("handler end");
-    main[start + "generate_handler![".len()..end]
+fn handlers(source: &str) -> BTreeSet<String> {
+    let text = read(source);
+    let start = text.find("generate_handler![").expect("handler");
+    let end = start + text[start..].find(']').expect("handler end");
+    text[start + "generate_handler![".len()..end]
         .split(',')
         .map(str::trim)
         .filter(|part| !part.is_empty())
@@ -18,10 +18,19 @@ fn registered() -> BTreeSet<String> {
         .collect()
 }
 
-fn manifest() -> BTreeSet<String> {
+fn registered() -> BTreeSet<String> {
+    handlers("src/main.rs")
+}
+
+fn agent_handlers() -> BTreeSet<String> {
+    handlers("src/agents/mod.rs")
+}
+
+fn build_list(name: &str) -> BTreeSet<String> {
     let build = read("build.rs");
-    let start = build.find("COMMANDS: &[&str] = &[").expect("commands");
-    let end = start + build[start..].find("];").expect("commands end");
+    let header = format!("const {name}: &[&str] = &[");
+    let start = build.find(&header).expect(name);
+    let end = start + build[start..].find("];").expect("list end");
     build[start..end]
         .lines()
         .filter_map(|line| line.trim().strip_prefix('"')?.strip_suffix("\",").map(str::to_string))
@@ -47,9 +56,32 @@ fn granted(capability: &str) -> BTreeSet<String> {
         .collect()
 }
 
+fn manifest() -> BTreeSet<String> {
+    build_list("COMMANDS")
+}
+
 #[test]
 fn every_registered_command_has_a_generated_permission() {
     assert_eq!(manifest(), registered());
+}
+
+#[test]
+fn every_agent_command_has_a_generated_plugin_permission() {
+    let agents = build_list("AGENT_COMMANDS");
+    assert!(agents.contains("agent_spawn"));
+    assert_eq!(agents, agent_handlers());
+    assert!(agents.is_disjoint(&registered()), "agent commands belong to the agents plugin, not the app");
+}
+
+#[test]
+fn only_the_main_window_can_drive_agents() {
+    assert!(permissions("main").contains("agents:default"));
+    let live: Vec<_> = permissions("live").into_iter().filter(|permission| permission.starts_with("agents:")).collect();
+    assert!(live.is_empty(), "live grants agent permissions: {live:?}");
+    for capability in ["main", "live"] {
+        let leaked: Vec<_> = granted(capability).intersection(&build_list("AGENT_COMMANDS")).cloned().collect();
+        assert!(leaked.is_empty(), "{capability} grants agent commands as app commands: {leaked:?}");
+    }
 }
 
 #[test]

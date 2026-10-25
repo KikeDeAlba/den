@@ -12,6 +12,7 @@ export const LIVE_TRANSCRIPT_EVENT = 'bita://live-transcript'
 export const CLOSE_REQUESTED_EVENT = 'tauri://close-requested'
 export const NAVIGATE_EVENT = 'den://navigate'
 export const TOOLS_EVENT = 'bita://tools-changed'
+export const AGENTS_CHANGED_EVENT = 'den://agents/changed'
 
 export type ProblemKind =
   | 'tool-missing'
@@ -1515,4 +1516,65 @@ export function describeProblem(error: unknown): Problem {
     }
   }
   return { kind: 'cli-failed', message: String(error), hint: null }
+}
+
+export type HarnessId = 'claude' | 'opencode' | 'codex' | 'gemini'
+
+export interface SessionEntry {
+  description: string
+  projectId: number | null
+  projectName: string | null
+}
+
+export interface SessionListing {
+  id: number
+  entryId: number | null
+  harness: string
+  sessionId: string | null
+  wrapperPid: number
+  cwd: string
+  transcriptPath: string | null
+  startedAt: string
+  endedAt: string | null
+  open: boolean
+  resumable: boolean
+  entry: SessionEntry | null
+}
+
+export interface SessionDirectory {
+  cwd: string
+  lastUsedAt: string
+  sessions: number
+  projectId: number | null
+  projectName: string | null
+}
+
+export interface SpawnRequest {
+  harness?: HarnessId
+  project?: string
+  cwd?: string
+  prompt?: string
+  resumeSession?: number
+  title?: string
+}
+
+export interface AgentInfo {
+  id: number
+  harness: string | null
+  project: string | null
+  cwd: string | null
+  title: string | null
+  prompt: string | null
+  resumeSession: number | null
+  pid: number | null
+  startedAt: string
+  alive: boolean
+  exitCode: number | null
+  bita: SessionListing | null
+}
+
+export function onAgentChanged(handler: (info: AgentInfo) => void): void {
+  void listen<AgentInfo>(AGENTS_CHANGED_EVENT, (event) => {
+    handler(event.payload)
+  })
 }

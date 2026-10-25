@@ -40,7 +40,15 @@ export function createSections(
     const entry = entries.get(section)
     if (entry === undefined) return
     entry.host.hidden = true
-    if (entry.state !== 'ready' || entry.module === null || entry.module.keepAlive !== false) return
+    if (entry.state !== 'ready' || entry.module === null) return
+    if (entry.module.keepAlive !== false) {
+      try {
+        entry.module.receive?.({ type: 'hidden' })
+      } catch (error) {
+        broke(section, entry, error)
+      }
+      return
+    }
     entry.module.unmount()
     release(section, entry)
   }
@@ -88,8 +96,9 @@ export function createSections(
 
   return {
     async show(route) {
-      if (current !== null && current !== route.section) leave(current)
+      const previous = current
       current = route.section
+      if (previous !== null && previous !== route.section) leave(previous)
       const entry = entries.get(route.section)
       if (entry !== undefined && entry.state === 'failed') release(route.section, entry)
       const live = entries.get(route.section)

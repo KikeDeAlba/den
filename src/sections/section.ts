@@ -1,4 +1,4 @@
-import type { LiveAnswerEvent, LiveTranscriptUpdate, MeetingMediaChange, PendingMeeting, Snapshot, ToolsStatus } from '../bita.ts'
+import type { AgentInfo, LiveAnswerEvent, LiveTranscriptUpdate, MeetingMediaChange, PendingMeeting, Snapshot, ToolsStatus } from '../bita.ts'
 
 export type ShellEvent =
   | { type: 'snapshot'; snapshot: Snapshot }
@@ -10,6 +10,7 @@ export type ShellEvent =
   | { type: 'live-state' }
   | { type: 'live-transcript'; update: LiveTranscriptUpdate }
   | { type: 'live-answer'; answer: LiveAnswerEvent }
+  | { type: 'agent'; info: AgentInfo }
   | { type: 'visible' }
   | { type: 'hidden' }
 
