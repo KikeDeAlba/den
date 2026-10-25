@@ -512,4 +512,80 @@ mod tests {
         assert!(COMMANDS.iter().all(|name| build.contains(&format!("\"{name}\""))));
         assert_eq!(build.matches("\"agent_").count(), COMMANDS.len());
     }
+
+    #[cfg(unix)]
+    #[test]
+    fn bita_work_runs_in_the_pty_and_links_by_wrapper_pid() {
+        let Some(script) = std::env::var_os("DEN_AGENT_SMOKE_BITA") else {
+            eprintln!("skipped: DEN_AGENT_SMOKE_BITA is not set");
+            return;
+        };
+        use std::os::unix::fs::PermissionsExt;
+        let root = std::env::temp_dir().join(format!("den-agent-smoke-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("home")).expect("root");
+        let fake = root.join("fake-claude");
+        std::fs::write(&fake, "#!/bin/sh\necho fake-agent:\"$@\"\nread line\necho bye:$line\n").expect("fake");
+        std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+        let database = root.join("bita.db");
+        let node = std::env::var_os("DEN_AGENT_SMOKE_NODE").unwrap_or_else(|| OsString::from("node"));
+        let bin = [node, script];
+        let added = std::process::Command::new(&bin[0])
+            .arg(&bin[1])
+            .args(["project", "add", "Smoke", "--json", "--db-path"])
+            .arg(&database)
+            .env("HOME", root.join("home"))
+            .output()
+            .expect("project add");
+        assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stdout));
+        let request = SpawnRequest {
+            harness: Some("claude".into()),
+            project: Some("Smoke".into()),
+            cwd: Some(root.to_string_lossy().into_owned()),
+            prompt: Some("--hola".into()),
+            ..SpawnRequest::default()
+        };
+        let mut spec = spec_for(&bin, &database, &request, 80, 24).expect("spec");
+        spec.env.retain(|(key, _)| key != "HOME" && !key.starts_with("BITA_"));
+        spec.env.push(("HOME".into(), root.join("home").to_string_lossy().into_owned()));
+        spec.env.push(("BITA_HARNESS_BIN_CLAUDE".into(), fake.to_string_lossy().into_owned()));
+        spec.env.push(("BITA_DB_PATH".into(), database.to_string_lossy().into_owned()));
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let pty = Arc::new(Pty::spawn(&spec, move |code| {
+            let _ = sender.send(code);
+        })
+        .expect("spawn"));
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let target = Arc::clone(&seen);
+        pty.attach(Box::new(move |chunk| {
+            lock(&target).extend(chunk);
+            true
+        }));
+        let deadline = std::time::Instant::now() + Duration::from_secs(20);
+        while !String::from_utf8_lossy(&lock(&seen)).contains("fake-agent:") && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let output = String::from_utf8_lossy(&lock(&seen)).into_owned();
+        assert!(output.contains("fake-agent:"), "{output}");
+        assert!(output.contains("--hola"), "{output}");
+        let listed = std::process::Command::new(&bin[0])
+            .arg(&bin[1])
+            .args(["sessions", "ls", "--open", "--all", "--json", "--db-path"])
+            .arg(&database)
+            .env("HOME", root.join("home"))
+            .output()
+            .expect("sessions ls");
+        let text = String::from_utf8_lossy(&listed.stdout);
+        let envelope: crate::model::Envelope<Vec<SessionListing>> =
+            serde_json::from_str(text.trim().lines().last().unwrap_or_default()).expect("envelope");
+        let rows = envelope.data.expect("data");
+        let pid = pty.pid().expect("pid");
+        let row = model::linked(&rows, pid).unwrap_or_else(|| panic!("no open row for pid {pid}: {text}"));
+        assert_eq!(row.harness, "claude");
+        pty.write(b"listo\r").expect("write");
+        let code = receiver.recv_timeout(Duration::from_secs(20)).expect("exit");
+        assert_eq!(code, Some(0), "{}", String::from_utf8_lossy(&lock(&seen)));
+        assert!(String::from_utf8_lossy(&lock(&seen)).contains("bye:listo"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
