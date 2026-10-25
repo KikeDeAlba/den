@@ -125,7 +125,6 @@ function build(current: AtlassianContext): HTMLElement {
 
 function bar(current: AtlassianContext): HTMLElement {
   const row = element('div', 'reader-bar ac-bar')
-  row.setAttribute('data-tauri-drag-region', '')
   if (!current.railOpen) {
     const unfold = document.createElement('button')
     unfold.type = 'button'

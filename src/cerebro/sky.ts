@@ -114,6 +114,7 @@ export function createSky(
   stage: HTMLElement,
   renderer: Sigma<NodeAttributes, EdgeAttributes>,
   graph: Graph<NodeAttributes, EdgeAttributes>,
+  signal: AbortSignal,
 ): void {
   const layerStyle: Partial<CSSStyleDeclaration> = { top: '0', left: '0', pointerEvents: 'none', mixBlendMode: 'screen' }
   const starCanvas = renderer.createCanvas('sky-stars', { beforeLayer: 'stage', style: layerStyle })
@@ -278,7 +279,7 @@ export function createSky(
         resize()
         watchRatio()
       },
-      { once: true },
+      { once: true, signal },
     )
   }
 
@@ -300,16 +301,29 @@ export function createSky(
     wake()
   }
 
-  new ResizeObserver(resize).observe(stage)
+  const observer = new ResizeObserver(resize)
+  observer.observe(stage)
   renderer.on('resize', resize)
   renderer.on('afterRender', drawHalos)
   camera.on('updated', wake)
-  calm.addEventListener('change', () => {
-    wake()
-    twinkle()
+  calm.addEventListener(
+    'change',
+    () => {
+      wake()
+      twinkle()
+    },
+    { signal },
+  )
+  document.addEventListener('visibilitychange', twinkle, { signal })
+  window.addEventListener('focus', twinkle, { signal })
+  signal.addEventListener('abort', () => {
+    observer.disconnect()
+    camera.removeListener('updated', wake)
+    if (frame !== 0) cancelAnimationFrame(frame)
+    if (timer !== null) clearTimeout(timer)
+    frame = 0
+    timer = null
   })
-  document.addEventListener('visibilitychange', twinkle)
-  window.addEventListener('focus', twinkle)
   watchRatio()
   resize()
   twinkle()

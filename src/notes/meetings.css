@@ -1,18 +1,18 @@
-#notas .meetings {
+.notes-root .meetings {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
-#notas .meetings-scroll {
+.notes-root .meetings-scroll {
   flex: 1;
   min-height: 0;
   overflow: hidden auto;
   padding: 0 28px 24px;
 }
 
-#notas .meetings-head {
+.notes-root .meetings-head {
   display: flex;
   align-items: flex-end;
   flex-wrap: wrap;
@@ -20,24 +20,24 @@
   padding: 28px 12px 0;
 }
 
-#notas .meetings-titles {
+.notes-root .meetings-titles {
   flex: 1;
   min-width: 240px;
 }
 
-#notas .meetings-h1 {
+.notes-root .meetings-h1 {
   margin: 0;
   font-size: 26px;
   letter-spacing: -0.01em;
   color: var(--fg-bright);
 }
 
-#notas .meetings-summary {
+.notes-root .meetings-summary {
   margin: 4px 0 0;
   color: var(--fg-mute);
 }
 
-#notas .meetings-search {
+.notes-root .meetings-search {
   width: 260px;
   height: 32px;
   box-sizing: border-box;
@@ -51,11 +51,11 @@
   color: var(--fg-mute);
 }
 
-#notas .meetings-search:focus-within {
+.notes-root .meetings-search:focus-within {
   border-color: var(--blue);
 }
 
-#notas .meetings-search input {
+.notes-root .meetings-search input {
   flex: 1;
   min-width: 0;
   border: 0;
@@ -65,7 +65,7 @@
   color: var(--fg);
 }
 
-#notas .meetings-filters {
+.notes-root .meetings-filters {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -73,22 +73,22 @@
   padding: 16px 12px 4px;
 }
 
-#notas .meetings-filters .spacer {
+.notes-root .meetings-filters .spacer {
   flex: 1;
 }
 
-#notas .meetings-seg {
+.notes-root .meetings-seg {
   display: inline-flex;
 }
 
-#notas .meetings-seg button {
+.notes-root .meetings-seg button {
   flex: none;
   height: 28px;
   padding: 0 11px;
   font-size: 13px;
 }
 
-#notas .meetings-order {
+.notes-root .meetings-order {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -98,17 +98,17 @@
   color: var(--fg-dim);
 }
 
-#notas .meetings-order:hover {
+.notes-root .meetings-order:hover {
   background: var(--card-quiet);
   color: var(--fg);
 }
 
-#notas .meetings-list {
+.notes-root .meetings-list {
   display: flex;
   flex-direction: column;
 }
 
-#notas .meetings-month {
+.notes-root .meetings-month {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -120,13 +120,13 @@
   background: var(--bg);
 }
 
-#notas .meetings-month h2 {
+.notes-root .meetings-month h2 {
   margin: 0;
   font-size: 14px;
   color: var(--fg-bright);
 }
 
-#notas .meetings-row {
+.notes-root .meetings-row {
   width: 100%;
   box-sizing: border-box;
   display: grid;
@@ -138,52 +138,52 @@
   text-align: left;
 }
 
-#notas .meetings-row:hover {
+.notes-root .meetings-row:hover {
   background: var(--card-quiet);
 }
 
-#notas .meetings-day {
+.notes-root .meetings-day {
   display: flex;
   flex-direction: column;
   align-items: center;
   line-height: 1.1;
 }
 
-#notas .meetings-day-number {
+.notes-root .meetings-day-number {
   font-family: var(--font-mono);
   font-size: 18px;
   color: var(--fg-bright);
 }
 
-#notas .meetings-day-name {
+.notes-root .meetings-day-name {
   font-size: 11px;
   color: var(--fg-mute);
 }
 
-#notas .meetings-lines {
+.notes-root .meetings-lines {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
-#notas .meetings-title,
-#notas .meetings-crumb {
+.notes-root .meetings-title,
+.notes-root .meetings-crumb {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-#notas .meetings-title {
+.notes-root .meetings-title {
   font-weight: 500;
   color: var(--fg-bright);
 }
 
-#notas .meetings-crumb {
+.notes-root .meetings-crumb {
   font-size: 12px;
   color: var(--fg-mute);
 }
 
-#notas .meetings-tag {
+.notes-root .meetings-tag {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -195,25 +195,25 @@
   white-space: nowrap;
 }
 
-#notas .meetings-tag--video,
-#notas .meetings-tag--remote {
+.notes-root .meetings-tag--video,
+.notes-root .meetings-tag--remote {
   color: var(--blue);
 }
 
-#notas .meetings-tag--audio {
+.notes-root .meetings-tag--audio {
   color: var(--purple);
 }
 
-#notas .meetings-tag--in-person {
+.notes-root .meetings-tag--in-person {
   color: var(--aqua);
 }
 
-#notas .meetings-figure {
+.notes-root .meetings-figure {
   width: 64px;
   text-align: right;
 }
 
-#notas .meetings-empty {
+.notes-root .meetings-empty {
   margin: 24px 12px;
   color: var(--fg-mute);
 }

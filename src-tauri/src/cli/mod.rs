@@ -13,7 +13,7 @@ use tokio::process::Command;
 use tokio::time::timeout;
 
 use crate::model::{CliError, Envelope, Problem, ProblemKind, SUPPORTED_SCHEMA};
-use crate::registry::{self, Origin, Tool};
+use crate::registry::{self, Tool};
 
 const DB_OVERRIDE_ENV: &str = "BITA_DB_PATH";
 const EDITOR_OVERRIDE_ENV: &str = "BITA_EDITOR";
@@ -43,7 +43,6 @@ impl CallOptions {
 pub struct Cli {
     tool: Tool,
     bin: Vec<OsString>,
-    origin: Origin,
     db_path: PathBuf,
 }
 
@@ -60,25 +59,16 @@ impl Cli {
         Ok(Self {
             tool,
             bin: resolved.bin,
-            origin: resolved.origin,
             db_path: database_path(),
         })
     }
 
-    pub fn origin(&self) -> Origin {
-        self.origin
-    }
-
-    pub fn command_line(&self) -> String {
-        self.bin
-            .iter()
-            .map(|part| part.to_string_lossy().into_owned())
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
-
     pub fn database_path(&self) -> &PathBuf {
         &self.db_path
+    }
+
+    pub fn bin(&self) -> &[OsString] {
+        &self.bin
     }
 
     pub async fn call<T: DeserializeOwned>(&self, args: &[&str]) -> Result<T, Problem> {

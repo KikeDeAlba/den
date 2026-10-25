@@ -636,22 +636,22 @@ mod tests {
     }
 
     #[test]
-    fn the_palette_is_the_one_tabs_ts_uses() {
-        let tabs = include_str!("../../src/tabs.ts");
-        let start = tabs.find("const PROJECT_COLORS = [").expect("PROJECT_COLORS in tabs.ts");
-        let end = start + tabs[start..].find(']').expect("end of PROJECT_COLORS");
-        let palette: Vec<&str> = tabs[start..end]
+    fn the_palette_is_the_one_the_shell_uses() {
+        let colors = include_str!("../../src/shell/colors.ts");
+        let start = colors.find("const PROJECT_COLORS = [").expect("PROJECT_COLORS in shell/colors.ts");
+        let end = start + colors[start..].find(']').expect("end of PROJECT_COLORS");
+        let palette: Vec<&str> = colors[start..end]
             .split('\'')
             .skip(1)
             .step_by(2)
             .collect();
         assert_eq!(palette, PROJECT_COLORS);
-        assert!(tabs.contains(&format!("if (projectId === null) return '{NO_PROJECT_COLOR}'")));
-        assert!(tabs.contains("PROJECT_COLORS[projectId % PROJECT_COLORS.length]"));
+        assert!(colors.contains(&format!("if (projectId === null) return '{NO_PROJECT_COLOR}'")));
+        assert!(colors.contains("PROJECT_COLORS[projectId % PROJECT_COLORS.length]"));
     }
 
     #[test]
-    fn colors_follow_the_order_of_project_color_in_tabs() {
+    fn colors_follow_the_order_of_project_color_in_the_shell() {
         assert_eq!(project_color(Some(0)), "var(--aqua)");
         assert_eq!(project_color(Some(1)), "var(--blue)");
         assert_eq!(project_color(Some(2)), "var(--purple)");

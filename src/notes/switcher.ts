@@ -1,6 +1,6 @@
 import type { Space } from '../bita.ts'
 import { element, icon } from '../dom.ts'
-import { projectColor } from '../tabs.ts'
+import { projectColor } from '../shell/colors.ts'
 import { foldForSearch } from './markdown.ts'
 import './spaces.css'
 import { modKey } from '../platform.ts'
@@ -177,7 +177,7 @@ export function openSwitcher(options: SwitcherOptions): void {
   const rect = options.anchor.getBoundingClientRect()
   root.style.left = `${Math.round(rect.left)}px`
   root.style.top = `${Math.round(rect.bottom + 6)}px`
-  const host = document.getElementById('notas') ?? document.body
+  const host = document.querySelector<HTMLElement>('.section-host:not([hidden]) .notes-root') ?? document.body
   host.append(root)
   options.anchor.setAttribute('aria-expanded', 'true')
   document.addEventListener('mousedown', outside, true)

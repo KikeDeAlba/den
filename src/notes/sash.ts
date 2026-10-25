@@ -42,11 +42,11 @@ function store(key: string, width: number | null): void {
   }
 }
 
-export function attachSash(spec: SashSpec): void {
+export function attachSash(spec: SashSpec): () => void {
   let width = stored(spec.storageKey) ?? spec.initial
 
   const apply = (next: number): void => {
-    width = clampWidth(next, spec, window.innerWidth, spec.otherWidth())
+    width = clampWidth(next, spec, spec.root.clientWidth || window.innerWidth, spec.otherWidth())
     spec.root.style.setProperty(spec.variable, `${width}px`)
     spec.handle.setAttribute('aria-valuenow', String(width))
   }
@@ -63,7 +63,8 @@ export function attachSash(spec: SashSpec): void {
     document.body.classList.add('resizing')
 
     const move = (moved: PointerEvent): void => {
-      apply(spec.side === 'left' ? moved.clientX : window.innerWidth - moved.clientX)
+      const bounds = spec.root.getBoundingClientRect()
+      apply(spec.side === 'left' ? moved.clientX - bounds.left : bounds.right - moved.clientX)
     }
     const end = (): void => {
       spec.handle.removeEventListener('pointermove', move)
@@ -91,7 +92,11 @@ export function attachSash(spec: SashSpec): void {
     store(spec.storageKey, width)
   })
 
-  window.addEventListener('resize', () => {
+  const onResize = (): void => {
     apply(width)
-  })
+  }
+  window.addEventListener('resize', onResize)
+  return () => {
+    window.removeEventListener('resize', onResize)
+  }
 }

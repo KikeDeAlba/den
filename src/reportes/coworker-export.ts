@@ -1,5 +1,6 @@
 import { describeProblem, exportPdf } from '../bita.ts'
 import { element } from '../dom.ts'
+import { printRoot, printWith } from '../print.ts'
 import type { App, CoworkerExportState, CoworkerState } from './app.ts'
 import { tilde } from './export.ts'
 import { dayLabel, hours, hourValue, money, monthLabel, multiplierLabel, plural } from './model.ts'
@@ -221,19 +222,9 @@ async function run(app: App, state: CoworkerState, overtime: CoworkerOvertime): 
 }
 
 async function printPdf(report: CoworkerExportReport, include: CoworkerExportInclude, today: string, name: string): Promise<string> {
-  const host = document.getElementById('reportes') ?? document.body
-  document.getElementById('print-root')?.remove()
-  const root = element('div', 'print-root')
-  root.id = 'print-root'
+  const root = printRoot('tiempo')
   root.append(coworkerPaper(report, include, today))
-  host.append(root)
-  try {
-    document.body.classList.add('printing')
-    return await exportPdf(name)
-  } finally {
-    document.body.classList.remove('printing')
-    root.remove()
-  }
+  return printWith(root, () => exportPdf(name))
 }
 
 function block(title: string): HTMLElement {

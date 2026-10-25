@@ -6,17 +6,9 @@ use crate::cli::Cli;
 use crate::docs::Feature;
 use crate::doctor::{self, Report};
 use crate::worked::{self, WorkedView};
-use crate::model::{Entry, Problem, ProblemKind, Scope, SummaryData, SummaryMeta, SummaryView, Snapshot};
-use crate::registry::{Origin, Tool};
+use crate::model::{Entry, Problem, Scope, SummaryData, SummaryMeta, SummaryView, Snapshot};
+use crate::registry::Tool;
 use crate::state::AppState;
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CliInfo {
-    pub command: String,
-    pub database: String,
-    pub from_environment: bool,
-}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -65,15 +57,6 @@ pub fn jira_projects_of(rows: Vec<serde_json::Value>) -> Vec<JiraProject> {
 #[tauri::command]
 pub fn snapshot(state: State<'_, AppState>) -> Snapshot {
     state.snapshot(Utc::now())
-}
-
-#[tauri::command]
-pub fn cli_info(state: State<'_, AppState>) -> Option<CliInfo> {
-    state.describe_cli().map(|cli| CliInfo {
-        command: cli.command_line(),
-        database: cli.database_path().display().to_string(),
-        from_environment: cli.origin() == Origin::Override,
-    })
 }
 
 #[tauri::command]
@@ -199,6 +182,22 @@ pub async fn pending() -> Result<SummaryView, Problem> {
     Ok(summary_view(data, meta))
 }
 
+pub fn time_summary_args(range: &str) -> [&'static str; 4] {
+    let range = match range {
+        "week" => "week",
+        _ => "today",
+    };
+    ["summary", range, "--include-running", "--no-notes"]
+}
+
+#[tauri::command]
+pub async fn time_summary(range: String) -> Result<SummaryView, Problem> {
+    crate::docs::require(Feature::Jira).await?;
+    let cli = Cli::for_tool(Tool::Tally).await?;
+    let (data, meta) = cli.call_with_meta::<SummaryData>(&time_summary_args(&range)).await?;
+    Ok(summary_view(data, meta))
+}
+
 #[tauri::command]
 pub async fn jira_projects() -> Result<Vec<JiraProject>, Problem> {
     let status = crate::registry::global().status().await;
@@ -243,67 +242,13 @@ pub async fn doctor_report() -> Result<Report, Problem> {
 }
 
 #[tauri::command]
-pub fn open_notes(app: AppHandle, entry_id: Option<i64>) -> Result<(), Problem> {
-    crate::notes::open(&app, entry_id).map_err(|error| {
-        Problem::new(
-            ProblemKind::Unreadable,
-            format!("No pude abrir la ventana de notas: {error}"),
-        )
-    })
-}
-
-#[tauri::command]
-pub fn open_reports(app: AppHandle) -> Result<(), Problem> {
-    crate::reports::open(&app).map_err(|error| {
-        Problem::new(
-            ProblemKind::Unreadable,
-            format!("No pude abrir la ventana de reportes: {error}"),
-        )
-    })
-}
-
-#[tauri::command]
-pub fn open_brain(app: AppHandle) -> Result<(), Problem> {
-    crate::brain::open(&app).map_err(|error| {
-        Problem::new(
-            ProblemKind::Unreadable,
-            format!("No pude abrir la ventana del cerebro: {error}"),
-        )
-    })
-}
-
-#[tauri::command]
-pub fn notes_take_focus(app: AppHandle) -> Option<i64> {
-    crate::notes::take_focus(&app)
-}
-
-#[tauri::command]
-pub fn open_notes_meeting(app: AppHandle, entry_id: i64, tab: String) -> Result<(), Problem> {
-    let tab = match tab.as_str() {
-        "proposals" | "answers" | "meeting" | "minutes" => tab,
-        _ => "document".to_string(),
-    };
-    crate::notes::open_meeting(&app, crate::notes::MeetingFocus { entry_id, tab }).map_err(|error| {
-        Problem::new(
-            ProblemKind::Unreadable,
-            format!("No pude abrir la ventana de notas: {error}"),
-        )
-    })
-}
-
-#[tauri::command]
-pub fn notes_take_meeting(app: AppHandle) -> Option<crate::notes::MeetingFocus> {
-    crate::notes::take_meeting(&app)
-}
-
-#[tauri::command]
 pub fn quit(app: AppHandle) {
-    app.exit(0);
+    crate::agents::request_quit(&app);
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{jira_projects_of, summary_view, JiraProject, Project};
+    use super::{jira_projects_of, summary_view, time_summary_args, JiraProject, Project};
     use crate::model::SummaryData;
     use serde_json::json;
 
@@ -391,5 +336,35 @@ mod tests {
         let empty = summary_view(bare, serde_json::Value::Null);
         assert_eq!(empty.jira_seconds, 0);
         assert!(empty.groups.is_empty() && empty.excluded.is_empty());
+    }
+
+    #[test]
+    fn a_time_summary_keeps_the_issue_key_and_kind_of_each_task() {
+        let data: SummaryData = serde_json::from_value(json!({
+            "totalSeconds": 3600,
+            "totalHuman": "1h",
+            "groups": [
+                {"summary": "Firma BBVA", "projectId": 7, "projectName": "CoDi", "totalSeconds": 3600, "totalHuman": "1h",
+                 "estimateSeconds": 3600, "estimateHuman": "1h", "entryIds": [1], "days": ["2026-10-10"],
+                 "partIndex": 1, "partCount": 1, "jira": true, "issueKey": "COD-12", "kind": "remote-meeting"},
+                {"summary": "Sin tarjeta", "projectId": 7, "projectName": "CoDi", "totalSeconds": 600, "totalHuman": "10m",
+                 "estimateSeconds": 1800, "estimateHuman": "30m", "entryIds": [2], "days": ["2026-10-10"],
+                 "partIndex": 1, "partCount": 1, "jira": true, "issueKey": null}
+            ]
+        }))
+        .expect("tally data");
+        let view = summary_view(data, serde_json::Value::Null);
+        assert_eq!(view.groups[0].issue_key.as_deref(), Some("COD-12"));
+        assert_eq!(view.groups[0].kind.as_deref(), Some("remote-meeting"));
+        assert_eq!(view.groups[1].issue_key, None);
+        let json = serde_json::to_value(&view).expect("json");
+        assert_eq!(json["groups"][0]["issueKey"], "COD-12");
+    }
+
+    #[test]
+    fn a_time_summary_asks_tally_for_today_or_the_week_with_running_timers() {
+        assert_eq!(time_summary_args("week"), ["summary", "week", "--include-running", "--no-notes"]);
+        assert_eq!(time_summary_args("today"), ["summary", "today", "--include-running", "--no-notes"]);
+        assert_eq!(time_summary_args("rm -rf"), ["summary", "today", "--include-running", "--no-notes"]);
     }
 }

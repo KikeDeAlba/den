@@ -1,0 +1,315 @@
+.section-host[data-section='tiempo'] {
+  overflow: hidden;
+}
+
+.section-host[data-section='tiempo'] .tiempo {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.section-host[data-section='tiempo'] .tiempo-head {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 916px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 18px;
+  padding: 28px 48px 18px;
+}
+
+.section-host[data-section='tiempo'] .tiempo[data-range='mes'] .tiempo-head,
+.section-host[data-section='tiempo'] .tiempo[data-range='rango'] .tiempo-head {
+  max-width: none;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.section-host[data-section='tiempo'] .tiempo-heading {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--fg-bright);
+}
+
+.section-host[data-section='tiempo'] .tiempo-ranges {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.section-host[data-section='tiempo'] .tiempo-range {
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--fg-mute);
+  font: inherit;
+  cursor: pointer;
+}
+
+.section-host[data-section='tiempo'] .tiempo-range:hover {
+  color: var(--fg-dim);
+}
+
+.section-host[data-section='tiempo'] .tiempo-range[aria-pressed='true'] {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.section-host[data-section='tiempo'] .tiempo-range:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.section-host[data-section='tiempo'] .tiempo-span {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.section-host[data-section='tiempo'] .tiempo-span[hidden] {
+  display: none;
+}
+
+.section-host[data-section='tiempo'] .tiempo-span .report-input {
+  width: 132px;
+}
+
+.section-host[data-section='tiempo'] .tiempo-span-apply {
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.section-host[data-section='tiempo'] .tiempo-span-apply:hover {
+  color: var(--fg);
+  background: var(--elev);
+}
+
+.section-host[data-section='tiempo'] .tiempo-span-apply:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.section-host[data-section='tiempo'] .tiempo-spacer {
+  flex-grow: 1;
+}
+
+.section-host[data-section='tiempo'] .tiempo-totals {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.section-host[data-section='tiempo'] .tiempo-figure {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.section-host[data-section='tiempo'] .tiempo-figure--estimate {
+  color: var(--estimate);
+}
+
+.section-host[data-section='tiempo'] .tiempo-arrow {
+  color: var(--fg-faint);
+}
+
+.section-host[data-section='tiempo'] .tiempo-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden auto;
+  width: 100%;
+  max-width: 916px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 6px 48px 36px;
+}
+
+.section-host[data-section='tiempo'] .tiempo-body[hidden],
+.section-host[data-section='tiempo'] #reportes[hidden] {
+  display: none;
+}
+
+.section-host[data-section='tiempo'] #reportes {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+
+.section-host[data-section='tiempo'] .tiempo-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+.section-host[data-section='tiempo'] .tiempo-note-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--estimate);
+}
+
+.section-host[data-section='tiempo'] .tiempo-note--quiet .tiempo-note-dot {
+  background: var(--fg-faint);
+}
+
+.section-host[data-section='tiempo'] .tiempo-table {
+  display: flex;
+  flex-direction: column;
+}
+
+.section-host[data-section='tiempo'] .tiempo-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 120px) 64px 64px minmax(0, 110px);
+  gap: 14px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.section-host[data-section='tiempo'] .tiempo-row--head {
+  padding: 0 0 8px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+.section-host[data-section='tiempo'] .tiempo-cell {
+  min-width: 0;
+}
+
+.section-host[data-section='tiempo'] .tiempo-cell--num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.section-host[data-section='tiempo'] .tiempo-row--head .tiempo-cell--num {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.section-host[data-section='tiempo'] .tiempo-row:not(.tiempo-row--head) .tiempo-estimate {
+  color: var(--estimate);
+}
+
+.section-host[data-section='tiempo'] .tiempo-task {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.section-host[data-section='tiempo'] .tiempo-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.section-host[data-section='tiempo'] .tiempo-meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--fg-mute);
+}
+
+.section-host[data-section='tiempo'] .tiempo-project {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+.section-host[data-section='tiempo'] .tiempo-project-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.section-host[data-section='tiempo'] .tiempo-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.section-host[data-section='tiempo'] .tiempo-jira {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.section-host[data-section='tiempo'] .tiempo-key {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--aqua);
+}
+
+.section-host[data-section='tiempo'] .tiempo-state {
+  font-size: 10.5px;
+  color: var(--fg-faint);
+}
+
+.section-host[data-section='tiempo'] .tiempo-state[data-state='pending'] {
+  color: var(--estimate);
+}
+
+.section-host[data-section='tiempo'] .tiempo-state[data-state='registered'] {
+  color: var(--ok);
+}
+
+.section-host[data-section='tiempo'] .tiempo-state[data-state='running'] {
+  color: var(--running);
+}
+
+.section-host[data-section='tiempo'] .tiempo-empty {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--fg-mute);
+}
+
+.section-host[data-section='tiempo'] .tiempo-legend {
+  margin: 0;
+  font-size: 10.5px;
+  color: var(--fg-faint);
+}
+
+@media (max-width: 1040px) {
+  .section-host[data-section='tiempo'] .tiempo-head,
+  .section-host[data-section='tiempo'] .tiempo-body {
+    padding-left: 28px;
+    padding-right: 28px;
+  }
+
+  .section-host[data-section='tiempo'] .tiempo-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 96px) 52px 52px minmax(0, 90px);
+    gap: 10px;
+  }
+}

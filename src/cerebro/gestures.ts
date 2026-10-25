@@ -16,7 +16,11 @@ function isMouseWheel(event: WheelEvent): boolean {
   return event.deltaX === 0 && typeof legacy === 'number' && legacy !== 0 && legacy % 120 === 0
 }
 
-export function bindTrackpad<N extends Attributes, E extends Attributes>(stage: HTMLElement, renderer: Sigma<N, E>): void {
+export function bindTrackpad<N extends Attributes, E extends Attributes>(
+  stage: HTMLElement,
+  renderer: Sigma<N, E>,
+  signal: AbortSignal,
+): void {
   const camera = renderer.getCamera()
 
   const local = (clientX: number, clientY: number) => {
@@ -50,20 +54,28 @@ export function bindTrackpad<N extends Attributes, E extends Attributes>(stage: 
       else if (isMouseWheel(event)) zoomAt(event.clientX, event.clientY, event.deltaY > 0 ? WHEEL_STEP : 1 / WHEEL_STEP)
       else panBy(event.deltaX, event.deltaY)
     },
-    { capture: true, passive: false },
+    { capture: true, passive: false, signal },
   )
 
   let lastScale = 1
-  stage.addEventListener('gesturestart', (event) => {
-    event.preventDefault()
-    lastScale = 1
-  })
-  stage.addEventListener('gesturechange', (event) => {
-    event.preventDefault()
-    const gesture = event as GestureLike
-    if (gesture.scale <= 0) return
-    zoomAt(gesture.clientX, gesture.clientY, lastScale / gesture.scale)
-    lastScale = gesture.scale
-  })
-  stage.addEventListener('gestureend', (event) => event.preventDefault())
+  stage.addEventListener(
+    'gesturestart',
+    (event) => {
+      event.preventDefault()
+      lastScale = 1
+    },
+    { signal },
+  )
+  stage.addEventListener(
+    'gesturechange',
+    (event) => {
+      event.preventDefault()
+      const gesture = event as GestureLike
+      if (gesture.scale <= 0) return
+      zoomAt(gesture.clientX, gesture.clientY, lastScale / gesture.scale)
+      lastScale = gesture.scale
+    },
+    { signal },
+  )
+  stage.addEventListener('gestureend', (event) => event.preventDefault(), { signal })
 }

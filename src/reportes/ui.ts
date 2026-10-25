@@ -3,20 +3,6 @@ import { element, icon } from '../dom.ts'
 import { human } from '../format.ts'
 import { GOAL_HOURS, hours, LONG_DAY_HOURS } from './model.ts'
 
-export function markIcon(size = 15): SVGSVGElement {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-  svg.setAttribute('width', String(size))
-  svg.setAttribute('height', String(size))
-  svg.setAttribute('viewBox', '0 0 16 16')
-  svg.setAttribute('fill', 'none')
-  svg.setAttribute('stroke', 'currentColor')
-  svg.setAttribute('stroke-width', '1.6')
-  svg.setAttribute('stroke-linecap', 'round')
-  svg.setAttribute('aria-hidden', 'true')
-  svg.innerHTML = '<circle cx="8" cy="9" r="5.4"/><path d="M8 6.3V9l1.8 1.1M6.2 1.9h3.6"/>'
-  return svg
-}
-
 export function button(label: string, className: string, onClick: () => void): HTMLButtonElement {
   const node = element('button', className, label) as HTMLButtonElement
   node.type = 'button'
@@ -278,4 +264,15 @@ export function notice(text: string): HTMLElement {
   box.setAttribute('role', 'status')
   box.append(icon('warning', 13), element('span', undefined, text))
   return box
+}
+
+export function dateField(label: string, value: string, key: string): { label: HTMLLabelElement; input: HTMLInputElement } {
+  const wrap = element('label', 'report-field') as HTMLLabelElement
+  const input = document.createElement('input')
+  input.type = 'date'
+  input.value = value
+  input.className = 'report-input'
+  input.dataset['key'] = key
+  wrap.append(element('span', 'report-field-label', label), input)
+  return { label: wrap, input }
 }

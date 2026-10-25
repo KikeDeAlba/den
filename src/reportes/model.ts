@@ -1,4 +1,4 @@
-import { projectColor } from '../tabs.ts'
+import { projectColor } from '../shell/colors.ts'
 import type { Overtime, OvertimeTotals, ProjectSeconds, RangeQuery, ReportEntry, ReportProject, ReportView } from './types.ts'
 
 export type PresetId = 'week' | 'month' | '30d' | 'quarter' | 'custom'
@@ -193,7 +193,7 @@ export function jiraStatus(project: ReportProject): { text: string; pending: boo
 }
 
 export function isMeeting(entry: ReportEntry): boolean {
-  return entry.kind === 'remote-meeting' || entry.kind === 'in-person-meeting'
+  return entry.kind === 'meeting' || entry.kind === 'remote-meeting' || entry.kind === 'in-person-meeting'
 }
 
 export interface Bucket {
