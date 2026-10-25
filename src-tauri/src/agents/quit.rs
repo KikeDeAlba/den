@@ -309,9 +309,9 @@ mod mac {
             }
             let class = (*delegate).class() as *const AnyClass as *mut AnyClass;
             let terminate: extern "C-unwind" fn(&AnyObject, Sel, *mut AnyObject) -> usize = should_terminate;
-            add_method(class, sel!(applicationShouldTerminate:), std::mem::transmute::<_, Imp>(terminate), c"Q@:@");
+            add_method(class, sel!(applicationShouldTerminate:), std::mem::transmute::<extern "C-unwind" fn(&AnyObject, Sel, *mut AnyObject) -> usize, Imp>(terminate), c"Q@:@");
             let power: extern "C-unwind" fn(&AnyObject, Sel, *mut AnyObject) = will_power_off;
-            if add_method(class, sel!(denWillPowerOff:), std::mem::transmute::<_, Imp>(power), c"v@:@") {
+            if add_method(class, sel!(denWillPowerOff:), std::mem::transmute::<extern "C-unwind" fn(&AnyObject, Sel, *mut AnyObject), Imp>(power), c"v@:@") {
                 let workspace: *mut AnyObject = msg_send![class!(NSWorkspace), sharedWorkspace];
                 if workspace.is_null() {
                     return;

@@ -90,7 +90,7 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 
 impl Agents {
     fn info(&self, id: u64) -> Option<AgentInfo> {
-        lock(&self.sessions).get(&id).map(|session| current(session))
+        lock(&self.sessions).get(&id).map(current)
     }
 
     fn pty(&self, id: u64) -> Result<Arc<Pty>, Problem> {
