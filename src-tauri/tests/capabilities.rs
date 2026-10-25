@@ -28,13 +28,20 @@ fn manifest() -> BTreeSet<String> {
         .collect()
 }
 
-fn granted(capability: &str) -> BTreeSet<String> {
+fn permissions(capability: &str) -> BTreeSet<String> {
     let value: serde_json::Value = serde_json::from_str(&read(&format!("capabilities/{capability}.json"))).expect("json");
     value["permissions"]
         .as_array()
         .expect("permissions")
         .iter()
         .filter_map(|permission| permission.as_str())
+        .map(str::to_string)
+        .collect()
+}
+
+fn granted(capability: &str) -> BTreeSet<String> {
+    permissions(capability)
+        .iter()
         .filter_map(|permission| permission.strip_prefix("allow-"))
         .map(|command| command.replace('-', "_"))
         .collect()
@@ -76,4 +83,31 @@ fn the_live_window_gets_only_the_assistant_commands_and_no_core_default() {
     assert_eq!(live, expected);
     let raw = read("capabilities/live.json");
     assert!(!raw.contains("core:default"));
+}
+
+#[test]
+fn the_live_window_gets_only_the_core_permissions_its_title_bar_needs() {
+    let core: BTreeSet<String> = permissions("live").into_iter().filter(|permission| permission.starts_with("core:")).collect();
+    let expected: BTreeSet<String> = [
+        "core:event:allow-listen",
+        "core:event:allow-unlisten",
+        "core:window:allow-internal-toggle-maximize",
+        "core:window:allow-start-dragging",
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect();
+    assert_eq!(core, expected);
+}
+
+#[test]
+fn every_drag_region_can_drag_and_toggle_maximize_its_window() {
+    for (capability, sources) in [("main", ["../src/shell/topbar.ts"]), ("live", ["../src/live.ts"])] {
+        let draws_region = sources.iter().any(|source| read(source).contains("data-tauri-drag-region"));
+        assert!(draws_region, "{capability} no longer draws a drag region; update this test");
+        let granted = permissions(capability);
+        for needed in ["core:window:allow-start-dragging", "core:window:allow-internal-toggle-maximize"] {
+            assert!(granted.contains(needed), "{capability} draws a drag region but lacks {needed}");
+        }
+    }
 }
