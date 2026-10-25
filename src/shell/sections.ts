@@ -40,7 +40,15 @@ export function createSections(
     const entry = entries.get(section)
     if (entry === undefined) return
     entry.host.hidden = true
-    if (entry.state !== 'ready' || entry.module === null || entry.module.keepAlive !== false) return
+    if (entry.state !== 'ready' || entry.module === null) return
+    if (entry.module.keepAlive !== false) {
+      try {
+        entry.module.receive?.({ type: 'hidden' })
+      } catch (error) {
+        fail(entry.host, error)
+      }
+      return
+    }
     entry.module.unmount()
     release(section, entry)
   }

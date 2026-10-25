@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createOutbox } from './outbox.ts'
+import { binaryBytes, createOutbox } from './outbox.ts'
 
 interface Call {
   id: number
@@ -67,5 +67,11 @@ describe('createOutbox', () => {
     outbox.push(1, new Uint8Array([1]))
     outbox.push(2, new Uint8Array([2]))
     expect(wire.calls.map((call) => call.id)).toEqual([1, 2])
+  })
+})
+
+describe('binaryBytes', () => {
+  it('keeps every byte of a binary report as one byte', () => {
+    expect([...binaryBytes('\x1b[M\xff\x80\x21')]).toEqual([0x1b, 0x5b, 0x4d, 0xff, 0x80, 0x21])
   })
 })

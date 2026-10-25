@@ -16,7 +16,7 @@ const api = vi.hoisted(() => ({
 }))
 
 const terminals = vi.hoisted(() => ({
-  made: [] as { hooks: { input(data: string): void; resize(cols: number, rows: number): void }; shown: number; hidden: number; written: Uint8Array[]; disposed: boolean }[],
+  made: [] as { hooks: { input(data: string): void; bytes(data: Uint8Array): void; resize(cols: number, rows: number): void }; shown: number; hidden: number; written: Uint8Array[]; disposed: boolean }[],
 }))
 
 const shell = vi.hoisted(() => ({ tools: null as ToolsStatus | null, go: vi.fn() }))
@@ -24,7 +24,7 @@ const shell = vi.hoisted(() => ({ tools: null as ToolsStatus | null, go: vi.fn()
 vi.mock('./api.ts', () => api)
 
 vi.mock('./terminal.ts', () => ({
-  createTerminal: (hooks: { input(data: string): void; resize(cols: number, rows: number): void }) => {
+  createTerminal: (hooks: { input(data: string): void; bytes(data: Uint8Array): void; resize(cols: number, rows: number): void }) => {
     const record = { hooks, shown: 0, hidden: 0, written: [] as Uint8Array[], disposed: false }
     terminals.made.push(record)
     const element = document.createElement('div')
@@ -258,6 +258,50 @@ describe('agentes section', () => {
     expect(api.writeAgent.mock.calls.map((call) => [call[0], [...(call[1] as Uint8Array)]])).toEqual([[3, [113]]])
     click(host, 'button', 'Terminar la sesión')
     expect(api.killAgent).toHaveBeenCalledWith(3)
+  })
+
+  it('sends binary terminal reports as the same bytes', async () => {
+    api.listAgents.mockResolvedValue([info({ id: 3 })])
+    api.attachAgent.mockResolvedValue(info({ id: 3 }))
+    section.mount(host, [])
+    await flush()
+    await flush()
+    terminals.made[0]?.hooks.bytes(new Uint8Array([0x1b, 0xff]))
+    expect(api.writeAgent.mock.calls.map((call) => [...(call[1] as Uint8Array)])).toEqual([[0x1b, 0xff]])
+  })
+
+  it('keeps the live terminal when drawing fails after the spawn', async () => {
+    api.spawnAgent.mockResolvedValue(info({ id: 8 }))
+    section.mount(host, ['nueva'])
+    await flush()
+    await flush()
+    shell.go.mockImplementationOnce(() => {
+      throw new Error('route')
+    })
+    host.querySelector<HTMLFormElement>('.agentes-form')!.requestSubmit()
+    await flush()
+    expect(terminals.made[0]?.disposed).toBe(false)
+    section.update(['8'])
+    expect(texts(host, '.agentes-tab-title')).toEqual(['Rediseña Den'])
+  })
+
+  it('releases the terminals while the section is hidden', async () => {
+    api.listAgents.mockResolvedValue([info({ id: 3 })])
+    api.attachAgent.mockResolvedValue(info({ id: 3 }))
+    section.mount(host, [])
+    await flush()
+    await flush()
+    const made = terminals.made[0]
+    const hidden = made?.hidden ?? 0
+    host.hidden = true
+    section.receive({ type: 'hidden' })
+    expect(made?.hidden).toBeGreaterThan(hidden)
+    const shown = made?.shown ?? 0
+    section.receive({ type: 'visible' })
+    expect(made?.shown).toBe(shown)
+    host.hidden = false
+    section.update([])
+    expect(made?.shown).toBeGreaterThan(shown)
   })
 
   it('opens the session tied to an entry once bita links it', async () => {

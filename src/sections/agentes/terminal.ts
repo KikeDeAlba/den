@@ -2,9 +2,11 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal, type ITheme } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
+import { binaryBytes } from './outbox.ts'
 
 export interface TerminalHooks {
   input(data: string): void
+  bytes(data: Uint8Array): void
   resize(cols: number, rows: number): void
 }
 
@@ -60,7 +62,7 @@ export function createTerminal(hooks: TerminalHooks): TerminalView {
   const fit = new FitAddon()
   terminal.loadAddon(fit)
   terminal.onData((data) => hooks.input(data))
-  terminal.onBinary((data) => hooks.input(data))
+  terminal.onBinary((data) => hooks.bytes(binaryBytes(data)))
   terminal.onResize(({ cols, rows }) => hooks.resize(cols, rows))
 
   let opened = false

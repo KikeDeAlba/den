@@ -12,6 +12,10 @@ interface Queue {
   running: boolean
 }
 
+export function binaryBytes(data: string): Uint8Array {
+  return Uint8Array.from(data, (letter) => letter.charCodeAt(0) & 0xff)
+}
+
 function slices(bytes: Uint8Array, limit: number): Uint8Array[] {
   const list: Uint8Array[] = []
   for (let start = 0; start < bytes.length; start += limit) list.push(bytes.subarray(start, start + limit))

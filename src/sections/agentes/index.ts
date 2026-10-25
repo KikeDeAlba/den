@@ -132,6 +132,10 @@ function makeView(id: () => number | null): TerminalView {
       const target = id()
       if (target !== null && rows.get(target)?.info.alive === true) outbox.push(target, encoder.encode(data))
     },
+    bytes(data) {
+      const target = id()
+      if (target !== null && rows.get(target)?.info.alive === true) outbox.push(target, data)
+    },
     resize(cols, lines) {
       const target = id()
       const row = target === null ? undefined : rows.get(target)
@@ -525,8 +529,9 @@ function newPane(): HTMLElement {
 }
 
 function placeTerminals(): void {
+  const concealed = host === null || host.hidden
   for (const row of rows.values()) {
-    const visible = (view === 'session' && pane === 'terminal' && selected === row.info.id) || view === 'mosaic'
+    const visible = !concealed && ((view === 'session' && pane === 'terminal' && selected === row.info.id) || view === 'mosaic')
     if (visible && row.view.element.isConnected) {
       row.view.show()
       syncSize(row)
@@ -587,19 +592,10 @@ async function launch(spawn: SpawnRequest): Promise<void> {
   render()
   let id: number | null = null
   const terminal = makeView(() => id)
+  let info: AgentInfo
   try {
     const size = ordered().at(-1)?.view.size()
-    const info = await api.spawnAgent(spawn, size?.cols ?? 0, size?.rows ?? 0, (bytes) => terminal.write(bytes))
-    id = info.id
-    attachRow(info, terminal)
-    void reread(info.id)
-    promptBox.value = ''
-    form.busy = false
-    selected = info.id
-    pane = model.DEFAULT_PANE
-    openSession(info.id)
-    render()
-    terminal.focus()
+    info = await api.spawnAgent(spawn, size?.cols ?? 0, size?.rows ?? 0, (bytes) => terminal.write(bytes))
   } catch (error) {
     terminal.dispose()
     form.busy = false
@@ -607,6 +603,21 @@ async function launch(spawn: SpawnRequest): Promise<void> {
     if (view === 'new') form.problem = problem
     else sessionProblem = problem
     render()
+    return
+  }
+  id = info.id
+  attachRow(info, terminal)
+  form.busy = false
+  void reread(info.id)
+  promptBox.value = ''
+  selected = info.id
+  pane = model.DEFAULT_PANE
+  try {
+    openSession(info.id)
+    render()
+    terminal.focus()
+  } catch (error) {
+    sessionProblem = describeProblem(error)
   }
 }
 
