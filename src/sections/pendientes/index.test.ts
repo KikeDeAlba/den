@@ -186,6 +186,22 @@ describe('pendientes section', () => {
     expect(api.backlogAdd).toHaveBeenCalledWith('pending', 'Rotar', null, null, 'VC')
   })
 
+  it('holds the new item until the spaces load instead of sending inkwell the slug', async () => {
+    section.unmount()
+    host.replaceChildren()
+    vi.resetModules()
+    api.notesTree.mockRejectedValue(new Error('tree offline'))
+    section = await import('./index.ts')
+    await section.mount(host, ['viva'])
+    await flush()
+    const add = host.querySelector<HTMLButtonElement>('.pend-new') as HTMLButtonElement
+    expect(add.disabled).toBe(true)
+    add.click()
+    await flush()
+    expect(host.querySelector('.pend-form-title')).toBeNull()
+    expect(api.backlogAdd).not.toHaveBeenCalled()
+  })
+
   it('keeps focus and the typed draft when the docs change', async () => {
     host.querySelector<HTMLButtonElement>('.pend-new')?.click()
     const title = host.querySelector<HTMLInputElement>('.pend-form-title') as HTMLInputElement

@@ -18,7 +18,7 @@ import { element, icon } from '../../dom.ts'
 import { closeSwitcher, isSwitcherOpen, toggleSwitcher, withPages } from '../../notes/switcher.ts'
 import { modKey } from '../../platform.ts'
 import { formatRoute, go, parseRoute } from '../../shell/routes.ts'
-import { inkwellProjectOf, isSpaceShortcut, onSpaceChange, rememberedSpace, rememberSpace } from '../../shell/space.ts'
+import { inkwellProject, isSpaceShortcut, onSpaceChange, rememberedSpace, rememberSpace } from '../../shell/space.ts'
 import { projectColor } from '../../shell/colors.ts'
 import {
   activeFilters,
@@ -340,13 +340,14 @@ function convert(item: BacklogItem, kind: BacklogKind): void {
 
 async function create(draft: Draft): Promise<void> {
   const title = draft.title.trim()
-  if (title.length === 0 || saving) return
+  const space = currentSpace()
+  if (title.length === 0 || saving || space === null) return
   saving = true
   actionFailure = null
   paint()
   try {
     const body = draft.body.trim()
-    const payload = await backlogAdd(draft.kind, title, body.length > 0 ? body : null, draft.pageId, inkwellProjectOf(spaces, activeSpace))
+    const payload = await backlogAdd(draft.kind, title, body.length > 0 ? body : null, draft.pageId, inkwellProject(space))
     items = [...(items ?? []), payload.data]
     creating = null
     selectedId = payload.data.id
@@ -799,7 +800,7 @@ function form(draft: Draft): HTMLElement[] {
   title.value = draft.title
   title.addEventListener('input', () => {
     draft.title = title.value
-    submit.disabled = saving || draft.title.trim().length === 0
+    submit.disabled = saving || currentSpace() === null || draft.title.trim().length === 0
   })
   title.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
@@ -840,7 +841,7 @@ function form(draft: Draft): HTMLElement[] {
 
   const actions = element('div', 'pend-actions')
   const submit = textButton('primary-button pend-resolve', saving ? 'Guardando…' : 'Crear', () => void create(draft))
-  submit.disabled = saving || draft.title.trim().length === 0
+  submit.disabled = saving || currentSpace() === null || draft.title.trim().length === 0
   const cancel = textButton('quiet-link', 'Cancelar', () => {
     creating = null
     actionFailure = null
