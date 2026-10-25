@@ -168,7 +168,7 @@ describe('the new session form', () => {
   it('shortens folders to their last two parts', () => {
     expect(shortPath('/Users/me/dev/github.com/KikeDeAlba/den')).toBe('KikeDeAlba/den')
     expect(shortPath('/tmp')).toBe('tmp')
-    expect(folderMeta({ cwd: '/x', lastUsedAt: '', sessions: 1, projectId: null, projectName: null })).toBe('sin cronómetro · 1 sesión')
+    expect(folderMeta({ cwd: '/x', lastUsedAt: '', sessions: 1, projectId: null, projectName: null })).toBe('sin proyecto · 1 sesión')
     expect(folderMeta({ cwd: '/x', lastUsedAt: '', sessions: 6, projectId: 3, projectName: 'den' })).toBe('den · 6 sesiones')
   })
 

@@ -14,6 +14,8 @@ export const NO_PROJECT = '0'
 
 export const TIMERLESS = 'sin cronómetro'
 
+export const PROJECTLESS = 'sin proyecto'
+
 export type Pane = 'terminal' | 'activity'
 
 // TODO(6b): switch to 'activity' once the activity pane shows agent events
@@ -184,12 +186,12 @@ export function sessionsWord(count: number): string {
 }
 
 export function folderMeta(folder: SessionDirectory): string {
-  return `${folder.projectName ?? TIMERLESS} · ${sessionsWord(folder.sessions)}`
+  return `${folder.projectName ?? PROJECTLESS} · ${sessionsWord(folder.sessions)}`
 }
 
 export function listingProject(listing: SessionListing): string {
   if (listing.entry === null) return TIMERLESS
-  return listing.entry.projectName ?? 'sin proyecto'
+  return listing.entry.projectName ?? PROJECTLESS
 }
 
 export function entryLabel(listing: SessionListing): string {
