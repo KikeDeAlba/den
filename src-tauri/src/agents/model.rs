@@ -22,7 +22,8 @@ pub struct SessionEntry {
 #[serde(rename_all = "camelCase")]
 pub struct SessionListing {
     pub id: i64,
-    pub entry_id: i64,
+    #[serde(default)]
+    pub entry_id: Option<i64>,
     pub harness: String,
     #[serde(default)]
     pub session_id: Option<String>,
@@ -35,7 +36,8 @@ pub struct SessionListing {
     pub ended_at: Option<String>,
     pub open: bool,
     pub resumable: bool,
-    pub entry: SessionEntry,
+    #[serde(default)]
+    pub entry: Option<SessionEntry>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -171,9 +173,24 @@ mod tests {
         let data = envelope.data.expect("data");
         assert_eq!(data.len(), 2);
         assert_eq!(data[0].wrapper_pid, 4242);
-        assert_eq!(data[0].entry.project_name.as_deref(), Some("den"));
+        assert_eq!(data[0].entry.as_ref().and_then(|entry| entry.project_name.as_deref()), Some("den"));
         assert!(data[1].resumable && !data[1].open);
-        assert_eq!(data[1].entry.project_id, None);
+        assert_eq!(data[1].entry.as_ref().and_then(|entry| entry.project_id), None);
+        assert_eq!(data[1].entry_id, Some(128));
+    }
+
+    #[test]
+    fn a_session_without_a_timer_has_no_entry() {
+        let raw = r#"{"schemaVersion":3,"ok":true,"command":"sessions ls","data":[
+            {"id":7,"entryId":null,"harness":"claude","sessionId":"s","wrapperPid":5,"cwd":"/tmp/x","transcriptPath":null,
+             "startedAt":"2026-10-25T10:00:00.000Z","endedAt":null,"open":true,"resumable":false,"entry":null},
+            {"id":8,"harness":"codex","wrapperPid":6,"cwd":"/tmp/y","startedAt":"2026-10-25T10:00:00.000Z","open":false,"resumable":true}]}"#;
+        let envelope: Envelope<Vec<SessionListing>> = serde_json::from_str(raw).expect("timerless");
+        let data = envelope.data.expect("data");
+        assert!(data.iter().all(|row| row.entry_id.is_none() && row.entry.is_none()));
+        let value = serde_json::to_value(&data[0]).expect("json");
+        assert!(value["entryId"].is_null() && value["entry"].is_null());
+        assert_eq!(linked(&data, 5).map(|row| row.id), Some(7));
     }
 
     #[test]

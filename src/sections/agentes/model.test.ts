@@ -7,6 +7,7 @@ import {
   dayLabel,
   duration,
   elapsed,
+  entryLabel,
   folderMeta,
   mergeInfo,
   parseAgentesPath,
@@ -14,7 +15,9 @@ import {
   readiness,
   resumable,
   resumeMeta,
+  resumeTitle,
   sessionForEntry,
+  sessionMeta,
   sessionTitle,
   shortClock,
   shortPath,
@@ -165,7 +168,7 @@ describe('the new session form', () => {
   it('shortens folders to their last two parts', () => {
     expect(shortPath('/Users/me/dev/github.com/KikeDeAlba/den')).toBe('KikeDeAlba/den')
     expect(shortPath('/tmp')).toBe('tmp')
-    expect(folderMeta({ cwd: '/x', lastUsedAt: '', sessions: 1, projectId: null, projectName: null })).toBe('sin proyecto · 1 sesión')
+    expect(folderMeta({ cwd: '/x', lastUsedAt: '', sessions: 1, projectId: null, projectName: null })).toBe('sin cronómetro · 1 sesión')
     expect(folderMeta({ cwd: '/x', lastUsedAt: '', sessions: 6, projectId: 3, projectName: 'den' })).toBe('den · 6 sesiones')
   })
 
@@ -187,6 +190,18 @@ describe('the new session form', () => {
     expect(duration(row)).toBe('1:12')
     expect(resumeMeta(row, new Date('2026-10-25T12:00:00Z'))).toMatch(/^Codex · Viva Cash · hoy \d\d:\d\d · 1:12$/)
     expect(duration(listing({ endedAt: null }))).toBe('')
+  })
+
+  it('describes a session without a timer as such', () => {
+    const row = listing({ entryId: null, entry: null })
+    expect(resumeMeta(row, new Date('2026-10-25T12:00:00Z'))).toMatch(/^Codex · sin cronómetro · hoy \d\d:\d\d · 1:12$/)
+    expect(resumeTitle(row)).toBe('Sin título')
+    expect(entryLabel(row)).toBe('sin cronómetro')
+    expect(entryLabel(listing())).toBe('entrada #128')
+    const linked = agent({ bita: row })
+    expect(sessionMeta(linked, () => 'den')).toContain('sin cronómetro')
+    expect(sessionTitle(agent({ bita: row, title: 'Mi sesión' }))).toBe('Mi sesión')
+    expect(sessionForEntry([linked], 128)).toBeNull()
   })
 })
 

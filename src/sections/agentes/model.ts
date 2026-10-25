@@ -12,6 +12,8 @@ export const REQUIRED_CAPABILITIES = ['sessions.list', 'sessions.dirs', 'work.re
 
 export const NO_PROJECT = '0'
 
+export const TIMERLESS = 'sin cronómetro'
+
 export type Pane = 'terminal' | 'activity'
 
 // TODO(6b): switch to 'activity' once the activity pane shows agent events
@@ -87,7 +89,7 @@ function firstLine(text: string, limit: number): string {
 }
 
 export function sessionTitle(session: AgentInfo): string {
-  const described = session.bita?.entry.description.trim()
+  const described = session.bita?.entry?.description.trim()
   if (described !== undefined && described !== '') return described
   if (session.title !== null && session.title.trim() !== '') return session.title.trim()
   if (session.prompt !== null && session.prompt.trim() !== '') return firstLine(session.prompt, 48)
@@ -119,7 +121,7 @@ export function projectArg(project: string | null, folder: SessionDirectory | nu
 
 export function sessionMeta(session: AgentInfo, projectName: (id: string | null) => string): string {
   const harness = harnessLabel(session.bita?.harness ?? session.harness)
-  const project = session.bita?.entry.projectName ?? projectName(session.project)
+  const project = session.bita !== null && session.bita.entry === null ? TIMERLESS : (session.bita?.entry?.projectName ?? projectName(session.project))
   const parts = [harness, project]
   if (session.cwd !== null) parts.push(shortPath(session.bita?.cwd ?? session.cwd))
   return parts.join(' · ')
@@ -182,18 +184,27 @@ export function sessionsWord(count: number): string {
 }
 
 export function folderMeta(folder: SessionDirectory): string {
-  return `${folder.projectName ?? 'sin proyecto'} · ${sessionsWord(folder.sessions)}`
+  return `${folder.projectName ?? TIMERLESS} · ${sessionsWord(folder.sessions)}`
+}
+
+export function listingProject(listing: SessionListing): string {
+  if (listing.entry === null) return TIMERLESS
+  return listing.entry.projectName ?? 'sin proyecto'
+}
+
+export function entryLabel(listing: SessionListing): string {
+  return listing.entryId === null ? TIMERLESS : `entrada #${listing.entryId}`
 }
 
 export function resumeMeta(listing: SessionListing, now: Date): string {
-  const parts = [harnessLabel(listing.harness), listing.entry.projectName ?? 'sin proyecto', timeLabel(listing.startedAt, now)]
+  const parts = [harnessLabel(listing.harness), listingProject(listing), timeLabel(listing.startedAt, now)]
   const length = duration(listing)
   if (length !== '') parts.push(length)
   return parts.join(' · ')
 }
 
 export function resumeTitle(listing: SessionListing): string {
-  const text = listing.entry.description.trim()
+  const text = listing.entry?.description.trim() ?? ''
   return text === '' ? 'Sin título' : text
 }
 

@@ -1604,7 +1604,7 @@ export interface SessionEntry {
 
 export interface SessionListing {
   id: number
-  entryId: number
+  entryId: number | null
   harness: string
   sessionId: string | null
   wrapperPid: number
@@ -1614,7 +1614,7 @@ export interface SessionListing {
   endedAt: string | null
   open: boolean
   resumable: boolean
-  entry: SessionEntry
+  entry: SessionEntry | null
 }
 
 export interface SessionDirectory {

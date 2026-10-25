@@ -251,7 +251,7 @@ function laneNav(row: Row): HTMLElement {
   const status = row.info.alive ? 'trabajando' : row.info.exitCode === null || row.info.exitCode === 0 ? 'terminó' : `terminó con código ${row.info.exitCode}`
   lane.append(head, element('span', row.info.alive ? 'agentes-lane-status' : 'agentes-lane-status agentes-lane-status--done', status))
   nav.append(lane)
-  if (row.info.bita !== null) nav.append(element('span', 'agentes-lane-entry', `entrada #${row.info.bita.entryId}`))
+  if (row.info.bita !== null) nav.append(element('span', 'agentes-lane-entry', model.entryLabel(row.info.bita)))
   return nav
 }
 

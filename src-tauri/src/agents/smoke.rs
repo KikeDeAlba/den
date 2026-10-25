@@ -286,7 +286,7 @@ fn the_prompt_and_a_named_project_arrive_and_the_session_links_and_resumes() {
     assert!(args.lines().any(|line| line == "--hola mundo"), "{args}");
     let row = first.linked(&smoke);
     assert_eq!(row.harness, "claude");
-    assert_eq!(row.entry.project_name.as_deref(), Some("Smoke"));
+    assert_eq!(row.entry.as_ref().and_then(|entry| entry.project_name.as_deref()), Some("Smoke"));
     first.finish();
     let closed = smoke.rows(false);
     let ended = row_by_id(&closed, row.id);
@@ -322,7 +322,7 @@ fn a_numeric_project_id_reaches_bita_as_the_project_flag() {
     );
     running.wait_for("fake-agent:");
     let row = running.linked(&smoke);
-    assert_eq!(row.entry.project_id, Some(id));
+    assert_eq!(row.entry.as_ref().and_then(|entry| entry.project_id), Some(id));
     running.finish();
 }
 
@@ -388,6 +388,7 @@ fn a_row_without_a_timer_deserializes_into_the_listing_model() {
     let pid = i64::from(running.pty.pid().expect("pid"));
     let linked = running.linked(&smoke);
     assert_eq!(linked.wrapper_pid, pid);
+    assert_eq!((linked.entry_id, linked.entry.clone()), (None, None));
     running.finish();
 }
 
