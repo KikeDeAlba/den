@@ -22,7 +22,7 @@ pub fn is_visible(app: &AppHandle) -> bool {
 }
 
 fn build(app: &AppHandle) -> tauri::Result<WebviewWindow> {
-    let (width, height) = crate::notes::initial_size(app, (WIDTH, HEIGHT), (MIN_WIDTH, MIN_HEIGHT));
+    let (width, height) = crate::shell::initial_size(app, (WIDTH, HEIGHT), (MIN_WIDTH, MIN_HEIGHT));
     let builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("live-wide.html".into()))
         .title("Asistente de reunión")
         .inner_size(width, height)
@@ -45,11 +45,9 @@ fn build(app: &AppHandle) -> tauri::Result<WebviewWindow> {
 
     let window = builder.build()?;
     let target = window.clone();
-    let handle = app.clone();
     window.on_window_event(move |event| {
         if let WindowEvent::CloseRequested { api, .. } = event {
             api.prevent_close();
-            crate::activation::hiding(&handle, LABEL);
             let _ = target.hide();
         }
     });
@@ -79,7 +77,6 @@ pub fn open(app: &AppHandle, focus: bool) -> tauri::Result<()> {
         None => build(app)?,
     };
     protect(&window);
-    crate::activation::showing(app);
     window.show()?;
     if focus {
         window.set_focus()?;
@@ -89,9 +86,6 @@ pub fn open(app: &AppHandle, focus: bool) -> tauri::Result<()> {
 
 pub fn hide(app: &AppHandle) {
     if let Some(window) = find(app) {
-        if window.is_visible().unwrap_or(false) {
-            crate::activation::hiding(app, LABEL);
-        }
         let _ = window.hide();
     }
 }

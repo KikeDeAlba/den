@@ -17,7 +17,6 @@ mod live;
 mod live_wide;
 mod meeting;
 mod notes_cmd;
-mod panel;
 mod pay;
 mod pdf;
 mod report_export;
@@ -28,8 +27,7 @@ mod recap;
 mod registry;
 mod report;
 mod reports;
-#[cfg(target_os = "macos")]
-mod screen;
+mod shell;
 mod state;
 mod sync;
 mod tools;
@@ -39,10 +37,9 @@ mod watch;
 use std::time::Duration;
 
 use chrono::Utc;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, RunEvent};
 use tokio::time::{interval, MissedTickBehavior};
 
-use panel::TrayAnchor;
 use state::AppState;
 
 const TICK: Duration = Duration::from_secs(1);
@@ -55,13 +52,13 @@ fn main() {
     }
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            panel::toggle(app);
+            let _ = shell::show(app);
         }))
         .plugin(live::shortcut_plugin())
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(AppState::new())
         .manage(live::LiveSession::default())
-        .manage(TrayAnchor::default())
+        .manage(tray::TrayList::default())
         .manage(notes::NotesFocus::default())
         .invoke_handler(tauri::generate_handler![
             commands::snapshot,
@@ -145,7 +142,7 @@ fn main() {
             live::open_source_file,
             live::live_transcript_full,
             live::live_mode_set,
-            live::live_open_settings,
+            shell::navigate_to,
             proposals::docs_branch_diff,
             proposals::page_history,
             proposals::page_diff,
@@ -157,19 +154,23 @@ fn main() {
             commands::quit
         ])
         .on_menu_event(|app, event| {
-            match event.id().as_ref() {
+            let id = event.id().as_ref();
+            if let Some(route) = menu::route_of(id) {
+                let _ = shell::navigate(app, route);
+                return;
+            }
+            match id {
                 menu::LIVE => live::toggle(app),
                 menu::LIVE_WIDE => live::open_wide(app),
                 _ => {}
             }
         })
         .setup(|app| {
-            #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            activation::regular(app.handle());
             tools::migrate_app_settings(app.handle());
             menu::create(app.handle())?;
             tray::create(app.handle())?;
-            panel::wire(app.handle());
+            shell::show(app.handle())?;
             watch::spawn(app.handle().clone(), cli::database_path());
             tools::ensure_inkwell_watchers(app.handle());
             tools::spawn_watch(app.handle().clone());
@@ -179,13 +180,20 @@ fn main() {
             spawn_refresh(app.handle().clone());
             spawn_tick(app.handle().clone());
             sync::spawn(app.handle().clone());
-            if notes::opens_on_start() {
-                notes::open(app.handle(), None)?;
-            }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("failed to start Den");
+        .build(tauri::generate_context!())
+        .expect("failed to start Den")
+        .run(on_run_event);
+}
+
+fn on_run_event(app: &AppHandle, event: RunEvent) {
+    #[cfg(target_os = "macos")]
+    if let RunEvent::Reopen { .. } = event {
+        let _ = shell::show(app);
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = (app, event);
 }
 
 fn spawn_refresh(app: AppHandle) {
@@ -204,16 +212,17 @@ fn spawn_tick(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let mut ticker = interval(TICK);
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
-        let mut shown_title = String::new();
+        let mut shown_title: Option<String> = None;
         loop {
             ticker.tick().await;
             let snapshot = app.state::<AppState>().snapshot(Utc::now());
             let title = tray::format_title(&snapshot.running);
-            if title != shown_title {
+            if shown_title.as_deref() != Some(title.as_str()) {
                 tray::set_title(&app, &title);
-                shown_title = title;
+                shown_title = Some(title);
             }
-            if panel::is_visible(&app) {
+            tray::update_list(&app, &snapshot.running);
+            if shell::is_showing(&app) || live::is_visible(&app) {
                 let _ = app.emit(SNAPSHOT_EVENT, &snapshot);
             }
         }

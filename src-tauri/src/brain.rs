@@ -16,19 +16,17 @@ pub fn open(app: &AppHandle) -> tauri::Result<()> {
         Some(existing) => existing,
         None => {
             let created = build(app)?;
-            wire(app, &created);
+            wire(&created);
             created
         }
     };
-
-    crate::activation::showing(app);
     window.show()?;
     window.set_focus()?;
     Ok(())
 }
 
 fn build(app: &AppHandle) -> tauri::Result<WebviewWindow> {
-    let (width, height) = crate::notes::initial_size(app, (WIDTH, HEIGHT), (MIN_WIDTH, MIN_HEIGHT));
+    let (width, height) = crate::shell::initial_size(app, (WIDTH, HEIGHT), (MIN_WIDTH, MIN_HEIGHT));
     let builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("cerebro.html".into()))
         .title("Cerebro · Den")
         .inner_size(width, height)
@@ -50,13 +48,11 @@ fn build(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     builder.build()
 }
 
-fn wire(app: &AppHandle, window: &WebviewWindow) {
+fn wire(window: &WebviewWindow) {
     let target = window.clone();
-    let handle = app.clone();
     window.on_window_event(move |event| {
         if let WindowEvent::CloseRequested { api, .. } = event {
             api.prevent_close();
-            crate::activation::hiding(&handle, LABEL);
             let _ = target.hide();
         }
     });

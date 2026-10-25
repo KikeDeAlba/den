@@ -22,7 +22,6 @@ use crate::state::AppState;
 pub const LABEL: &str = "live";
 pub const STATE_EVENT: &str = "bita://live-state";
 pub const TRANSCRIPT_EVENT: &str = "bita://live-transcript";
-pub const SETTINGS_EVENT: &str = "bita://live-settings";
 pub const DEFAULT_SHORTCUT: &str = "Ctrl+Alt+Space";
 
 const WIDTH: f64 = 380.0;
@@ -736,14 +735,6 @@ pub fn live_transcript_full(app: AppHandle) -> Option<FullTranscript> {
 #[tauri::command]
 pub fn live_mode_set(app: AppHandle, mode: LiveMode) -> Result<(), Problem> {
     switch_mode(&app, mode)
-}
-
-#[tauri::command]
-pub fn live_open_settings(app: AppHandle) {
-    if let Some(window) = crate::panel::find(&app) {
-        crate::panel::show(&app, &window);
-        let _ = window.emit(SETTINGS_EVENT, ());
-    }
 }
 
 #[tauri::command]
