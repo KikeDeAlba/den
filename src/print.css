@@ -1,0 +1,32 @@
+#print-root {
+  position: fixed;
+  left: -12000px;
+  top: 0;
+  width: 7.5in;
+}
+
+@page {
+  size: letter;
+  margin: 0.5in;
+}
+
+@media print {
+  html:has(> body.printing),
+  body.printing {
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.printing > :not(#print-root) {
+    display: none !important;
+  }
+
+  body.printing > #print-root {
+    position: static;
+    left: auto;
+    width: auto;
+  }
+}

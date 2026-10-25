@@ -39,26 +39,6 @@
   border-bottom-color: var(--line-soft);
 }
 
-@media print {
-  body.printing .shell {
-    display: block !important;
-    height: auto !important;
-  }
-
-  body.printing .shell > :not(.content),
-  body.printing .section-host:not([data-section='docs']) {
-    display: none !important;
-  }
-
-  body.printing .content,
-  body.printing .section-host[data-section='docs'] {
-    height: auto !important;
-    overflow: visible !important;
-    border: 0 !important;
-    background: #ffffff !important;
-  }
-}
-
 [data-section='docs'] .docs {
   overflow: hidden;
 }

@@ -8,6 +8,7 @@ import {
   type Space,
 } from '../bita.ts'
 import { element, icon } from '../dom.ts'
+import { printRoot, printWith } from '../print.ts'
 import { assetsRelDirOf } from './drawio.ts'
 import { renderMarkdown } from './markdown.ts'
 import { latestMeeting, minutesBody, paragraphsOf, shortClock } from './meeting.ts'
@@ -266,11 +267,7 @@ async function runExport(
   fileName: string,
   progress: (text: string) => void,
 ): Promise<string> {
-  const host = document.querySelector<HTMLElement>('.section-host:not([hidden]) .notes-root') ?? document.body
-  document.getElementById('print-root')?.remove()
-  const root = element('div', choice.diagrams ? 'print-root' : 'print-root print-root--no-diagrams')
-  root.id = 'print-root'
-  host.append(root)
+  const root = printRoot('docs', 'notes-root', ...(choice.diagrams ? [] : ['print-root--no-diagrams']))
   try {
     const documents: PageDocument[] = []
     for (const [index, item] of chosen.entries()) {
@@ -286,10 +283,8 @@ async function runExport(
     progress('Dibujando los diagramas…')
     await diagramsSettled(root)
     progress('Guardando el PDF…')
-    document.body.classList.add('printing')
-    return await exportPdf(fileName)
+    return await printWith(root, () => exportPdf(fileName))
   } finally {
-    document.body.classList.remove('printing')
     root.remove()
   }
 }

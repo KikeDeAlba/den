@@ -1329,13 +1329,6 @@
   text-decoration: underline;
 }
 
-#print-root {
-  position: fixed;
-  left: -12000px;
-  top: 0;
-  width: 7.5in;
-}
-
 #print-root .paper {
   width: 100%;
   max-width: none;
@@ -1391,32 +1384,6 @@
   .section-host[data-section='tiempo'] .paper-stats,
   #print-root .paper-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@page {
-  size: letter;
-  margin: 0.5in;
-}
-
-@media print {
-  html,
-  body {
-    height: auto !important;
-    overflow: visible !important;
-    background: #fff !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  body.printing > :not(#print-root) {
-    display: none !important;
-  }
-
-  body.printing #print-root {
-    position: static;
-    left: auto;
-    width: auto;
   }
 }
 
