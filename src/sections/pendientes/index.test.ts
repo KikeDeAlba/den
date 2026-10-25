@@ -112,6 +112,32 @@ describe('pendientes section', () => {
     expect(host.querySelector('.pend-badge')?.textContent).toBe('1')
   })
 
+  it('keeps the filter badge in step after switching to a space without that page', async () => {
+    const other = { ...SPACE, projectId: 2, projectName: 'Otro', projectSlug: 'otro', pages: [] } as unknown as Space
+    api.notesTree.mockResolvedValue({ data: { spaces: [SPACE, other] } })
+    api.backlogList.mockResolvedValue({
+      data: [...ITEMS, item(7, { key: 'OT-7', projectId: 2, projectName: 'Otro', title: 'Otro 7' })],
+    })
+    section.receive({ type: 'docs-changed' })
+    await flush()
+    host.querySelector<HTMLButtonElement>('.pend-filter')?.click()
+    const pick = (index: number, value: string) => {
+      const select = host.querySelectorAll<HTMLSelectElement>('.pend-filter-select')[index] as HTMLSelectElement
+      select.value = value
+      select.dispatchEvent(new Event('change'))
+    }
+    pick(2, '5')
+    pick(1, 'pending')
+    expect(titles(host)).toEqual(['Item 2'])
+    expect(host.querySelector('.pend-badge')?.textContent).toBe('2')
+    section.update(['otro'])
+    await flush()
+    expect(titles(host)).toEqual(['Otro 7'])
+    expect(host.querySelector('.pend-badge')?.textContent).toBe('1')
+    const page = host.querySelectorAll<HTMLSelectElement>('.pend-filter-select')[2]
+    expect(page?.value).toBe('all')
+  })
+
   it('groups the list by page', () => {
     host.querySelector<HTMLButtonElement>('.pend-grouping')?.click()
     const labels = [...host.querySelectorAll('.pend-group-label')].map((node) => node.textContent)

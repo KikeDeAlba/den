@@ -178,6 +178,12 @@ export function pagesOf(items: readonly BacklogItem[]): { key: string; label: st
     .sort((left, right) => (left.key === NO_PAGE ? 1 : right.key === NO_PAGE ? -1 : left.label.localeCompare(right.label, 'es')))
 }
 
+export function filtersForSpace(filters: Filters, items: readonly BacklogItem[]): Filters {
+  if (filters.page === ALL_PAGES) return filters
+  if (pagesOf(items).some((page) => page.key === filters.page)) return filters
+  return { ...filters, page: ALL_PAGES }
+}
+
 export function groupByPage(items: readonly BacklogItem[]): PageGroup[] {
   const groups = new Map<string, PageGroup>()
   for (const item of items) {

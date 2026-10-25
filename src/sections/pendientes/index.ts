@@ -26,6 +26,7 @@ import {
   ALL_PAGES,
   closePrompt,
   defaultFilters,
+  filtersForSpace,
   findKey,
   groupByPage,
   groupIssues,
@@ -199,6 +200,7 @@ function switchSpace(slug: string): void {
   activeSpace = slug
   selectedId = null
   creating = null
+  filters = filtersForSpace(filters, spaceItems())
   paint()
   reflectRoute()
 }
@@ -216,6 +218,7 @@ function jumpTo(item: BacklogItem): void {
   if (owner !== undefined && owner.projectSlug !== activeSpace) {
     activeSpace = owner.projectSlug
     rememberSpace(owner.projectSlug)
+    filters = filtersForSpace(filters, spaceItems())
   }
   query = ''
   if (!passes(item, filters, new Date(), meetingIds)) filters = defaultFilters()

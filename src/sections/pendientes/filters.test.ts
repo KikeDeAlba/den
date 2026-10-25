@@ -4,6 +4,7 @@ import {
   activeFilters,
   daysSince,
   defaultFilters,
+  filtersForSpace,
   groupByPage,
   meetingEntryIds,
   originOf,
@@ -100,6 +101,17 @@ describe('pendientes filters', () => {
       expect(created('old')).toBe(false)
       expect(created('any')).toBe(true)
     }
+  })
+
+  it('drops a page filter the new space does not have and keeps the rest', () => {
+    const others = [item(7, { projectId: 2, pageId: 9, pageTitle: 'Login' }), item(8, { projectId: 2 })]
+    const picked = { ...defaultFilters(), page: '5', kind: 'finding' as const }
+    const next = filtersForSpace(picked, others)
+    expect(next).toEqual({ ...picked, page: 'all' })
+    expect(activeFilters(next)).toBe(1)
+    expect(filtersForSpace({ ...picked, page: '9' }, others)).toEqual({ ...picked, page: '9' })
+    expect(filtersForSpace({ ...picked, page: 'none' }, others).page).toBe('none')
+    expect(filtersForSpace({ ...picked, page: 'none' }, [others[0] as BacklogItem]).page).toBe('all')
   })
 
   it('groups by page with the pageless group last', () => {
