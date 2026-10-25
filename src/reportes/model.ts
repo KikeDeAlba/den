@@ -193,7 +193,7 @@ export function jiraStatus(project: ReportProject): { text: string; pending: boo
 }
 
 export function isMeeting(entry: ReportEntry): boolean {
-  return entry.kind === 'remote-meeting' || entry.kind === 'in-person-meeting'
+  return entry.kind === 'meeting' || entry.kind === 'remote-meeting' || entry.kind === 'in-person-meeting'
 }
 
 export interface Bucket {

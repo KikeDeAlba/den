@@ -43,6 +43,7 @@ export interface LiveTimer {
 }
 
 export const MEETING_KINDS = {
+  meeting: 'Reunión',
   'remote-meeting': 'Reunión remota',
   'in-person-meeting': 'Reunión presencial',
 } as const
@@ -50,7 +51,7 @@ export const MEETING_KINDS = {
 export type MeetingKind = keyof typeof MEETING_KINDS
 
 export function isMeetingKind(value: string | null): value is MeetingKind {
-  return value !== null && value in MEETING_KINDS
+  return value !== null && Object.hasOwn(MEETING_KINDS, value)
 }
 
 export interface Snapshot {

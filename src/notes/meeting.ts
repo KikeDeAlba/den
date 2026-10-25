@@ -51,7 +51,7 @@ const SPEEDS = [1, 1.25, 1.5, 2]
 const CHANNEL_LABEL: Record<string, string> = { mic: 'Sala', system: 'Remotos' }
 const WAVE_BARS = 110
 
-export const MEETING_KINDS = ['remote-meeting', 'in-person-meeting']
+export const MEETING_KINDS = ['meeting', 'remote-meeting', 'in-person-meeting']
 
 export function isRemote(info: PageMeeting): boolean {
   return info.kind === 'remote-meeting'
