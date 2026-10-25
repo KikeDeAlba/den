@@ -138,15 +138,18 @@ describe('describeProblem', () => {
 })
 
 describe('isMeetingKind', () => {
-  it('accepts the two legacy meeting kinds only', () => {
+  it('accepts meeting and the two legacy meeting kinds', () => {
+    expect(isMeetingKind('meeting')).toBe(true)
     expect(isMeetingKind('remote-meeting')).toBe(true)
     expect(isMeetingKind('in-person-meeting')).toBe(true)
     expect(isMeetingKind(null)).toBe(false)
-    expect(isMeetingKind('meeting')).toBe(false)
+    expect(isMeetingKind('work')).toBe(false)
   })
 
-  it.fails('rejects names inherited from Object.prototype', () => {
+  it('rejects names inherited from Object.prototype', () => {
     expect(isMeetingKind('toString')).toBe(false)
     expect(isMeetingKind('constructor')).toBe(false)
+    expect(isMeetingKind('__proto__')).toBe(false)
+    expect(isMeetingKind('hasOwnProperty')).toBe(false)
   })
 })

@@ -21,7 +21,7 @@ import { acceleratorFrom, shortcutLabel } from './shortcut.ts'
 export function liveMatches(timer: LiveTimer, live: LiveView | null): boolean {
   if (live === null || live.active === null) return false
   if (live.entryId !== null) return live.entryId === timer.id
-  return timer.kind === 'remote-meeting' || timer.kind === 'in-person-meeting'
+  return timer.kind === 'meeting' || timer.kind === 'remote-meeting' || timer.kind === 'in-person-meeting'
 }
 
 function delayLabel(live: LiveView): string | null {

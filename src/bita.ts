@@ -41,6 +41,7 @@ export interface LiveTimer {
 }
 
 export const MEETING_KINDS = {
+  meeting: 'Reunión',
   'remote-meeting': 'Reunión remota',
   'in-person-meeting': 'Reunión presencial',
 } as const
@@ -48,7 +49,7 @@ export const MEETING_KINDS = {
 export type MeetingKind = keyof typeof MEETING_KINDS
 
 export function isMeetingKind(value: string | null): value is MeetingKind {
-  return value !== null && value in MEETING_KINDS
+  return value !== null && Object.hasOwn(MEETING_KINDS, value)
 }
 
 export interface Snapshot {
@@ -1348,6 +1349,46 @@ export function onSyncFinished(handler: () => void): void {
 
 export function meetingForEntry(entryId: number): Promise<MeetingView | null> {
   return invoke<MeetingView | null>('meeting_for_entry', { entryId })
+}
+
+export interface TranscriptParagraph {
+  startMs: number
+  channel: string
+  speaker: string | null
+  text: string
+}
+
+export interface MeetingTranscript {
+  segments: MeetingSegment[]
+  paragraphs: TranscriptParagraph[]
+  channels: unknown
+}
+
+export interface MeetingActionItem {
+  text: string
+  backlogKey: string | null
+}
+
+export interface MeetingSummary {
+  markdown: string
+  agreements: string[]
+  actionItems: MeetingActionItem[]
+}
+
+export function meetingById(id: string): Promise<MeetingView | null> {
+  return invoke<MeetingView | null>('meeting_by_id', { id })
+}
+
+export function meetingTranscript(id: string): Promise<MeetingTranscript> {
+  return invoke<MeetingTranscript>('meeting_transcript', { id })
+}
+
+export function meetingSummary(id: string): Promise<MeetingSummary> {
+  return invoke<MeetingSummary>('meeting_summary', { id })
+}
+
+export function meetingDownload(dir: string, recording: string, title: string): Promise<string> {
+  return invoke<string>('meeting_download', { dir, recording, title })
 }
 
 export function openMeetingFolder(dir: string): Promise<void> {

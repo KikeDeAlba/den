@@ -13,7 +13,6 @@ use tokio::time::{interval, MissedTickBehavior};
 
 use crate::ask::{self, parse_jsonl, Answer};
 use crate::cli::node;
-use crate::live_wide;
 use crate::meeting::Segment;
 use crate::model::{Problem, ProblemKind};
 use crate::recap::{recap_call, RecapError};
@@ -23,6 +22,7 @@ pub const LABEL: &str = "live";
 pub const STATE_EVENT: &str = "bita://live-state";
 pub const TRANSCRIPT_EVENT: &str = "bita://live-transcript";
 pub const DEFAULT_SHORTCUT: &str = "Ctrl+Alt+Space";
+pub const MEETINGS_ROUTE: &str = "reuniones";
 
 const WIDTH: f64 = 380.0;
 const HEIGHT: f64 = 620.0;
@@ -329,7 +329,7 @@ pub fn compact_visible(app: &AppHandle) -> bool {
 }
 
 pub fn is_visible(app: &AppHandle) -> bool {
-    compact_visible(app) || live_wide::is_visible(app)
+    compact_visible(app)
 }
 
 fn corner(app: &AppHandle) -> Option<(f64, f64)> {
@@ -418,15 +418,22 @@ fn hide_compact(app: &AppHandle) {
     }
 }
 
+fn open_meetings(app: &AppHandle, focus: bool) -> tauri::Result<()> {
+    if focus {
+        return crate::shell::navigate(app, MEETINGS_ROUTE);
+    }
+    let window = crate::shell::create(app)?;
+    window.show()?;
+    window.emit_to(crate::shell::LABEL, crate::shell::NAVIGATE_EVENT, MEETINGS_ROUTE)?;
+    Ok(())
+}
+
 fn open_mode(app: &AppHandle, mode: LiveMode, focus: bool) -> tauri::Result<()> {
     match mode {
-        LiveMode::Compact => {
-            live_wide::hide(app);
-            open_compact(app)?;
-        }
+        LiveMode::Compact => open_compact(app)?,
         LiveMode::Wide => {
             hide_compact(app);
-            live_wide::open(app, focus)?;
+            open_meetings(app, focus)?;
         }
     }
     let _ = app.emit(STATE_EVENT, ());
@@ -450,13 +457,8 @@ pub fn switch_mode(app: &AppHandle, wanted: LiveMode) -> Result<(), Problem> {
     stored
 }
 
-pub fn open_wide(app: &AppHandle) {
-    let _ = switch_mode(app, LiveMode::Wide);
-}
-
 pub fn hide(app: &AppHandle) {
     hide_compact(app);
-    live_wide::hide(app);
     let _ = app.emit(STATE_EVENT, ());
 }
 
