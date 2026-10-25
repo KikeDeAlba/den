@@ -1,5 +1,8 @@
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+use serde::{Deserialize, Serialize};
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
@@ -7,7 +10,7 @@ use tauri::{
     AppHandle, Manager, Wry,
 };
 
-use crate::model::LiveTimer;
+use crate::model::{LiveTimer, Problem, ProblemKind};
 
 pub const ID: &str = "bita";
 
@@ -25,9 +28,25 @@ const IDLE_HEADER: &str = "Ningún cronómetro corriendo";
 
 const SEPARATOR: &str = " · ";
 
+const SETTINGS_FILE: &str = "menubar.json";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct TraySettings {
+    pub show_label: bool,
+    pub hide_when_idle: bool,
+}
+
+impl Default for TraySettings {
+    fn default() -> Self {
+        Self { show_label: true, hide_when_idle: false }
+    }
+}
+
 #[derive(Default)]
 pub struct TrayList {
     shown: Mutex<Shown>,
+    settings: Mutex<Option<TraySettings>>,
 }
 
 #[derive(Default)]
@@ -48,6 +67,63 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .build(app)?;
 
     Ok(())
+}
+
+fn settings_path(app: &AppHandle) -> Option<PathBuf> {
+    app.path().app_config_dir().ok().map(|dir| dir.join(SETTINGS_FILE))
+}
+
+pub fn read_settings(path: &Path) -> TraySettings {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_json::from_str::<TraySettings>(&text).ok())
+        .unwrap_or_default()
+}
+
+pub fn write_settings(path: &Path, settings: &TraySettings) -> Result<(), Problem> {
+    let unwritable = |error: std::io::Error| {
+        Problem::new(ProblemKind::Unreadable, format!("No pude guardar {}: {error}", path.display()))
+    };
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir).map_err(unwritable)?;
+    }
+    let text = serde_json::to_string_pretty(settings).unwrap_or_else(|_| "{}".into());
+    let temp = path.with_extension(format!("json.{}.tmp", std::process::id()));
+    if let Err(error) = fs::write(&temp, text).and_then(|_| fs::rename(&temp, path)) {
+        let _ = fs::remove_file(&temp);
+        return Err(unwritable(error));
+    }
+    Ok(())
+}
+
+pub fn settings(app: &AppHandle) -> TraySettings {
+    let state = app.state::<TrayList>();
+    let mut cached = state.settings.lock().expect("tray settings poisoned");
+    *cached.get_or_insert_with(|| settings_path(app).map(|path| read_settings(&path)).unwrap_or_default())
+}
+
+#[tauri::command]
+pub fn menubar_settings(app: AppHandle) -> TraySettings {
+    settings(&app)
+}
+
+#[tauri::command]
+pub fn menubar_settings_set(app: AppHandle, settings: TraySettings) -> Result<TraySettings, Problem> {
+    let path = settings_path(&app)
+        .ok_or_else(|| Problem::new(ProblemKind::Unreadable, "No sé dónde guardar los ajustes de la barra de menús."))?;
+    write_settings(&path, &settings)?;
+    *app.state::<TrayList>().settings.lock().expect("tray settings poisoned") = Some(settings);
+    Ok(settings)
+}
+
+pub fn icon_visible(running: &[LiveTimer], settings: TraySettings) -> bool {
+    !(settings.hide_when_idle && running.is_empty())
+}
+
+pub fn set_visible(app: &AppHandle, visible: bool) {
+    if let Some(tray) = app.tray_by_id(ID) {
+        let _ = tray.set_visible(visible);
+    }
 }
 
 pub fn update_list(app: &AppHandle, running: &[LiveTimer]) {
@@ -171,7 +247,7 @@ pub fn tooltip_for(title: &str) -> String {
     }
 }
 
-pub fn format_title(running: &[LiveTimer]) -> String {
+pub fn format_title(running: &[LiveTimer], show_label: bool) -> String {
     let Some(leader) = running.iter().min_by(|left, right| {
         left.started_at
             .cmp(&right.started_at)
@@ -186,7 +262,7 @@ pub fn format_title(running: &[LiveTimer]) -> String {
         return format!("{clock} +{}", running.len() - 1);
     }
 
-    match label(leader) {
+    match label(leader).filter(|_| show_label) {
         Some(text) => format!("{clock} {text}"),
         None => clock,
     }
@@ -218,7 +294,8 @@ fn truncate(text: &str, limit: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        by_start, format_clock, format_title, header_text, list_key, row_text, tooltip_for, truncate, TOOLTIP,
+        by_start, format_clock, format_title, header_text, icon_visible, list_key, read_settings, row_text,
+        tooltip_for, truncate, write_settings, TraySettings, TOOLTIP,
     };
     use crate::model::LiveTimer;
 
@@ -248,25 +325,25 @@ mod tests {
 
     #[test]
     fn nothing_running_shows_no_title() {
-        assert_eq!(format_title(&[]), "");
+        assert_eq!(format_title(&[], true), "");
     }
 
     #[test]
     fn one_timer_shows_the_clock_and_its_project() {
         let running = vec![timer(733, "2026-09-20T05:48:20Z", 3480, Some("Pharma STI"), false)];
-        assert_eq!(format_title(&running), "0:58 Pharma STI");
+        assert_eq!(format_title(&running, true), "0:58 Pharma STI");
     }
 
     #[test]
     fn a_draft_without_a_project_asks_to_be_named() {
         let running = vec![timer(734, "2026-09-20T06:42:46Z", 198, None, true)];
-        assert_eq!(format_title(&running), "0:03 sin nombre");
+        assert_eq!(format_title(&running, true), "0:03 sin nombre");
     }
 
     #[test]
     fn a_named_timer_without_a_project_shows_only_the_clock() {
         let running = vec![timer(735, "2026-09-20T04:00:00Z", 7200, None, false)];
-        assert_eq!(format_title(&running), "2:00");
+        assert_eq!(format_title(&running, true), "2:00");
     }
 
     #[test]
@@ -275,7 +352,7 @@ mod tests {
             timer(734, "2026-09-20T06:42:46Z", 198, None, true),
             timer(733, "2026-09-20T05:48:20Z", 3480, Some("Pharma STI"), false),
         ];
-        assert_eq!(format_title(&running), "0:58 +1");
+        assert_eq!(format_title(&running, true), "0:58 +1");
     }
 
     #[test]
@@ -287,7 +364,7 @@ mod tests {
             Some("Plataforma de Reservas"),
             false,
         )];
-        assert_eq!(format_title(&running), "0:01 Plataforma\u{2026}");
+        assert_eq!(format_title(&running, true), "0:01 Plataforma\u{2026}");
     }
 
     #[test]
@@ -342,7 +419,7 @@ mod tests {
             timer(9, "2026-09-20T05:00:00Z", 60, Some("Nueve"), false),
             timer(4, "2026-09-20T05:00:00Z", 60, Some("Cuatro"), false),
         ];
-        assert_eq!(format_title(&running), "0:01 +1");
+        assert_eq!(format_title(&running, true), "0:01 +1");
         let ordered: Vec<i64> = by_start(&running).iter().map(|row| row.id).collect();
         assert_eq!(ordered, vec![4, 9]);
     }
@@ -354,7 +431,7 @@ mod tests {
             timer(1, "2026-09-20T05:00:00Z", 7200, Some("Pharma STI"), false),
             timer(2, "2026-09-20T06:00:00Z", 10, None, false),
         ];
-        assert_eq!(format_title(&running), "2:00 +2");
+        assert_eq!(format_title(&running, true), "2:00 +2");
     }
 
     #[test]
@@ -447,5 +524,40 @@ mod tests {
     fn the_menu_header_counts_one_as_singular_and_many_as_plural() {
         assert_eq!(header_text(2), "2 cronómetros corriendo");
         assert_eq!(header_text(10), "10 cronómetros corriendo");
+    }
+
+    #[test]
+    fn hiding_the_label_leaves_only_the_clock() {
+        let running = vec![timer(733, "2026-09-20T05:48:20Z", 3480, Some("Pharma STI"), false)];
+        assert_eq!(format_title(&running, false), "0:58");
+        let several = vec![
+            timer(734, "2026-09-20T06:42:46Z", 198, None, true),
+            timer(733, "2026-09-20T05:48:20Z", 3480, Some("Pharma STI"), false),
+        ];
+        assert_eq!(format_title(&several, false), "0:58 +1");
+    }
+
+    #[test]
+    fn the_icon_hides_only_when_asked_and_idle() {
+        let running = vec![timer(733, "2026-09-20T05:48:20Z", 60, None, false)];
+        let hide = TraySettings { show_label: true, hide_when_idle: true };
+        assert!(icon_visible(&[], TraySettings::default()));
+        assert!(!icon_visible(&[], hide));
+        assert!(icon_visible(&running, hide));
+    }
+
+    #[test]
+    fn settings_round_trip_and_fall_back_to_defaults() {
+        let dir = std::env::temp_dir().join(format!("den-menubar-{}", std::process::id()));
+        let path = dir.join("menubar.json");
+        assert_eq!(read_settings(&path), TraySettings::default());
+        let chosen = TraySettings { show_label: false, hide_when_idle: true };
+        write_settings(&path, &chosen).expect("settings written");
+        assert_eq!(read_settings(&path), chosen);
+        std::fs::write(&path, "{\"hideWhenIdle\": true}").expect("partial file written");
+        assert_eq!(read_settings(&path), TraySettings { show_label: true, hide_when_idle: true });
+        std::fs::write(&path, "not json").expect("broken file written");
+        assert_eq!(read_settings(&path), TraySettings::default());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

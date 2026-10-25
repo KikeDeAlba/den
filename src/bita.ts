@@ -352,6 +352,19 @@ export function setPay(pay: Pay): Promise<Pay> {
   return invoke<Pay>('set_pay', { pay })
 }
 
+export interface MenubarSettings {
+  showLabel: boolean
+  hideWhenIdle: boolean
+}
+
+export function menubarSettings(): Promise<MenubarSettings> {
+  return invoke<MenubarSettings>('menubar_settings')
+}
+
+export function menubarSettingsSet(settings: MenubarSettings): Promise<MenubarSettings> {
+  return invoke<MenubarSettings>('menubar_settings_set', { settings })
+}
+
 export function scopes(): Promise<Scope[]> {
   return invoke<Scope[]>('scopes')
 }
