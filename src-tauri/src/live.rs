@@ -361,7 +361,7 @@ fn build(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .focused(false)
         .visible(false)
         .accept_first_mouse(true)
-        .on_navigation(|url| url.scheme() == "tauri" || url.host_str() == Some("localhost"));
+        .on_navigation(crate::shell::navigation_guard(app));
     if let Some((x, y)) = corner(app) {
         builder = builder.position(x, y);
     }
