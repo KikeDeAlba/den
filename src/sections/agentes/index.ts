@@ -17,6 +17,7 @@ import type { ShellEvent } from '../section.ts'
 import * as api from './api.ts'
 import { canDismiss, isDismissed, pruneDismissed, readDismissed, rememberDismissed } from './dismissed.ts'
 import * as model from './model.ts'
+import { createOutbox } from './outbox.ts'
 import { createTerminal, type TerminalView } from './terminal.ts'
 import './agentes.css'
 
@@ -43,6 +44,8 @@ interface Form {
 const rows = new Map<number, Row>()
 const early = new Map<number, AgentInfo>()
 const EARLY_LIMIT = 32
+const encoder = new TextEncoder()
+const outbox = createOutbox((id, bytes) => api.writeAgent(id, bytes))
 let host: HTMLElement | null = null
 let view: ViewKind = 'session'
 let selected: number | null = null
@@ -127,7 +130,7 @@ function makeView(id: () => number | null): TerminalView {
   return createTerminal({
     input(data) {
       const target = id()
-      if (target !== null && rows.get(target)?.info.alive === true) void api.writeAgent(target, data).catch(ignore)
+      if (target !== null && rows.get(target)?.info.alive === true) outbox.push(target, encoder.encode(data))
     },
     resize(cols, lines) {
       const target = id()
@@ -621,6 +624,7 @@ function dismiss(id: number): void {
   if (row === undefined || !canDismiss(row.info)) return
   rememberDismissed(row.info)
   row.view.dispose()
+  outbox.drop(id)
   rows.delete(id)
   if (selected === id) selected = null
   render()

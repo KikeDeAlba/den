@@ -28,8 +28,8 @@ export function attachAgent(id: number, handler: OutputHandler): Promise<AgentIn
   return invoke<AgentInfo>(command('agent_attach'), { id, onOutput: channel(handler) })
 }
 
-export function writeAgent(id: number, data: string): Promise<void> {
-  return invoke<void>(command('agent_write'), { id, data })
+export function writeAgent(id: number, data: Uint8Array): Promise<void> {
+  return invoke<void>(command('agent_write'), { id, data: Array.from(data) })
 }
 
 export function sendAgent(id: number, text: string): Promise<void> {

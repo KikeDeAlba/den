@@ -47,6 +47,7 @@ const LINK_ATTEMPTS: u32 = 30;
 const LINK_EVERY: Duration = Duration::from_secs(1);
 const DEFAULT_COLS: u16 = 100;
 const DEFAULT_ROWS: u16 = 30;
+pub const INPUT_LIMIT: usize = 256 * 1024;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -331,8 +332,22 @@ async fn agent_spawn(
     Ok(snapshot)
 }
 
+fn within_input_limit(len: usize) -> Result<(), Problem> {
+    if len > INPUT_LIMIT {
+        Err(failed("Es demasiado texto para mandarlo de una vez (máximo 256 KiB)."))
+    } else {
+        Ok(())
+    }
+}
+
+async fn write_blocking(pty: Arc<Pty>, bytes: Vec<u8>) -> std::io::Result<()> {
+    tauri::async_runtime::spawn_blocking(move || pty.write(&bytes))
+        .await
+        .map_err(std::io::Error::other)?
+}
+
 #[tauri::command]
-fn agent_attach(
+async fn agent_attach(
     app: AppHandle,
     window: Window,
     id: u64,
@@ -345,27 +360,31 @@ fn agent_attach(
 }
 
 #[tauri::command]
-fn agent_write(app: AppHandle, window: Window, id: u64, data: String) -> Result<(), Problem> {
+async fn agent_write(app: AppHandle, window: Window, id: u64, data: Vec<u8>) -> Result<(), Problem> {
     ensure_main(&window)?;
-    app.state::<Agents>()
-        .pty(id)?
-        .write(data.as_bytes())
+    within_input_limit(data.len())?;
+    let pty = app.state::<Agents>().pty(id)?;
+    write_blocking(pty, data)
+        .await
         .map_err(|error| failed(format!("No pude escribirle a la sesión: {error}")))
 }
 
 #[tauri::command]
-fn agent_send(app: AppHandle, window: Window, id: u64, text: String) -> Result<(), Problem> {
+async fn agent_send(app: AppHandle, window: Window, id: u64, text: String) -> Result<(), Problem> {
     ensure_main(&window)?;
+    within_input_limit(text.len())?;
     if text.trim().is_empty() {
         return Ok(());
     }
     let pty = app.state::<Agents>().pty(id)?;
-    pty.write(&model::paste(&text, pty.bracketed()))
+    let bytes = model::paste(&text, pty.bracketed());
+    write_blocking(pty, bytes)
+        .await
         .map_err(|error| failed(format!("No pude mandarle el mensaje: {error}")))
 }
 
 #[tauri::command]
-fn agent_resize(app: AppHandle, window: Window, id: u64, cols: u16, rows: u16) -> Result<(), Problem> {
+async fn agent_resize(app: AppHandle, window: Window, id: u64, cols: u16, rows: u16) -> Result<(), Problem> {
     ensure_main(&window)?;
     let pty = app.state::<Agents>().pty(id)?;
     if !pty.alive() {
@@ -376,7 +395,7 @@ fn agent_resize(app: AppHandle, window: Window, id: u64, cols: u16, rows: u16) -
 }
 
 #[tauri::command]
-fn agent_kill(app: AppHandle, window: Window, id: u64) -> Result<(), Problem> {
+async fn agent_kill(app: AppHandle, window: Window, id: u64) -> Result<(), Problem> {
     ensure_main(&window)?;
     end_session(&app.state::<Agents>().pty(id)?);
     Ok(())
@@ -679,6 +698,34 @@ mod tests {
         request.cwd = Some(std::env::temp_dir().to_string_lossy().into_owned());
         let spec = spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).expect("spec");
         assert_eq!(&spec.args[..4], ["work", "--resume", "--session", "7"]);
+    }
+
+    #[test]
+    fn input_is_capped_at_256_kib() {
+        assert!(within_input_limit(INPUT_LIMIT).is_ok());
+        assert!(within_input_limit(INPUT_LIMIT + 1).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn writes_run_off_the_calling_thread() {
+        let pty = Arc::new(
+            Pty::spawn(&PtySpec {
+                program: PathBuf::from("/bin/sh"),
+                args: vec!["-c".into(), "read line; echo got:$line".into()],
+                cwd: None,
+                env: vec![("PATH".into(), "/usr/bin:/bin".into())],
+                cols: 80,
+                rows: 24,
+            })
+            .expect("spawn"),
+        );
+        let (sender, receiver) = std::sync::mpsc::channel();
+        pty.watch(move |code| {
+            let _ = sender.send(code);
+        });
+        tauri::async_runtime::block_on(write_blocking(Arc::clone(&pty), b"hola\r".to_vec())).expect("write");
+        assert_eq!(receiver.recv_timeout(Duration::from_secs(5)).expect("exit"), Some(0));
     }
 
     #[test]

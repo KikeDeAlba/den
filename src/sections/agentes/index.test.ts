@@ -253,7 +253,7 @@ describe('agentes section', () => {
     composer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
     expect(api.sendAgent).toHaveBeenCalledWith(3, 'sigue con los tests')
     terminals.made[0]?.hooks.input('q')
-    expect(api.writeAgent).toHaveBeenCalledWith(3, 'q')
+    expect(api.writeAgent.mock.calls.map((call) => [call[0], [...(call[1] as Uint8Array)]])).toEqual([[3, [113]]])
     click(host, 'button', 'Terminar la sesión')
     expect(api.killAgent).toHaveBeenCalledWith(3)
   })
