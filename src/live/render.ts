@@ -8,7 +8,7 @@ import {
   type LiveAnswer,
   type MeetingSegment,
 } from '../bita.ts'
-import { pageRoute } from '../sections/docs/route.ts'
+import { pageRoute } from '../shell/links.ts'
 import { element, icon } from '../dom.ts'
 import { renderMarkdown } from '../notes/markdown.ts'
 

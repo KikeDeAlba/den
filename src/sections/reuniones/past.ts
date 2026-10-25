@@ -12,6 +12,7 @@ import {
   type MeetingView,
 } from '../../bita.ts'
 import { element, icon } from '../../dom.ts'
+import { pendientesRoute } from '../../shell/links.ts'
 import { go } from '../../shell/routes.ts'
 import { renderMarkdown } from '../../notes/markdown.ts'
 import { hasVideo, renderMinutes, shortClock } from '../../notes/meeting.ts'
@@ -227,7 +228,7 @@ export function createPastView(options: PastOptions): PastView {
           element('span', 'rp-item-text', item.text),
           element('span', 'rp-item-state', item.backlogKey === null ? 'sin anotar' : 'en pendientes'),
         )
-        button.addEventListener('click', () => go('pendientes'))
+        button.addEventListener('click', () => go(pendientesRoute(row.place?.projectSlug ?? null, item.backlogKey)))
         pendientes.append(button)
       }
       box.append(resumen, acuerdos, pendientes)

@@ -32,7 +32,7 @@ let records: MeetingRecord[] = []
 let places = new Map<number, Place>()
 let tools: ToolsStatus | null = null
 let project = ALL_PROJECTS
-let route: MeetingRoute = { id: null, tab: 'minuta' }
+let route: MeetingRoute = { id: null, entryId: null, tab: 'minuta' }
 let loadToken = 0
 let problem: string | null = null
 
@@ -56,6 +56,11 @@ function rows(): MeetingRow[] {
 
 function selectedId(all: MeetingRow[]): string | null {
   if (route.id !== null) return route.id
+  if (route.entryId !== null) {
+    const owned = all.filter((row) => row.entryId === route.entryId)
+    const found = owned.find((row) => row.live) ?? owned.sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0]
+    if (found !== undefined) return found.id
+  }
   return all.find((row) => row.live)?.id ?? all.filter((row) => !row.live).sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0]?.id ?? null
 }
 

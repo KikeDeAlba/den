@@ -2,7 +2,7 @@ import { isMeetingKind, MEETING_KINDS, type LiveTimer, type Project } from '../.
 import { element, icon } from '../../dom.ts'
 import { clock, startedAt } from '../../format.ts'
 import { projectColor } from '../../shell/colors.ts'
-import { entryRoute } from './launch.ts'
+import { entryMeetingRoute, entryNoteRoute, entrySessionRoute } from '../../shell/links.ts'
 
 export interface Draft {
   title: string
@@ -40,14 +40,14 @@ function meta(timer: LiveTimer, actions: RowActions): HTMLElement {
   parts.push(`desde ${startedAt(timer.startLocal)}`)
   if (timer.draft) parts.push(link('ponerle nombre', () => actions.rename(timer)))
   if (meeting) {
-    parts.push(link('transcripción', () => actions.open(entryRoute('meeting', timer.id))))
+    parts.push(link('transcripción', () => actions.open(entryMeetingRoute(timer.id))))
   } else {
-    parts.push(link('sesión', () => actions.open(entryRoute('session', timer.id))))
+    parts.push(link('sesión', () => actions.open(entrySessionRoute(timer.id))))
   }
   const total = timer.sectionsTotal ?? 0
   if (total > 0) {
     const written = timer.sectionsWritten ?? 0
-    parts.push(link(`nota ${written}/${total}`, () => actions.open(entryRoute('note', timer.id))))
+    parts.push(link(`nota ${written}/${total}`, () => actions.open(entryNoteRoute(timer.id))))
   }
   parts.forEach((part, index) => {
     if (index > 0) line.append(' · ')

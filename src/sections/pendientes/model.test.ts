@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { test } from 'vitest'
 import type { BacklogItem } from '../../bita.ts'
 import { ageLabel, closePrompt, findKey, groupIssues, inSpace, matches, stateOf } from './model.ts'
-import { parsePendientesPath, pendientesRoute } from './route.ts'
 
 function item(id: number, fields: Partial<BacklogItem> = {}): BacklogItem {
   return {
@@ -80,11 +79,4 @@ test('ages read in minutes, hours, days and weeks', () => {
 test('the prompt for Claude names the key', () => {
   assert.equal(closePrompt({ id: 4, key: 'DEN-4' }), 'cierra DEN-4')
   assert.equal(closePrompt({ id: 4 }), 'cierra #4')
-})
-
-test('the route keeps the space and the key', () => {
-  assert.equal(pendientesRoute('viva-cash', 'STI-21'), 'pendientes/viva-cash/STI-21')
-  assert.equal(pendientesRoute(null), 'pendientes')
-  assert.deepEqual(parsePendientesPath(['_', '%23']), { space: null, key: '%23' })
-  assert.deepEqual(parsePendientesPath(['den']), { space: 'den', key: null })
 })

@@ -11,8 +11,3 @@ const MEETING_TIMER_KIND = 'remote-meeting'
 export function timerKindFor(kind: LaunchKind): string | null {
   return kind === 'meeting' ? MEETING_TIMER_KIND : null
 }
-
-export function entryRoute(target: 'session' | 'note' | 'meeting', entryId: number): string {
-  const section = target === 'session' ? 'agentes' : target === 'note' ? 'docs' : 'reuniones'
-  return `${section}/entry/${entryId}`
-}

@@ -20,7 +20,6 @@ import { modKey } from '../../platform.ts'
 import { formatRoute, go, parseRoute } from '../../shell/routes.ts'
 import { isSpaceShortcut, onSpaceChange, rememberedSpace, rememberSpace } from '../../shell/space.ts'
 import { projectColor } from '../../shell/colors.ts'
-import { pageRoute } from '../docs/route.ts'
 import {
   ageLabel,
   closePrompt,
@@ -35,7 +34,7 @@ import {
   type IssueState,
 } from './model.ts'
 import type { ShellEvent } from '../section.ts'
-import { parsePendientesPath, pendientesRoute, type PendientesTarget } from './route.ts'
+import { pageRoute, parsePendientesPath, pendientesRoute, type PendientesTarget } from '../../shell/links.ts'
 import './pendientes.css'
 
 type Layout = 'list' | 'board'

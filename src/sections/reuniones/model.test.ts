@@ -54,9 +54,14 @@ const spaces = [
 
 describe('routes', () => {
   it('reads the meeting and the tab from the path', () => {
-    expect(parseMeetingRoute([])).toEqual({ id: null, tab: 'minuta' })
-    expect(parseMeetingRoute(['abc', 'transcripcion'])).toEqual({ id: 'abc', tab: 'transcripcion' })
-    expect(parseMeetingRoute(['abc', 'nope'])).toEqual({ id: 'abc', tab: 'minuta' })
+    expect(parseMeetingRoute([])).toEqual({ id: null, entryId: null, tab: 'minuta' })
+    expect(parseMeetingRoute(['abc', 'transcripcion'])).toEqual({ id: 'abc', entryId: null, tab: 'transcripcion' })
+    expect(parseMeetingRoute(['abc', 'nope'])).toEqual({ id: 'abc', entryId: null, tab: 'minuta' })
+  })
+
+  it('reads the meeting of a bita entry', () => {
+    expect(parseMeetingRoute(['entry', '42'])).toEqual({ id: null, entryId: 42, tab: 'minuta' })
+    expect(parseMeetingRoute(['entry', 'x'])).toEqual({ id: null, entryId: null, tab: 'minuta' })
   })
 
   it('writes the route back', () => {

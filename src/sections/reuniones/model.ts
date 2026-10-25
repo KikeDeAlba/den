@@ -8,6 +8,7 @@ import type {
   Space,
   ToolsStatus,
 } from '../../bita.ts'
+import { ENTRY, MINUTES_TAB, meetingRoute as linkToMeeting, pageRoute, positiveId } from '../../shell/links.ts'
 
 export const TRANSCRIPT_CAPABILITY = 'meeting.transcript.json'
 export const SUMMARY_CAPABILITY = 'meeting.summary.json'
@@ -66,18 +67,19 @@ export interface TranscriptLine {
 
 export interface MeetingRoute {
   id: string | null
+  entryId: number | null
   tab: PastTab
 }
 
 export function parseMeetingRoute(path: readonly string[]): MeetingRoute {
   const [id, tab] = path
+  if (id === ENTRY) return { id: null, entryId: positiveId(tab), tab: 'minuta' }
   const known = PAST_TABS.find((candidate) => candidate === tab)
-  return { id: id === undefined || id === '' ? null : id, tab: known ?? 'minuta' }
+  return { id: id === undefined || id === '' ? null : id, entryId: null, tab: known ?? 'minuta' }
 }
 
 export function meetingRoute(id: string, tab: PastTab = 'minuta'): string {
-  if (id === LIVE_ID) return `reuniones/${LIVE_ID}`
-  return tab === 'minuta' ? `reuniones/${encodeURIComponent(id)}` : `reuniones/${encodeURIComponent(id)}/${tab}`
+  return linkToMeeting(id, id === LIVE_ID ? MINUTES_TAB : tab)
 }
 
 export function kindOfMode(mode: string | null | undefined): string {
@@ -289,7 +291,7 @@ export function linesFromSegments(segments: MeetingSegment[]): TranscriptLine[] 
 }
 
 export function docRoute(place: Place): string {
-  return `docs/${encodeURIComponent(place.projectSlug)}/${place.pageId}`
+  return pageRoute(place.pageId, place.projectSlug)
 }
 
 export function docPath(place: Place): string {
