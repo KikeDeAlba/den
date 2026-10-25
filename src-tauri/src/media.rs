@@ -372,15 +372,6 @@ pub async fn storage_report() -> Result<StorageReport, Problem> {
     })
 }
 
-#[tauri::command]
-pub async fn reveal_in_finder(path: String) -> Result<(), Problem> {
-    let target = PathBuf::from(&path);
-    if !target.is_absolute() || !target.exists() {
-        return Err(Problem::new(ProblemKind::CliFailed, format!("{path} no existe.")));
-    }
-    reveal(&target).await
-}
-
 pub async fn reveal(target: &Path) -> Result<(), Problem> {
     crate::platform::reveal(target).map_err(|error| {
         Problem::new(

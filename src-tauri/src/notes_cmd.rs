@@ -61,51 +61,9 @@ pub async fn page_document(page_id: i64) -> Result<CliPayload, Problem> {
 }
 
 #[tauri::command]
-pub async fn notes_list(
-    project: Option<String>,
-    limit: Option<u32>,
-    offset: Option<u32>,
-) -> Result<CliPayload, Problem> {
-    let limit = limit.unwrap_or(200).to_string();
-    let offset = offset.unwrap_or(0).to_string();
-    let mut args: Vec<&str> = vec!["note", "ls", "--limit", &limit, "--offset", &offset];
-    if let Some(project) = project.as_deref() {
-        args.push("--project");
-        args.push(project);
-    }
-    payload(Feature::EntryNotes, &args).await
-}
-
-#[tauri::command]
-pub async fn notes_today() -> Result<CliPayload, Problem> {
-    payload(Feature::EntryNotes, &["note", "ls", "today", "--limit", "0"]).await
-}
-
-#[tauri::command]
 pub async fn notes_document(entry_id: i64) -> Result<CliPayload, Problem> {
     let id = entry_id.to_string();
     payload(Feature::EntryNotes, &["note", "show", &id]).await
-}
-
-#[tauri::command]
-pub async fn notes_search(
-    query: String,
-    project: Option<String>,
-) -> Result<CliPayload, Problem> {
-    let needle = query.trim();
-    if needle.is_empty() {
-        return Err(Problem::new(
-            ProblemKind::CliFailed,
-            "La búsqueda necesita algo que buscar.",
-        ));
-    }
-
-    let mut args: Vec<&str> = vec!["note", "search", needle];
-    if let Some(project) = project.as_deref() {
-        args.push("--project");
-        args.push(project);
-    }
-    payload(Feature::EntryNotes, &args).await
 }
 
 #[tauri::command]

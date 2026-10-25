@@ -111,3 +111,12 @@ fn every_drag_region_can_drag_and_toggle_maximize_its_window() {
         }
     }
 }
+
+#[test]
+fn commands_the_frontend_dropped_stay_unregistered() {
+    let known = registered();
+    for gone in ["live_cancel", "notes_list", "notes_search", "notes_today", "reveal_in_finder"] {
+        assert!(!known.contains(gone), "{gone} is registered again");
+    }
+    assert!(known.contains("quit"));
+}

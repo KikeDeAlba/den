@@ -743,11 +743,6 @@ pub fn live_ask(app: AppHandle, question: Option<String>) -> Result<u64, Problem
     ask::start(&app, question)
 }
 
-#[tauri::command]
-pub fn live_cancel() -> bool {
-    ask::cancel()
-}
-
 async fn fetch_sources(project: &str) -> Result<Option<Value>, Problem> {
     match recap_call(&["ask", "--sources", "--project", project], CALL_TIMEOUT).await {
         Ok(data) => Ok(Some(data)),
