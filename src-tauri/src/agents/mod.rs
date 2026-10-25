@@ -8,7 +8,7 @@ mod smoke;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -27,7 +27,7 @@ use model::{SessionDirectory, SessionListing, SpawnRequest};
 use pty::{Pty, PtySpec, KILL_GRACE};
 
 const EXIT_GRACE: Duration = Duration::from_millis(500);
-use quit::QuitDecision;
+use quit::{Answer, QuitDecision, QuitState};
 
 pub const PLUGIN: &str = "agents";
 pub const CHANGED_EVENT: &str = "den://agents/changed";
@@ -80,10 +80,7 @@ pub struct Agents {
     sessions: Mutex<HashMap<u64, Session>>,
     next: AtomicU64,
     reserved: AtomicUsize,
-    quitting: AtomicBool,
-    asking: AtomicBool,
-    ending: AtomicBool,
-    replying: AtomicBool,
+    quit: QuitState,
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -570,23 +567,29 @@ fn terminate_all(live: Vec<Arc<Pty>>, grace: Duration) {
 }
 
 fn finish_quit(app: &AppHandle, terminate: bool) {
-    let agents = app.state::<Agents>();
-    if terminate {
-        agents.quitting.store(true, Ordering::SeqCst);
+    let finish = app.state::<Agents>().quit.finish(terminate);
+    if let Some(answer) = finish.reply {
+        quit::reply(app, answer);
+        if answer {
+            exit_after_reply(app.clone());
+        }
     }
-    if agents.replying.swap(false, Ordering::SeqCst) {
-        quit::reply(app, terminate);
-    } else if terminate {
+    if finish.exit {
         exit_now(app);
+    } else if !terminate {
+        let _ = crate::shell::show(app);
     }
 }
 
+fn exit_after_reply(app: AppHandle) {
+    std::thread::spawn(move || {
+        std::thread::sleep(quit::REPLY_FALLBACK);
+        exit_now(&app);
+    });
+}
+
 fn end_all_and_quit(app: AppHandle, grace: Duration) {
-    let agents = app.state::<Agents>();
-    if agents.ending.swap(true, Ordering::SeqCst) {
-        return;
-    }
-    let live = agents.live();
+    let live = app.state::<Agents>().live();
     std::thread::spawn(move || {
         terminate_all(live, grace);
         finish_quit(&app, true);
@@ -595,7 +598,7 @@ fn end_all_and_quit(app: AppHandle, grace: Duration) {
 
 fn exit_now(app: &AppHandle) {
     if let Some(agents) = app.try_state::<Agents>() {
-        agents.quitting.store(true, Ordering::SeqCst);
+        agents.quit.mark_quitting();
     }
     app.exit(0);
 }
@@ -604,12 +607,7 @@ pub fn quit_decision(app: &AppHandle) -> QuitDecision {
     let Some(agents) = app.try_state::<Agents>() else {
         return QuitDecision::Exit;
     };
-    quit::decide(
-        agents.live().len(),
-        agents.quitting.load(Ordering::SeqCst),
-        agents.asking.load(Ordering::SeqCst),
-        agents.ending.load(Ordering::SeqCst),
-    )
+    agents.quit.decide(agents.live().len())
 }
 
 pub fn request_quit(app: &AppHandle) {
@@ -618,30 +616,26 @@ pub fn request_quit(app: &AppHandle) {
         QuitDecision::Wait => {
             let _ = crate::shell::show(app);
         }
-        QuitDecision::Confirm => confirm_quit(app),
+        QuitDecision::Confirm => confirm_quit(app, false),
     }
 }
 
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn confirm_before_reply(app: &AppHandle) {
-    app.state::<Agents>().replying.store(true, Ordering::SeqCst);
-    confirm_quit(app);
+    confirm_quit(app, true);
 }
 
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn end_for_shutdown(app: &AppHandle) {
-    let agents = app.state::<Agents>();
-    agents.replying.store(true, Ordering::SeqCst);
-    if agents.ending.load(Ordering::SeqCst) {
-        return;
+    if app.state::<Agents>().quit.shutdown() {
+        end_all_and_quit(app.clone(), EXIT_GRACE);
     }
-    end_all_and_quit(app.clone(), EXIT_GRACE);
 }
 
-fn confirm_quit(app: &AppHandle) {
+fn confirm_quit(app: &AppHandle, reply_pending: bool) {
     let agents = app.state::<Agents>();
     let live = agents.live();
-    agents.asking.store(true, Ordering::SeqCst);
+    agents.quit.ask(reply_pending);
     let _ = crate::shell::show(app);
     let handle = app.clone();
     app.dialog()
@@ -649,17 +643,14 @@ fn confirm_quit(app: &AppHandle) {
         .title("Salir de Den")
         .kind(MessageDialogKind::Warning)
         .buttons(MessageDialogButtons::OkCancelCustom("Terminar y salir".into(), "Cancelar".into()))
-        .show(move |confirmed| {
-            let agents = handle.state::<Agents>();
-            agents.asking.store(false, Ordering::SeqCst);
-            if agents.ending.load(Ordering::SeqCst) {
-                return;
+        .show(move |confirmed| match handle.state::<Agents>().quit.answer(confirmed) {
+            Answer::Ignore => {}
+            Answer::EndAll => {
+                if handle.state::<Agents>().quit.start_ending() {
+                    end_all_and_quit(handle.clone(), KILL_GRACE);
+                }
             }
-            if confirmed {
-                end_all_and_quit(handle.clone(), KILL_GRACE);
-            } else {
-                finish_quit(&handle, false);
-            }
+            Answer::Cancel => finish_quit(&handle, false),
         });
 }
 

@@ -1,3 +1,10 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+pub const REPLY_FALLBACK: Duration = Duration::from_secs(2);
+pub const POWER_OFF_WINDOW: Duration = Duration::from_secs(30);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuitDecision {
     Exit,
@@ -12,6 +19,101 @@ pub fn decide(live: usize, quitting: bool, asking: bool, ending: bool) -> QuitDe
         QuitDecision::Wait
     } else {
         QuitDecision::Confirm
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Answer {
+    Ignore,
+    EndAll,
+    Cancel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Finish {
+    pub reply: Option<bool>,
+    pub exit: bool,
+}
+
+#[derive(Debug, Default)]
+pub struct QuitState {
+    quitting: AtomicBool,
+    asking: AtomicBool,
+    ending: AtomicBool,
+    replying: AtomicBool,
+}
+
+impl QuitState {
+    pub fn decide(&self, live: usize) -> QuitDecision {
+        decide(
+            live,
+            self.quitting.load(Ordering::SeqCst),
+            self.asking.load(Ordering::SeqCst),
+            self.ending.load(Ordering::SeqCst),
+        )
+    }
+
+    pub fn mark_quitting(&self) {
+        self.quitting.store(true, Ordering::SeqCst);
+    }
+
+    pub fn ask(&self, reply_pending: bool) {
+        if reply_pending {
+            self.replying.store(true, Ordering::SeqCst);
+        }
+        self.asking.store(true, Ordering::SeqCst);
+    }
+
+    pub fn answer(&self, confirmed: bool) -> Answer {
+        self.asking.store(false, Ordering::SeqCst);
+        if self.ending.load(Ordering::SeqCst) {
+            Answer::Ignore
+        } else if confirmed {
+            Answer::EndAll
+        } else {
+            Answer::Cancel
+        }
+    }
+
+    pub fn start_ending(&self) -> bool {
+        !self.ending.swap(true, Ordering::SeqCst)
+    }
+
+    pub fn shutdown(&self) -> bool {
+        self.replying.store(true, Ordering::SeqCst);
+        self.start_ending()
+    }
+
+    pub fn finish(&self, terminate: bool) -> Finish {
+        if terminate {
+            self.mark_quitting();
+        }
+        let reply = self.replying.swap(false, Ordering::SeqCst).then_some(terminate);
+        Finish {
+            reply,
+            exit: terminate && reply.is_none(),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct PowerOff(Mutex<Option<Instant>>);
+
+impl PowerOff {
+    pub const fn new() -> Self {
+        Self(Mutex::new(None))
+    }
+
+    pub fn mark(&self, now: Instant) {
+        *self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(now);
+    }
+
+    pub fn take(&self, now: Instant) -> bool {
+        self.0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take()
+            .is_some_and(|at| now.saturating_duration_since(at) <= POWER_OFF_WINDOW)
     }
 }
 
@@ -40,15 +142,15 @@ pub fn reply(_app: &tauri::AppHandle, _terminate: bool) {}
 #[cfg(target_os = "macos")]
 mod mac {
     use std::panic::{catch_unwind, AssertUnwindSafe};
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::OnceLock;
+    use std::time::Instant;
 
     use objc2::runtime::{AnyClass, AnyObject, Bool, Imp, Sel};
     use objc2::{class, msg_send, sel};
     use objc2_foundation::NSString;
     use tauri::AppHandle;
 
-    use super::{is_system_quit_reason, QuitDecision};
+    use super::{is_system_quit_reason, PowerOff, QuitDecision};
 
     const TERMINATE_CANCEL: usize = 0;
     const TERMINATE_NOW: usize = 1;
@@ -56,11 +158,7 @@ mod mac {
     const POWER_OFF: &str = "NSWorkspaceWillPowerOffNotification";
 
     static HANDLE: OnceLock<AppHandle> = OnceLock::new();
-    static POWERING_OFF: AtomicBool = AtomicBool::new(false);
-
-    fn system_is_ending() -> bool {
-        POWERING_OFF.load(Ordering::SeqCst) || quit_reason().is_some_and(is_system_quit_reason)
-    }
+    static POWERING_OFF: PowerOff = PowerOff::new();
 
     fn quit_reason() -> Option<u32> {
         unsafe {
@@ -83,9 +181,10 @@ mod mac {
     }
 
     fn decide_terminate(app: &AppHandle) -> usize {
+        let powering_off = POWERING_OFF.take(Instant::now());
         match crate::agents::quit_decision(app) {
             QuitDecision::Exit => TERMINATE_NOW,
-            _ if system_is_ending() => {
+            _ if powering_off || quit_reason().is_some_and(is_system_quit_reason) => {
                 crate::agents::end_for_shutdown(app);
                 TERMINATE_LATER
             }
@@ -111,7 +210,7 @@ mod mac {
     }
 
     extern "C-unwind" fn will_power_off(_this: &AnyObject, _cmd: Sel, _note: *mut AnyObject) {
-        POWERING_OFF.store(true, Ordering::SeqCst);
+        POWERING_OFF.mark(Instant::now());
     }
 
     pub fn reply(terminate: bool) {
@@ -170,7 +269,81 @@ mod mac {
 
 #[cfg(test)]
 mod tests {
-    use super::{decide, is_system_quit_reason, QuitDecision};
+    use super::*;
+
+    #[test]
+    fn a_confirmed_dialog_ends_the_sessions_once() {
+        let state = QuitState::default();
+        assert_eq!(state.decide(2), QuitDecision::Confirm);
+        state.ask(false);
+        assert_eq!(state.decide(2), QuitDecision::Wait);
+        assert_eq!(state.answer(true), Answer::EndAll);
+        assert!(state.start_ending());
+        assert!(!state.start_ending());
+        assert_eq!(state.decide(2), QuitDecision::Wait);
+        assert_eq!(state.finish(true), Finish { reply: None, exit: true });
+        assert_eq!(state.decide(2), QuitDecision::Exit);
+    }
+
+    #[test]
+    fn a_cancelled_dialog_leaves_den_ready_to_ask_again() {
+        let state = QuitState::default();
+        state.ask(false);
+        assert_eq!(state.answer(false), Answer::Cancel);
+        assert_eq!(state.finish(false), Finish { reply: None, exit: false });
+        assert_eq!(state.decide(1), QuitDecision::Confirm);
+    }
+
+    #[test]
+    fn the_system_gets_exactly_one_answer() {
+        let state = QuitState::default();
+        state.ask(true);
+        assert_eq!(state.answer(true), Answer::EndAll);
+        assert!(state.start_ending());
+        assert_eq!(state.finish(true), Finish { reply: Some(true), exit: false });
+        assert_eq!(state.finish(true), Finish { reply: None, exit: true });
+        let cancelled = QuitState::default();
+        cancelled.ask(true);
+        assert_eq!(cancelled.answer(false), Answer::Cancel);
+        assert_eq!(cancelled.finish(false), Finish { reply: Some(false), exit: false });
+        assert_eq!(cancelled.finish(false), Finish { reply: None, exit: false });
+    }
+
+    #[test]
+    fn a_second_quit_while_the_dialog_is_open_waits_and_still_gets_answered() {
+        let state = QuitState::default();
+        state.ask(true);
+        assert_eq!(state.decide(1), QuitDecision::Wait);
+        assert_eq!(state.decide(1), QuitDecision::Wait);
+        assert_eq!(state.answer(true), Answer::EndAll);
+        assert!(state.start_ending());
+        let finish = state.finish(true);
+        assert_eq!(finish.reply, Some(true));
+        assert_eq!(state.decide(1), QuitDecision::Exit);
+    }
+
+    #[test]
+    fn a_shutdown_during_the_dialog_takes_over_and_the_late_answer_is_ignored() {
+        let state = QuitState::default();
+        state.ask(true);
+        assert!(state.shutdown());
+        assert!(!state.shutdown());
+        assert_eq!(state.answer(false), Answer::Ignore);
+        assert_eq!(state.finish(true), Finish { reply: Some(true), exit: false });
+    }
+
+    #[test]
+    fn a_power_off_mark_is_used_once_and_expires() {
+        let marks = PowerOff::new();
+        let now = Instant::now();
+        assert!(!marks.take(now));
+        marks.mark(now);
+        assert!(marks.take(now + Duration::from_secs(1)));
+        assert!(!marks.take(now + Duration::from_secs(1)));
+        marks.mark(now);
+        assert!(!marks.take(now + POWER_OFF_WINDOW + Duration::from_secs(1)));
+        assert!(!marks.take(now));
+    }
 
     #[test]
     fn without_live_sessions_den_quits_right_away() {
