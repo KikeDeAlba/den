@@ -1,6 +1,7 @@
 pub mod model;
 pub mod pty;
 pub mod quit;
+pub mod scan;
 
 use std::collections::HashMap;
 use std::ffi::OsString;

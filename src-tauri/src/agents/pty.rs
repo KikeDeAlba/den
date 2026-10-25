@@ -10,11 +10,16 @@ use std::time::{Duration, Instant};
 
 use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, MasterPty, PtySize};
 
+use super::scan::Scanner;
+
 pub const CHUNK_LIMIT: usize = 64 * 1024;
 pub const HISTORY_LIMIT: usize = 2 * 1024 * 1024;
 pub const BATCH_WINDOW: Duration = Duration::from_millis(12);
+pub const HISTORY_SLACK: usize = 256 * 1024;
 pub const KILL_GRACE: Duration = Duration::from_secs(3);
+pub const QUEUE_DEPTH: usize = 64;
 const READ_BUFFER: usize = 16 * 1024;
+const MARK_SPACING: u64 = 1024;
 const DRAIN_LIMIT: Duration = Duration::from_millis(500);
 
 pub type Sink = Box<dyn Fn(Vec<u8>) -> bool + Send>;
@@ -32,22 +37,66 @@ pub struct PtySpec {
 #[derive(Default)]
 struct Output {
     history: VecDeque<u8>,
+    start: u64,
+    marks: VecDeque<u64>,
+    scanner: Scanner,
     sink: Option<Sink>,
 }
 
 impl Output {
     fn push(&mut self, chunk: Vec<u8>) {
-        self.history.extend(chunk.iter().copied());
-        let excess = self.history.len().saturating_sub(HISTORY_LIMIT);
-        if excess > 0 {
-            self.history.drain(..excess);
+        let base = self.start + self.history.len() as u64;
+        for (index, byte) in chunk.iter().enumerate() {
+            let ground = self.scanner.at_ground();
+            self.scanner.feed(*byte);
+            if ground && *byte == b'\n' {
+                let mark = base + index as u64 + 1;
+                if self.marks.back().is_none_or(|last| mark - last >= MARK_SPACING) {
+                    self.marks.push_back(mark);
+                }
+            }
         }
+        self.history.extend(chunk.iter().copied());
+        self.trim();
         if let Some(sink) = &self.sink {
             if !sink(chunk) {
                 self.sink = None;
             }
         }
     }
+
+    fn trim(&mut self) {
+        let excess = self.history.len().saturating_sub(HISTORY_LIMIT);
+        if excess == 0 {
+            return;
+        }
+        let target = self.start + excess as u64;
+        while self.marks.front().is_some_and(|mark| *mark < target) {
+            self.marks.pop_front();
+        }
+        let end = self.start + self.history.len() as u64;
+        let cut = match self.marks.front().copied().filter(|mark| *mark <= end) {
+            Some(mark) if mark - self.start <= (excess + HISTORY_SLACK) as u64 => mark,
+            _ if excess > HISTORY_SLACK => {
+                let mut cut = target;
+                while cut < end && is_continuation(self.history[(cut - self.start) as usize]) {
+                    cut += 1;
+                }
+                cut
+            }
+            _ => return,
+        };
+        self.history.drain(..(cut - self.start) as usize);
+        self.start = cut;
+    }
+
+    fn bracketed(&self) -> bool {
+        self.scanner.bracketed()
+    }
+}
+
+fn is_continuation(byte: u8) -> bool {
+    byte & 0b1100_0000 == 0b1000_0000
 }
 
 pub struct Pty {
@@ -103,7 +152,7 @@ fn pump(receiver: mpsc::Receiver<Vec<u8>>, output: Arc<Mutex<Output>>, drained: 
     drained.store(true, Ordering::SeqCst);
 }
 
-fn read_loop(mut reader: Box<dyn Read + Send>, sender: mpsc::Sender<Vec<u8>>) {
+fn read_loop(mut reader: Box<dyn Read + Send>, sender: mpsc::SyncSender<Vec<u8>>) {
     let mut buffer = vec![0u8; READ_BUFFER];
     loop {
         match reader.read(&mut buffer) {
@@ -150,7 +199,7 @@ impl Pty {
 
         let output = Arc::new(Mutex::new(Output::default()));
         let exit = Arc::new(Mutex::new(None));
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = mpsc::sync_channel(QUEUE_DEPTH);
         thread::spawn(move || read_loop(reader, sender));
         let pumped = Arc::clone(&output);
         let drained = Arc::new(AtomicBool::new(false));
@@ -183,6 +232,10 @@ impl Pty {
 
     pub fn exit_code(&self) -> Option<Option<i32>> {
         *lock(&self.exit)
+    }
+
+    pub fn bracketed(&self) -> bool {
+        lock(&self.output).bracketed()
     }
 
     pub fn alive(&self) -> bool {
@@ -353,14 +406,74 @@ mod tests {
         assert!(String::from_utf8_lossy(&lock(&seen)).contains("first-line"));
     }
 
+    fn line_block(letter: u8, size: usize) -> Vec<u8> {
+        let mut block = Vec::with_capacity(size);
+        while block.len() < size {
+            block.extend(std::iter::repeat_n(letter, 99));
+            block.push(b'\n');
+        }
+        block.truncate(size);
+        block
+    }
+
     #[test]
-    fn the_history_keeps_only_the_last_two_megabytes() {
+    fn the_history_keeps_about_the_last_two_megabytes_from_a_line_start() {
         let mut output = Output::default();
-        output.push(vec![b'a'; HISTORY_LIMIT]);
-        output.push(vec![b'b'; 10]);
-        assert_eq!(output.history.len(), HISTORY_LIMIT);
-        assert_eq!(output.history.back(), Some(&b'b'));
+        output.push(line_block(b'a', HISTORY_LIMIT));
+        output.push(line_block(b'b', 4050));
+        assert!(output.history.len() <= HISTORY_LIMIT);
+        assert!(output.history.len() >= HISTORY_LIMIT - 2 * MARK_SPACING as usize);
         assert_eq!(output.history.front(), Some(&b'a'));
+        assert_eq!(output.history.back(), Some(&b'b'));
+        let replayed: Vec<u8> = output.history.iter().copied().collect();
+        assert!(replayed.starts_with(&[b'a'; 99]));
+    }
+
+    #[test]
+    fn the_history_is_never_cut_inside_an_escape_sequence() {
+        let mut output = Output::default();
+        let mut chunk = Vec::new();
+        while chunk.len() < HISTORY_LIMIT + 50_000 {
+            chunk.extend_from_slice(b"\x1b]8;;https://example.com/\nnot-a-line\x1b\\link\x1b]8;;\x1b\\ \x1b[38;5;208mcolor\x1b[0m\n");
+        }
+        output.push(chunk);
+        let replayed: Vec<u8> = output.history.iter().copied().collect();
+        assert!(replayed.starts_with(b"\x1b]8;;https://"), "{:?}", String::from_utf8_lossy(&replayed[..40]));
+        let mut scanner = Scanner::default();
+        for byte in &replayed {
+            scanner.feed(*byte);
+        }
+        assert!(scanner.at_ground());
+    }
+
+    #[test]
+    fn output_without_lines_is_bounded_and_cut_on_a_character_boundary() {
+        let mut output = Output::default();
+        let text = "é".repeat(HISTORY_LIMIT);
+        output.push(text.into_bytes());
+        assert!(output.history.len() <= HISTORY_LIMIT + HISTORY_SLACK);
+        assert!(!is_continuation(*output.history.front().expect("front")));
+    }
+
+    #[test]
+    fn a_stalled_consumer_pauses_the_reader() {
+        struct Endless(Arc<std::sync::atomic::AtomicUsize>);
+        impl Read for Endless {
+            fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                buffer.fill(b'x');
+                Ok(buffer.len())
+            }
+        }
+        let reads = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let (sender, receiver) = mpsc::sync_channel(QUEUE_DEPTH);
+        let reader = Endless(Arc::clone(&reads));
+        let worker = thread::spawn(move || read_loop(Box::new(reader), sender));
+        thread::sleep(Duration::from_millis(300));
+        let seen = reads.load(Ordering::SeqCst);
+        assert!(seen <= QUEUE_DEPTH + 2, "{seen} reads while nobody consumed");
+        drop(receiver);
+        worker.join().expect("reader stops");
     }
 
     #[test]
