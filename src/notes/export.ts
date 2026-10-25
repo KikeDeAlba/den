@@ -8,6 +8,7 @@ import {
   type Space,
 } from '../bita.ts'
 import { element, icon } from '../dom.ts'
+import { printRoot, printWith } from '../print.ts'
 import { assetsRelDirOf } from './drawio.ts'
 import { renderMarkdown } from './markdown.ts'
 import { latestMeeting, minutesBody, paragraphsOf, shortClock } from './meeting.ts'
@@ -36,7 +37,6 @@ interface Item {
   number: string
 }
 
-const BYTES_PER_SHEET = 3200
 const DIAGRAM_WAIT_MS = 20_000
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
@@ -50,10 +50,6 @@ function flatten(root: PageNode): Item[] {
   }
   walk(root, 0, '1')
   return items
-}
-
-function sheetsOf(page: PageNode): number {
-  return Math.max(1, Math.ceil(page.byteSize / BYTES_PER_SHEET))
 }
 
 function today(): string {
@@ -126,8 +122,9 @@ export function openExportDialog(options: ExportOptions): void {
     boxes.set(item.page.pageId, box)
     const name = element('span', item.depth === 0 ? 'export-page export-page--root' : 'export-page', item.page.title)
     const meeting = latestMeeting(item.page.meetings) !== null
-    const note = item.depth === 0 ? 'esta página' : meeting ? 'reunión' : `${sheetsOf(item.page)} ${sheetsOf(item.page) === 1 ? 'hoja' : 'hojas'}`
-    row.append(box, name, element('span', 'kbd export-note', note))
+    const note = item.depth === 0 ? 'esta página' : meeting ? 'reunión' : null
+    row.append(box, name)
+    if (note !== null) row.append(element('span', 'kbd export-note', note))
     box.addEventListener('change', () => {
       const subtree = flatten(item.page).map((inner) => inner.page.pageId)
       for (const id of subtree) {
@@ -145,7 +142,6 @@ export function openExportDialog(options: ExportOptions): void {
 
   const optionsBlock = element('div', 'export-options')
   optionsBlock.append(element('span', 'export-label', 'Opciones'))
-  const transcriptNote = meetingPages.length === 0 ? null : `+${Math.max(1, meetingPages.length * 6)} hojas`
   optionsBlock.append(
     toggle('Portada e índice', choice.cover, null, (value) => {
       choice.cover = value
@@ -157,7 +153,7 @@ export function openExportDialog(options: ExportOptions): void {
     toggle('Minuta de las reuniones', choice.minutes, meetingPages.length === 0 ? 'sin reuniones' : null, (value) => {
       choice.minutes = value
     }),
-    toggle('Transcripción completa', choice.transcript, transcriptNote, (value) => {
+    toggle('Transcripción completa', choice.transcript, null, (value) => {
       choice.transcript = value
       refresh()
     }),
@@ -204,11 +200,7 @@ export function openExportDialog(options: ExportOptions): void {
         paper.append(line)
       }
     }
-    const sheets =
-      (choice.cover ? 1 : 0) +
-      chosen.reduce((total, item) => total + sheetsOf(item.page), 0) +
-      (choice.transcript ? chosen.filter((item) => latestMeeting(item.page.meetings) !== null).length * 6 : 0)
-    sheetNote.textContent = `1 de ${Math.max(1, sheets)} hojas · carta`
+    sheetNote.textContent = 'Vista previa · carta'
     confirm.disabled = chosen.length === 0
   }
 
@@ -253,7 +245,7 @@ export function openExportDialog(options: ExportOptions): void {
 
   refresh()
   document.addEventListener('keydown', onKey, true)
-  const host = document.getElementById('notas') ?? document.body
+  const host = document.querySelector<HTMLElement>('.section-host:not([hidden]) .notes-root') ?? document.body
   host.append(overlay)
   openDialog = overlay
   confirm.focus()
@@ -266,11 +258,7 @@ async function runExport(
   fileName: string,
   progress: (text: string) => void,
 ): Promise<string> {
-  const host = document.getElementById('notas') ?? document.body
-  document.getElementById('print-root')?.remove()
-  const root = element('div', choice.diagrams ? 'print-root' : 'print-root print-root--no-diagrams')
-  root.id = 'print-root'
-  host.append(root)
+  const root = printRoot('docs', 'notes-root', ...(choice.diagrams ? [] : ['print-root--no-diagrams']))
   try {
     const documents: PageDocument[] = []
     for (const [index, item] of chosen.entries()) {
@@ -286,10 +274,8 @@ async function runExport(
     progress('Dibujando los diagramas…')
     await diagramsSettled(root)
     progress('Guardando el PDF…')
-    document.body.classList.add('printing')
-    return await exportPdf(fileName)
+    return await printWith(root, () => exportPdf(fileName))
   } finally {
-    document.body.classList.remove('printing')
     root.remove()
   }
 }

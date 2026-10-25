@@ -1,0 +1,68 @@
+.section-host[data-section='docs'] {
+  overflow: hidden;
+}
+
+[data-section='docs'] .docs {
+  --rail-open: 240px;
+}
+
+[data-section='docs'] .tree-rail {
+  background: var(--bg);
+  border-right-color: var(--line-soft);
+}
+
+[data-section='docs'] .rail-head {
+  height: 34px;
+  padding: 0 8px;
+}
+
+[data-section='docs'] .rail-strip {
+  padding-top: 12px;
+}
+
+[data-section='docs'] .rail--closed + .reader .reader-bar {
+  padding-left: 16px;
+}
+
+[data-section='docs'] .reader-bar {
+  height: 38px;
+  border-bottom-color: var(--line-soft);
+}
+
+[data-section='docs'] .aside {
+  background: var(--bg);
+  border-left-color: var(--line-soft);
+}
+
+[data-section='docs'] .aside-head {
+  height: 38px;
+  border-bottom-color: var(--line-soft);
+}
+
+[data-section='docs'] .docs {
+  overflow: hidden;
+}
+
+[data-section='docs'] .reader,
+[data-section='docs'] .reader-bar {
+  min-width: 0;
+  overflow: hidden;
+}
+
+[data-section='docs'] .docs--narrow {
+  --aside-w: 40px;
+}
+
+[data-section='docs'] .docs--narrow .sash--aside {
+  display: none;
+}
+
+[data-section='docs'] .docs--narrow .aside:not(.aside--closed) {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  width: min(var(--aside-open), calc(100% - var(--rail-w)));
+  box-shadow: -12px 0 24px rgba(0, 0, 0, 0.35);
+}

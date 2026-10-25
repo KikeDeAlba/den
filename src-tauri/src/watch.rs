@@ -55,7 +55,7 @@ pub fn spawn_database(app: AppHandle, database: PathBuf, refreshes_timers: bool)
                 if refreshes_timers {
                     handle.state::<AppState>().refresh(&handle).await;
                 }
-                crate::notes::mark_stale(&handle);
+                crate::shell::mark_docs_stale(&handle);
             });
         }
 
@@ -89,7 +89,7 @@ pub fn spawn_docs(app: AppHandle, root: PathBuf) -> bool {
 
             let handle = app.clone();
             tauri::async_runtime::spawn(async move {
-                crate::notes::mark_stale(&handle);
+                crate::shell::mark_docs_stale(&handle);
             });
         }
 

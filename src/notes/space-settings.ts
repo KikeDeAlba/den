@@ -15,7 +15,8 @@ import {
   type SyncResult,
 } from '../bita.ts'
 import { element, icon } from '../dom.ts'
-import { projectColor } from '../tabs.ts'
+import { projectColor } from '../shell/colors.ts'
+import { inkwellProject, sameProject } from '../shell/space.ts'
 import { button } from './media-dialogs.ts'
 
 export interface SpaceSettingsContext {
@@ -146,9 +147,9 @@ async function loadSites(): Promise<void> {
 
 async function loadMappings(): Promise<void> {
   const wanted = slug
-  if (wanted === null) return
+  if (wanted === null || context === null) return
   try {
-    const found = await confluenceSyncStatus(wanted)
+    const found = await confluenceSyncStatus(inkwellProject(context.space))
     if (slug !== wanted) return
     mappings = found
     mappingsFailure = null
@@ -183,7 +184,6 @@ function build(current: SpaceSettingsContext): HTMLElement {
 
 function bar(current: SpaceSettingsContext): HTMLElement {
   const row = element('div', 'reader-bar ss-bar')
-  row.setAttribute('data-tauri-drag-region', '')
   if (!current.railOpen) {
     const unfold = document.createElement('button')
     unfold.type = 'button'
@@ -636,7 +636,7 @@ async function saveDraft(): Promise<void> {
   saveFailure = null
   paint(false)
   try {
-    await projectAtlassian(slug, {
+    await projectAtlassian(inkwellProject(context.space), {
       site: draft.site.length > 0 ? draft.site : null,
       confluence: draft.url.trim().length > 0 ? draft.url.trim() : 'none',
       pull: draft.pull,
@@ -660,8 +660,9 @@ async function runSync(): Promise<void> {
   lastResult = null
   paint(false)
   try {
-    const results = await confluenceSync(slug)
-    lastResult = results.find((result) => result.project === slug) ?? results[0] ?? null
+    const space = context.space
+    const results = await confluenceSync(inkwellProject(space))
+    lastResult = results.find((result) => sameProject(space, result.project)) ?? results[0] ?? null
     context.onSaved()
   } catch (error) {
     syncFailure = describeProblem(error)

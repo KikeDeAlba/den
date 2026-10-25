@@ -139,6 +139,10 @@ pub struct Group {
     pub jira_project_key: Option<String>,
     #[serde(default = "goes_to_jira")]
     pub jira: bool,
+    #[serde(default)]
+    pub issue_key: Option<String>,
+    #[serde(default)]
+    pub kind: Option<String>,
 }
 
 pub fn goes_to_jira() -> bool {

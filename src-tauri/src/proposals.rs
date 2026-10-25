@@ -7,6 +7,7 @@ use tauri::AppHandle;
 use crate::ask::Answer;
 use crate::cli::CallOptions;
 use crate::docs::Feature;
+use crate::meeting::meeting_id as valid_meeting;
 use crate::model::{Problem, ProblemKind};
 use crate::recap::recap_call;
 
@@ -242,17 +243,6 @@ fn valid_branch(branch: &str) -> Result<&str, Problem> {
     }
 }
 
-fn valid_meeting(id: &str) -> Result<&str, Problem> {
-    let ok = !id.is_empty()
-        && !id.starts_with('-')
-        && id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
-    if ok {
-        Ok(id)
-    } else {
-        Err(Problem::new(ProblemKind::CliFailed, format!("«{id}» no es el id de una reunión.")))
-    }
-}
-
 fn proposal_of(data: Value) -> Result<Proposal, Problem> {
     let inner = data.get("proposal").cloned().unwrap_or(data);
     serde_json::from_value(inner)
@@ -284,7 +274,7 @@ pub async fn page_restore(app: AppHandle, page_id: i64, sha: String) -> Result<V
     let id = page_id.to_string();
     let sha = valid_rev(&sha)?;
     let result = docs::<Value>(Feature::History, &["page", "restore", &id, sha]).await?;
-    crate::notes::mark_stale(&app);
+    crate::shell::mark_docs_stale(&app);
     Ok(result)
 }
 
@@ -318,7 +308,7 @@ pub async fn proposal_accept(
         let _ = std::fs::remove_file(path);
     }
     let proposal = proposal_of(outcome?)?;
-    crate::notes::mark_stale(&app);
+    crate::shell::mark_docs_stale(&app);
     Ok(proposal)
 }
 

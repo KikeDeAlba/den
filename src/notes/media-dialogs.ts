@@ -3,7 +3,6 @@ import {
   describeProblem,
   meetingCompress,
   meetingStripVideo,
-  onMeetingMediaChanged,
   type CompressPreset,
   type MeetingMediaChange,
   type MeetingRecord,
@@ -29,20 +28,11 @@ const AUDIO_KBPS = 160
 const jobs = new Set<string>()
 const listeners = new Set<() => void>()
 const outcomeWatchers = new Map<string, (change: MeetingMediaChange) => void>()
-let listening = false
 
-function ensureListening(): void {
-  if (listening) return
-  listening = true
-  try {
-    onMeetingMediaChanged((change) => {
-      jobs.delete(change.id)
-      outcomeWatchers.get(change.id)?.(change)
-      notify()
-    })
-  } catch {
-    listening = false
-  }
+export function mediaChanged(change: MeetingMediaChange): void {
+  jobs.delete(change.id)
+  outcomeWatchers.get(change.id)?.(change)
+  notify()
 }
 
 function notify(): void {
@@ -54,7 +44,6 @@ export function isCompressing(id: string): boolean {
 }
 
 export function onMediaJobs(listener: () => void): () => void {
-  ensureListening()
   listeners.add(listener)
   return () => {
     listeners.delete(listener)
@@ -62,7 +51,6 @@ export function onMediaJobs(listener: () => void): () => void {
 }
 
 export function startCompression(record: MeetingRecord, preset: CompressPreset, prune: boolean): Promise<void> {
-  ensureListening()
   jobs.add(record.id)
   notify()
   return meetingCompress(record.id, preset, prune).catch((error: unknown) => {
@@ -235,7 +223,6 @@ export function openCompressDialog(
   record: MeetingRecord,
   options: { frameSrc: string | null; beforeReplace: () => void },
 ): void {
-  ensureListening()
   let preset: CompressPreset = 'medium'
   const intermediate = record.storage.intermediateBytes
   let prune = intermediate > 0
@@ -375,7 +362,6 @@ export function openStripDialog(
   record: MeetingRecord,
   options: { beforeReplace: () => void; onDone: (record: MeetingRecord) => void },
 ): void {
-  ensureListening()
   const intermediate = record.storage.intermediateBytes
   let prune = intermediate > 0
   let busy = false

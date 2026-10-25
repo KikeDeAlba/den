@@ -110,10 +110,6 @@ impl AppState {
         }
     }
 
-    pub fn describe_cli(&self) -> Option<Cli> {
-        self.cli.lock().expect("state poisoned").clone()
-    }
-
     pub async fn refresh(&self, app: &AppHandle) {
         let cli = match self.ensure_cli(app).await {
             Ok(cli) => cli,

@@ -1,0 +1,527 @@
+[data-section='pendientes'] .pend {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+[data-section='pendientes'] .pend-head {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+[data-section='pendientes'] .pend-space {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  color: var(--fg-mute);
+}
+
+[data-section='pendientes'] .pend-space-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-bright);
+}
+
+[data-section='pendientes'] .pend-kbd {
+  font-size: 10.5px;
+  color: var(--fg-faint);
+}
+
+[data-section='pendientes'] .pend-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+[data-section='pendientes'] .pend-dot--small {
+  width: 6px;
+  height: 6px;
+}
+
+[data-section='pendientes'] .pend-slash {
+  font-size: 14px;
+  color: var(--fg-faint);
+}
+
+[data-section='pendientes'] .pend-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+[data-section='pendientes'] .pend-spacer {
+  flex-grow: 1;
+}
+
+[data-section='pendientes'] .pend-search {
+  flex: 0 1 240px;
+  min-width: 140px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-faint);
+}
+
+[data-section='pendientes'] .pend-search-input {
+  flex-grow: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font-size: 12px;
+}
+
+[data-section='pendientes'] .pend-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+[data-section='pendientes'] .pend-layout {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+}
+
+[data-section='pendientes'] .pend-layout-option {
+  color: var(--fg-mute);
+}
+
+[data-section='pendientes'] .pend-layout-option[aria-pressed='true'] {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+[data-section='pendientes'] .pend-new {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+[data-section='pendientes'] .pend-new:hover:not(:disabled),
+[data-section='pendientes'] .pend-layout-option:hover {
+  color: var(--fg);
+}
+
+[data-section='pendientes'] .pend-new:disabled {
+  opacity: 0.5;
+}
+
+[data-section='pendientes'] .pend-body {
+  flex-grow: 1;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+[data-section='pendientes'] .pend-issues {
+  flex: 999 1 520px;
+  min-width: 0;
+  padding: 8px 24px 24px;
+}
+
+[data-section='pendientes'] .pend-group {
+  display: flex;
+  flex-direction: column;
+  margin-top: 18px;
+}
+
+[data-section='pendientes'] .pend-group-label {
+  padding-bottom: 6px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+[data-section='pendientes'] .pend-tone--finding {
+  color: var(--estimate);
+  background-color: var(--estimate);
+}
+
+[data-section='pendientes'] .pend-tone--pending {
+  color: var(--blue);
+  background-color: var(--blue);
+}
+
+[data-section='pendientes'] .pend-tone--resolved {
+  color: var(--ok);
+  background-color: var(--ok);
+}
+
+[data-section='pendientes'] .pend-group-label,
+[data-section='pendientes'] .pend-detail-type {
+  background-color: transparent;
+}
+
+[data-section='pendientes'] .pend-row {
+  display: grid;
+  grid-template-columns: 8px 64px minmax(0, 1fr) minmax(0, 180px) 64px 52px;
+  gap: 12px;
+  align-items: center;
+  margin: 0 -10px;
+  padding: 10px;
+  border-radius: 7px;
+  border-top: 1px solid var(--line-soft);
+  text-align: left;
+}
+
+[data-section='pendientes'] .pend-row:hover {
+  background: var(--card-quiet);
+}
+
+[data-section='pendientes'] .pend-row--on,
+[data-section='pendientes'] .pend-row--on:hover {
+  background: var(--card);
+  border-top-color: transparent;
+}
+
+[data-section='pendientes'] .pend-row--on + .pend-row {
+  border-top-color: transparent;
+}
+
+[data-section='pendientes'] .pend-type {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+[data-section='pendientes'] .pend-key {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--fg-mute);
+  white-space: nowrap;
+}
+
+[data-section='pendientes'] .pend-row-title,
+[data-section='pendientes'] .pend-row-page,
+[data-section='pendientes'] .pend-card-page {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-section='pendientes'] .pend-row-title {
+  font-size: 13px;
+  color: var(--fg);
+}
+
+[data-section='pendientes'] .pend-row-page {
+  font-size: 11.5px;
+  color: var(--fg-mute);
+}
+
+[data-section='pendientes'] .pend-row-origin {
+  font-size: 11px;
+  color: var(--fg-faint);
+  white-space: nowrap;
+}
+
+[data-section='pendientes'] .pend-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--fg-mute);
+}
+
+[data-section='pendientes'] .pend-filter--on,
+[data-section='pendientes'] .pend-filter:hover {
+  color: var(--fg);
+}
+
+[data-section='pendientes'] .pend-badge {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--elev);
+  font-size: 10px;
+  text-align: center;
+  color: var(--fg);
+}
+
+[data-section='pendientes'] .pend-grouping:disabled {
+  opacity: 0.5;
+}
+
+[data-section='pendientes'] .pend-filters {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 12px;
+}
+
+[data-section='pendientes'] .pend-filter-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+[data-section='pendientes'] .pend-filter-select {
+  max-width: 180px;
+  padding: 2px 4px;
+  border: 1px solid var(--line-soft);
+  border-radius: 5px;
+  background: var(--inset);
+  color: var(--fg);
+  font-size: 12px;
+}
+
+[data-section='pendientes'] .pend-age {
+  text-align: right;
+  font-size: 11px;
+  color: var(--fg-faint);
+  white-space: nowrap;
+}
+
+[data-section='pendientes'] .pend-done {
+  color: var(--fg-mute);
+  text-decoration: line-through;
+}
+
+[data-section='pendientes'] .pend-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+  overflow-x: auto;
+}
+
+[data-section='pendientes'] .pend-column {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+[data-section='pendientes'] .pend-column .pend-group-label {
+  padding-bottom: 4px;
+}
+
+[data-section='pendientes'] .pend-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px 12px;
+  border-radius: 8px;
+  background: var(--card);
+  text-align: left;
+}
+
+[data-section='pendientes'] .pend-card:hover {
+  background: var(--elev);
+}
+
+[data-section='pendientes'] .pend-card--on {
+  outline: 1px solid var(--running);
+}
+
+[data-section='pendientes'] .pend-card-title {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--fg);
+}
+
+[data-section='pendientes'] .pend-card-meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--fg-mute);
+}
+
+[data-section='pendientes'] .pend-detail {
+  flex: 1 1 320px;
+  max-width: 400px;
+  min-width: 0;
+  padding: 24px 28px;
+  border-left: 1px solid var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+[data-section='pendientes'] .pend-detail-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+[data-section='pendientes'] .pend-detail-key,
+[data-section='pendientes'] .pend-prompt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  color: var(--fg);
+}
+
+[data-section='pendientes'] .pend-detail-key {
+  font-size: 13px;
+}
+
+[data-section='pendientes'] .pend-prompt {
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+[data-section='pendientes'] .pend-detail-key:hover,
+[data-section='pendientes'] .pend-prompt:hover {
+  color: var(--fg-bright);
+}
+
+[data-section='pendientes'] .pend-detail-type {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+[data-section='pendientes'] .pend-detail-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--fg-bright);
+  overflow-wrap: anywhere;
+}
+
+[data-section='pendientes'] .pend-detail-project {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--fg-mute);
+}
+
+[data-section='pendientes'] .pend-detail-body {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--fg-dim);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+[data-section='pendientes'] .pend-detail-note {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--fg-dim);
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+[data-section='pendientes'] .pend-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+[data-section='pendientes'] .pend-field--rule {
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+[data-section='pendientes'] .pend-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+[data-section='pendientes'] .pend-page-link {
+  align-self: flex-start;
+  font-size: 12.5px;
+  text-align: left;
+}
+
+[data-section='pendientes'] .pend-quiet {
+  color: var(--fg-faint);
+  font-size: 12px;
+}
+
+[data-section='pendientes'] .pend-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--inset);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+  user-select: text;
+}
+
+[data-section='pendientes'] .pend-input:focus {
+  border-color: var(--blue);
+}
+
+[data-section='pendientes'] .pend-textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+[data-section='pendientes'] .pend-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+[data-section='pendientes'] .pend-resolve {
+  padding: 6px 14px;
+}
+
+[data-section='pendientes'] .pend-resolve:disabled,
+[data-section='pendientes'] .pend-actions .quiet-link:disabled {
+  opacity: 0.5;
+}
+
+[data-section='pendientes'] .pend-empty {
+  margin: 24px 0 0;
+  font-size: 12.5px;
+  color: var(--fg-mute);
+}
+
+[data-section='pendientes'] .pend-detail .pend-empty {
+  margin: 0;
+}
+
+[data-section='pendientes'] .pend-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+
+[data-section='pendientes'] .problem {
+  margin-top: 18px;
+}
+
+[data-section='pendientes'] :focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}

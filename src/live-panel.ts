@@ -3,7 +3,6 @@ import {
   liveShortcutSet,
   liveShow,
   liveSources,
-  openNotesMeeting,
   recapConfig,
   recapConfigSet,
   toolsStatus,
@@ -14,13 +13,15 @@ import {
   type LiveView,
   type PendingMeeting,
 } from './bita.ts'
+import { docsMeetingRoute } from './shell/links.ts'
+import { go } from './shell/routes.ts'
 import { element, icon } from './dom.ts'
 import { acceleratorFrom, shortcutLabel } from './shortcut.ts'
 
 export function liveMatches(timer: LiveTimer, live: LiveView | null): boolean {
   if (live === null || live.active === null) return false
   if (live.entryId !== null) return live.entryId === timer.id
-  return timer.kind === 'remote-meeting' || timer.kind === 'in-person-meeting'
+  return timer.kind === 'meeting' || timer.kind === 'remote-meeting' || timer.kind === 'in-person-meeting'
 }
 
 function delayLabel(live: LiveView): string | null {
@@ -108,7 +109,7 @@ export function proposalsCard(meeting: PendingMeeting): HTMLElement {
   review.className = 'proposals-review'
   review.append(icon('check', 14), element('span', '', 'Revisar cambios'))
   review.addEventListener('click', () => {
-    void openNotesMeeting(meeting.entryId, 'proposals')
+    go(docsMeetingRoute(meeting.entryId, 'proposals'))
   })
   card.append(review)
   return card

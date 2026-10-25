@@ -9,6 +9,7 @@ import {
   onLiveTranscript,
   type AnswerSource,
   type LiveAnswer,
+  type LiveAnswerEvent,
   type LiveTranscriptUpdate,
   type LiveView,
   type PendingAsk,
@@ -54,7 +55,6 @@ export const EMPTY_VIEW: LiveView = {
   pendingAsks: [],
   shortcut: 'Ctrl+Alt+Space',
   visible: true,
-  mode: 'compact',
 }
 
 export class Session {
@@ -241,16 +241,24 @@ export class Session {
     return changed
   }
 
+  answered({ askId, event }: LiveAnswerEvent): void {
+    this.apply(askId, event)
+  }
+
+  stateChanged(): void {
+    void this.reload()
+  }
+
+  transcribed(update: LiveTranscriptUpdate): void {
+    if (this.view.active?.meetingId !== update.meetingId) return
+    this.view.transcript = update.transcript
+    if (this.hooks.transcript === undefined) this.hooks.paint()
+    else this.hooks.transcript(update)
+  }
+
   listen(): void {
-    onLiveAnswer(({ askId, event }) => this.apply(askId, event))
-    onLiveState(() => {
-      void this.reload()
-    })
-    onLiveTranscript((update) => {
-      if (this.view.active?.meetingId !== update.meetingId) return
-      this.view.transcript = update.transcript
-      if (this.hooks.transcript === undefined) this.hooks.paint()
-      else this.hooks.transcript(update)
-    })
+    onLiveAnswer((answer) => this.answered(answer))
+    onLiveState(() => this.stateChanged())
+    onLiveTranscript((update) => this.transcribed(update))
   }
 }

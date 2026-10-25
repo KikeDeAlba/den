@@ -296,7 +296,7 @@
   opacity: 0.8;
 }
 
-#print-root {
+#print-root.print-root--docs {
   --bg: #ffffff;
   --inset: #f9f5d7;
   --card: #f2e5bc;
@@ -316,10 +316,8 @@
   --running: #af3a03;
   --estimate: #b57614;
   --ok: #79740e;
-  position: fixed;
-  left: -12000px;
-  top: 0;
-  width: 7.5in;
+  display: block;
+  height: auto;
   background: #ffffff;
   color: #282828;
   font-family: var(--font-ui);
@@ -461,34 +459,4 @@
   border: 1px solid #ebdbb2;
   border-radius: 4pt;
   break-inside: avoid;
-}
-
-@page {
-  size: letter;
-  margin: 0.5in;
-}
-
-@media print {
-  html,
-  body {
-    height: auto !important;
-    overflow: visible !important;
-    background: #ffffff !important;
-  }
-
-  body.printing #notas {
-    display: block !important;
-    height: auto !important;
-    background: #ffffff !important;
-  }
-
-  body.printing #notas > :not(#print-root) {
-    display: none !important;
-  }
-
-  body.printing #print-root {
-    position: static;
-    left: auto;
-    width: auto;
-  }
 }

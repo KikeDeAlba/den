@@ -1,16 +1,16 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 
 export const SNAPSHOT_EVENT = 'bita://snapshot'
 export const DOCS_CHANGED_EVENT = 'bita://docs-changed'
-export const NOTES_FOCUS_EVENT = 'bita://notes-focus'
 export const MEETING_MEDIA_EVENT = 'bita://meeting-media-changed'
 export const SYNC_FINISHED_EVENT = 'bita://confluence-synced'
 export const LIVE_ANSWER_EVENT = 'bita://live-answer'
 export const LIVE_STATE_EVENT = 'bita://live-state'
 export const LIVE_TRANSCRIPT_EVENT = 'bita://live-transcript'
-export const LIVE_SETTINGS_EVENT = 'bita://live-settings'
-export const NOTES_MEETING_EVENT = 'bita://notes-meeting'
+export const CLOSE_REQUESTED_EVENT = 'tauri://close-requested'
+export const NAVIGATE_EVENT = 'den://navigate'
 export const TOOLS_EVENT = 'bita://tools-changed'
 
 export type ProblemKind =
@@ -43,6 +43,7 @@ export interface LiveTimer {
 }
 
 export const MEETING_KINDS = {
+  meeting: 'Reunión',
   'remote-meeting': 'Reunión remota',
   'in-person-meeting': 'Reunión presencial',
 } as const
@@ -50,7 +51,7 @@ export const MEETING_KINDS = {
 export type MeetingKind = keyof typeof MEETING_KINDS
 
 export function isMeetingKind(value: string | null): value is MeetingKind {
-  return value !== null && value in MEETING_KINDS
+  return value !== null && Object.hasOwn(MEETING_KINDS, value)
 }
 
 export interface Snapshot {
@@ -140,6 +141,8 @@ export interface Group {
   partCount: number
   jiraProjectKey: string | null
   jira: boolean
+  issueKey?: string | null
+  kind?: string | null
 }
 
 export interface NonJira {
@@ -204,6 +207,10 @@ export function worked(range: 'today' | 'week'): Promise<WorkedView> {
 
 export function pending(): Promise<SummaryView> {
   return invoke<SummaryView>('pending')
+}
+
+export function timeSummary(range: 'today' | 'week'): Promise<SummaryView> {
+  return invoke<SummaryView>('time_summary', { range })
 }
 
 export interface ReportRange {
@@ -352,6 +359,19 @@ export function setPay(pay: Pay): Promise<Pay> {
   return invoke<Pay>('set_pay', { pay })
 }
 
+export interface MenubarSettings {
+  showLabel: boolean
+  hideWhenIdle: boolean
+}
+
+export function menubarSettings(): Promise<MenubarSettings> {
+  return invoke<MenubarSettings>('menubar_settings')
+}
+
+export function menubarSettingsSet(settings: MenubarSettings): Promise<MenubarSettings> {
+  return invoke<MenubarSettings>('menubar_settings_set', { settings })
+}
+
 export function scopes(): Promise<Scope[]> {
   return invoke<Scope[]>('scopes')
 }
@@ -470,22 +490,6 @@ export function onToolsChanged(handler: (status: ToolsStatus) => void): void {
 
 export function installHint(status: ToolsStatus | null, tool: ToolName): string {
   return status?.tools.find((found) => found.name === tool)?.install ?? `npm install -g @kikedealba/${tool} && ${tool} setup`
-}
-
-export function openNotes(entryId: number | null): Promise<void> {
-  return invoke<void>('open_notes', { entryId })
-}
-
-export function openReports(): Promise<void> {
-  return invoke<void>('open_reports')
-}
-
-export function openBrain(): Promise<void> {
-  return invoke<void>('open_brain')
-}
-
-export function notesTakeFocus(): Promise<number | null> {
-  return invoke<number | null>('notes_take_focus')
 }
 
 export type SectionState = 'written' | 'empty' | 'absent'
@@ -718,9 +722,6 @@ export interface PendingAsk {
   channel?: 'mic' | 'system' | string
 }
 
-export type LiveMode = 'compact' | 'wide'
-
-
 export interface LiveView {
   active: ActiveMeeting | null
   title: string | null
@@ -732,7 +733,6 @@ export interface LiveView {
   pendingAsks: PendingAsk[]
   shortcut: string
   visible: boolean
-  mode: LiveMode
 }
 
 export interface LiveTranscriptUpdate {
@@ -852,11 +852,6 @@ export interface PendingMeeting {
   title: string
   endedAt: string | null
   proposals: Proposal[]
-}
-
-export interface MeetingFocus {
-  entryId: number
-  tab: string
 }
 
 export interface MeetingStorage {
@@ -1039,6 +1034,7 @@ export interface PageNode {
 
 export interface Space {
   projectId: number | null
+  projectKey?: string | null
   projectName: string | null
   projectSlug: string
   active: boolean
@@ -1133,52 +1129,6 @@ export interface PageDocument extends Omit<PageNode, 'children'> {
   backlog?: PageBacklogItem[]
 }
 
-export interface SearchMatch {
-  offset: number
-  length: number
-  line: number
-  section: string | null
-  prefix: string
-  match: string
-  suffix: string
-  snippet: string
-}
-
-export interface SearchHit {
-  entryId: number
-  projectId: number | null
-  projectName: string | null
-  projectSlug: string
-  title: string
-  docTitle: string
-  localDay: string
-  month: string
-  relPath: string
-  path: string
-  matchCount: number
-  matches: SearchMatch[]
-  byteSize: number
-  recordedAt: string
-  file: DocFile
-}
-
-export interface SearchMeta {
-  query: string
-  documentsWithMatches: number
-  totalMatches: number
-  scanned: { documents: number; bytes: number; missing: number; elapsedMs: number }
-  truncated: boolean
-}
-
-export interface ListMeta {
-  root: string
-  timezone: string
-  page: { limit: number; offset: number; returned: number; total: number; hasMore: boolean }
-  counts: { withDoc: number; withoutDoc: number }
-  files: { verified: number; ok: number; changed: number; missing: number; unverified: number }
-  warnings: string[]
-}
-
 export interface CliPayload<D, M> {
   data: D
   meta: M
@@ -1188,31 +1138,12 @@ export function notesTree(): Promise<CliPayload<{ projects: TreeProject[]; space
   return invoke('notes_tree')
 }
 
-export function notesList(
-  project: string | null,
-  limit = 200,
-  offset = 0,
-): Promise<CliPayload<NoteRow[], ListMeta>> {
-  return invoke('notes_list', { project, limit, offset })
-}
-
-export function notesToday(): Promise<CliPayload<NoteRow[], ListMeta>> {
-  return invoke('notes_today')
-}
-
 export function pageDocument(pageId: number): Promise<CliPayload<PageDocument, TreeMeta>> {
   return invoke('page_document', { pageId })
 }
 
 export function notesDocument(entryId: number): Promise<CliPayload<NoteDocument, TreeMeta>> {
   return invoke('notes_document', { entryId })
-}
-
-export function notesSearch(
-  query: string,
-  project: string | null,
-): Promise<CliPayload<SearchHit[], SearchMeta>> {
-  return invoke('notes_search', { query, project })
 }
 
 export function backlogList(): Promise<CliPayload<BacklogItem[], BacklogMeta>> {
@@ -1302,10 +1233,6 @@ export function exportReport(
   return invoke<string>('export_report', { format, report, include, groupBy, fileName: fileName ?? null })
 }
 
-export function revealInFinder(path: string): Promise<void> {
-  return invoke<void>('reveal_in_finder', { path })
-}
-
 export function atlassianSites(check: boolean): Promise<AtlassianSite[]> {
   return invoke<AtlassianSite[]>('atlassian_sites', { check })
 }
@@ -1354,6 +1281,46 @@ export function meetingForEntry(entryId: number): Promise<MeetingView | null> {
   return invoke<MeetingView | null>('meeting_for_entry', { entryId })
 }
 
+export interface TranscriptParagraph {
+  startMs: number
+  channel: string
+  speaker: string | null
+  text: string
+}
+
+export interface MeetingTranscript {
+  segments: MeetingSegment[]
+  paragraphs: TranscriptParagraph[]
+  channels: unknown
+}
+
+export interface MeetingActionItem {
+  text: string
+  backlogKey: string | null
+}
+
+export interface MeetingSummary {
+  markdown: string
+  agreements: string[]
+  actionItems: MeetingActionItem[]
+}
+
+export function meetingById(id: string): Promise<MeetingView | null> {
+  return invoke<MeetingView | null>('meeting_by_id', { id })
+}
+
+export function meetingTranscript(id: string): Promise<MeetingTranscript> {
+  return invoke<MeetingTranscript>('meeting_transcript', { id })
+}
+
+export function meetingSummary(id: string): Promise<MeetingSummary> {
+  return invoke<MeetingSummary>('meeting_summary', { id })
+}
+
+export function meetingDownload(id: string, title: string): Promise<string> {
+  return invoke<string>('meeting_download', { id, title })
+}
+
 export function openMeetingFolder(dir: string): Promise<void> {
   return invoke<void>('open_meeting_folder', { dir })
 }
@@ -1384,20 +1351,32 @@ export function onDocsChanged(handler: () => void): void {
   })
 }
 
-export function onNotesFocus(handler: (entryId: number) => void): void {
-  void listen<number>(NOTES_FOCUS_EVENT, (event) => {
-    handler(event.payload)
-  })
-}
-
 export function quit(): Promise<void> {
   return invoke<void>('quit')
 }
 
-export function onSnapshot(handler: (value: Snapshot) => void): void {
-  void listen<Snapshot>(SNAPSHOT_EVENT, (event) => {
-    handler(event.payload)
+export type Unsubscribe = () => void
+
+function subscribe<T>(name: string, handler: (payload: T) => void): Unsubscribe {
+  let stop: (() => void) | null = null
+  let cancelled = false
+  void listen<T>(name, (event) => {
+    if (!cancelled) handler(event.payload)
   })
+    .then((unlisten) => {
+      if (cancelled) unlisten()
+      else stop = unlisten
+    })
+    .catch(() => undefined)
+  return () => {
+    cancelled = true
+    stop?.()
+    stop = null
+  }
+}
+
+export function onSnapshot(handler: (value: Snapshot) => void): Unsubscribe {
+  return subscribe<Snapshot>(SNAPSHOT_EVENT, handler)
 }
 
 export function liveState(): Promise<LiveView> {
@@ -1414,10 +1393,6 @@ export function liveHide(): Promise<void> {
 
 export function liveAsk(question: string | null): Promise<number> {
   return invoke<number>('live_ask', { question })
-}
-
-export function liveCancel(): Promise<boolean> {
-  return invoke<boolean>('live_cancel')
 }
 
 export function liveSources(project: string): Promise<LiveSources | null> {
@@ -1440,24 +1415,20 @@ export function liveTranscriptFull(): Promise<LiveFullTranscript | null> {
   return invoke<LiveFullTranscript | null>('live_transcript_full')
 }
 
-export function liveModeSet(mode: LiveMode): Promise<void> {
-  return invoke('live_mode_set', { mode })
+export function liveOpenMeetings(): Promise<void> {
+  return invoke('live_open_meetings')
 }
 
-export function liveOpenSettings(): Promise<void> {
-  return invoke('live_open_settings')
+export function navigate(route: string): Promise<void> {
+  return invoke('navigate_to', { route })
+}
+
+export function onNavigate(handler: (route: string) => void): Unsubscribe {
+  return subscribe<string>(NAVIGATE_EVENT, handler)
 }
 
 export function openSourceFile(path: string): Promise<void> {
   return invoke('open_source_file', { path })
-}
-
-export function openNotesMeeting(entryId: number, tab: string): Promise<void> {
-  return invoke('open_notes_meeting', { entryId, tab })
-}
-
-export function notesTakeMeeting(): Promise<MeetingFocus | null> {
-  return invoke<MeetingFocus | null>('notes_take_meeting')
 }
 
 export function docsBranchDiff(branch: string, sha: string): Promise<BranchDiff> {
@@ -1498,6 +1469,25 @@ export function onLiveAnswer(handler: (event: LiveAnswerEvent) => void): void {
   })
 }
 
+export function onWindowClosed(handler: () => void): Unsubscribe {
+  let stop: (() => void) | null = null
+  let cancelled = false
+  void getCurrentWindow()
+    .listen(CLOSE_REQUESTED_EVENT, () => {
+      if (!cancelled) handler()
+    })
+    .then((unlisten) => {
+      if (cancelled) unlisten()
+      else stop = unlisten
+    })
+    .catch(() => undefined)
+  return () => {
+    cancelled = true
+    stop?.()
+    stop = null
+  }
+}
+
 export function onLiveState(handler: () => void): void {
   void listen(LIVE_STATE_EVENT, () => {
     handler()
@@ -1506,18 +1496,6 @@ export function onLiveState(handler: () => void): void {
 
 export function onLiveTranscript(handler: (update: LiveTranscriptUpdate) => void): void {
   void listen<LiveTranscriptUpdate>(LIVE_TRANSCRIPT_EVENT, (event) => {
-    handler(event.payload)
-  })
-}
-
-export function onLiveSettings(handler: () => void): void {
-  void listen(LIVE_SETTINGS_EVENT, () => {
-    handler()
-  })
-}
-
-export function onNotesMeeting(handler: (focus: MeetingFocus) => void): void {
-  void listen<MeetingFocus>(NOTES_MEETING_EVENT, (event) => {
     handler(event.payload)
   })
 }

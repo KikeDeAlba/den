@@ -9,7 +9,7 @@ use serde_json::Value;
 
 use crate::cli::node;
 use crate::model::{Problem, ProblemKind};
-use crate::pdf::{sanitize_with, unique_path_with};
+use crate::pdf::{sanitize_with, write_unique};
 
 const NO_PROJECT: &str = "Sin proyecto";
 pub(crate) const BOM: &str = "\u{feff}";
@@ -1186,9 +1186,7 @@ pub(crate) fn save_export(
 ) -> Result<PathBuf, Problem> {
     let stem = sanitize_with(file_name.map(str::trim).filter(|name| !name.is_empty()).unwrap_or(default_stem), extension);
     std::fs::create_dir_all(dir).map_err(|error| failed(format!("No pude preparar {}: {error}", dir.display())))?;
-    let target = unique_path_with(dir, &stem, extension);
-    std::fs::write(&target, bytes).map_err(|error| failed(format!("No pude guardar {}: {error}", target.display())))?;
-    Ok(target)
+    write_unique(dir, &stem, extension, bytes).map_err(|error| failed(format!("No pude guardar en {}: {error}", dir.display())))
 }
 
 pub(crate) async fn save_to_downloads<F>(write: F) -> Result<String, Problem>
@@ -1319,6 +1317,16 @@ mod tests {
 
     fn all() -> Include {
         Include::default()
+    }
+
+    #[test]
+    fn an_empty_export_leaves_no_file_in_downloads() {
+        let root = scratch("empty");
+        assert!(save_export(&root, Some("vacio"), "reporte", "csv", b"").is_err());
+        assert_eq!(fs::read_dir(&root).expect("list").count(), 0);
+        let saved = save_export(&root, Some("lleno"), "reporte", "csv", b"a,b").expect("save");
+        assert_eq!(fs::read(&saved).expect("read"), b"a,b");
+        let _ = fs::remove_dir_all(&root);
     }
 
     fn scratch(name: &str) -> PathBuf {
