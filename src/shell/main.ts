@@ -1,7 +1,9 @@
-import { describeProblem, onNavigate, onSnapshot, snapshot } from '../bita.ts'
+import { describeProblem, onNavigate } from '../bita.ts'
+import { GAZE_FIXTURE } from '../cerebro/flag.ts'
 import { element } from '../dom.ts'
 import { isMac, os } from '../platform.ts'
-import type { SectionModule } from '../sections/section.ts'
+import type { SectionModule, ShellEvent } from '../sections/section.ts'
+import { needsSetup, shellState, startHub } from './hub.ts'
 import { rememberedSection, rememberSection } from './memory.ts'
 import { buildRail } from './rail.ts'
 import {
@@ -15,6 +17,7 @@ import {
   type SectionId,
 } from './routes.ts'
 import { buildTopbar } from './topbar.ts'
+import { railMarks, visibleSections } from './visibility.ts'
 
 const LOADERS: Record<SectionId, () => Promise<SectionModule>> = {
   ahora: () => import('../sections/ahora/index.ts'),
@@ -104,13 +107,30 @@ function shortcuts(event: KeyboardEvent): void {
   go(section)
 }
 
-async function watchTimers(): Promise<void> {
-  onSnapshot((value) => topbar.show(value))
-  try {
-    topbar.show(await snapshot())
-  } catch {
-    topbar.show({ running: [], todaySeconds: 0, problem: null })
+function paintRail(): void {
+  const state = shellState()
+  rail.reveal(visibleSections(state.tools, GAZE_FIXTURE))
+  const marks = railMarks(state.snapshot, state.proposals)
+  rail.mark('ahora', marks.ahora)
+  rail.mark('docs', marks.docs)
+  rail.mark('reuniones', marks.reuniones)
+}
+
+function broadcast(event: ShellEvent): void {
+  if (event.type === 'snapshot') topbar.show(event.snapshot)
+  if (event.type === 'snapshot' || event.type === 'tools' || event.type === 'proposals') paintRail()
+  for (const entry of mounted.values()) {
+    try {
+      entry.module?.receive?.(event)
+    } catch (error) {
+      failure(entry.host, error)
+    }
   }
+}
+
+async function boot(): Promise<void> {
+  await startHub(broadcast)
+  if (current === 'ahora' && needsSetup(shellState())) go('ajustes')
 }
 
 function start(): void {
@@ -124,7 +144,7 @@ function start(): void {
   window.addEventListener('keydown', shortcuts)
   onNavigate((next) => go(next))
   route()
-  void watchTimers()
+  void boot()
 }
 
 start()

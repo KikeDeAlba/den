@@ -192,3 +192,26 @@ html[data-os='macos'] .topbar {
 .section-placeholder .ghost-button {
   margin-top: 6px;
 }
+
+.rail-item {
+  position: relative;
+}
+
+.rail-item[hidden] {
+  display: none;
+}
+
+.rail-dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--running);
+  display: none;
+}
+
+.rail-item[data-dot='true'] .rail-dot {
+  display: block;
+}

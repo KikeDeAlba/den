@@ -6,6 +6,8 @@ import { go, SECTIONS, type SectionId } from './routes.ts'
 export interface Rail {
   element: HTMLElement
   select(section: SectionId): void
+  reveal(visible: ReadonlySet<SectionId>): void
+  mark(section: SectionId, note: string | null): void
 }
 
 function railButton(id: SectionId, label: string, key: string): HTMLButtonElement {
@@ -15,7 +17,7 @@ function railButton(id: SectionId, label: string, key: string): HTMLButtonElemen
   button.dataset['section'] = id
   button.title = `${label} (${modKey(key)})`
   button.setAttribute('aria-label', label)
-  button.append(sectionIcon(id))
+  button.append(sectionIcon(id), element('i', 'rail-dot'))
   button.addEventListener('click', () => go(id))
   return button
 }
@@ -40,6 +42,16 @@ export function buildRail(): Rail {
         if (id === section) button.setAttribute('aria-current', 'page')
         else button.removeAttribute('aria-current')
       }
+    },
+    reveal(visible) {
+      for (const [id, button] of buttons) button.hidden = !visible.has(id)
+    },
+    mark(section, note) {
+      const button = buttons.get(section)
+      if (button === undefined) return
+      const label = SECTIONS.find((found) => found.id === section)?.label ?? section
+      button.dataset['dot'] = String(note !== null)
+      button.setAttribute('aria-label', note === null ? label : `${label}, ${note}`)
     },
   }
 }
