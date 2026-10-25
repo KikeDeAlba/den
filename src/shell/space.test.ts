@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { Space } from '../bita.ts'
-import { chooseSpace, inkwellProject, inkwellProjectOf, onSpaceChange, rememberedSpace, rememberSpace, sameProject } from './space.ts'
+import { chooseSpace, inkwellProject, onSpaceChange, rememberedSpace, rememberSpace, sameProject } from './space.ts'
 
 function space(projectSlug: string, pageCount: number): Space {
   return { projectId: null, projectName: null, projectSlug, active: true, entryCount: 0, pageCount, pages: [] }
@@ -60,13 +60,6 @@ describe('inkwell project of a space', () => {
     expect(inkwellProject({ ...base, projectKey: '  ' })).toBe('222495001')
     expect(inkwellProject({ ...base, projectId: null })).toBe('DP Caja de pagos')
     expect(inkwellProject({ ...base, projectId: null, projectName: null })).toBe('dp-caja-de-pagos')
-  })
-
-  it('maps the remembered slug to what inkwell accepts', () => {
-    expect(inkwellProjectOf(TREE_SPACES, 'dp-caja-de-pagos')).toBe('CDP')
-    expect(inkwellProjectOf(TREE_SPACES, 'daily-s')).toBe('DAI')
-    expect(inkwellProjectOf(TREE_SPACES, null)).toBeNull()
-    expect(inkwellProjectOf(TREE_SPACES, 'gone')).toBe('gone')
   })
 
   it('recognises the space inkwell names in a sync result', () => {

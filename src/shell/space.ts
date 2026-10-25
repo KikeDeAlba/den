@@ -79,12 +79,6 @@ export function inkwellProject(space: SpaceRef): string {
   )
 }
 
-export function inkwellProjectOf(list: readonly SpaceRef[], slug: string | null): string | null {
-  if (slug === null) return null
-  const space = list.find((candidate) => candidate.projectSlug === slug)
-  return space === undefined ? slug : inkwellProject(space)
-}
-
 export function sameProject(space: SpaceRef, project: string): boolean {
   const wanted = project.trim().toLowerCase()
   return [space.projectKey, space.projectName, space.projectSlug, space.projectId === null ? null : String(space.projectId)].some(
