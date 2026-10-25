@@ -1,3 +1,4 @@
+use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
 use crate::model::{Problem, ProblemKind};
@@ -73,6 +74,11 @@ pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .center()
         .visible(false)
         .initialization_script(crate::titlebar::css_script())
+        .on_page_load(|window, payload| {
+            if payload.event() == PageLoadEvent::Finished {
+                crate::titlebar::refresh(&window);
+            }
+        })
         .on_navigation(navigation_guard(app));
 
     #[cfg(target_os = "macos")]
@@ -83,11 +89,13 @@ pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let window = builder.build()?;
     crate::titlebar::pin(&window);
     let target = window.clone();
-    window.on_window_event(move |event| {
-        if let WindowEvent::CloseRequested { api, .. } = event {
+    window.on_window_event(move |event| match event {
+        WindowEvent::CloseRequested { api, .. } => {
             api.prevent_close();
             let _ = target.hide();
         }
+        WindowEvent::Destroyed => crate::titlebar::unpin(&target),
+        _ => {}
     });
     Ok(window)
 }

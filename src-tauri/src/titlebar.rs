@@ -4,47 +4,63 @@ pub const TRAFFIC_BUTTON: f64 = 14.0;
 pub const TRAFFIC_PITCH: f64 = 23.0;
 pub const TRAFFIC_GAP: f64 = 8.0;
 
-pub const fn traffic_inset() -> f64 {
-    TRAFFIC_X + 2.0 * TRAFFIC_PITCH + TRAFFIC_BUTTON + TRAFFIC_GAP
+pub const fn inset_for(button_width: f64) -> f64 {
+    TRAFFIC_X + 2.0 * TRAFFIC_PITCH + button_width + TRAFFIC_GAP
 }
 
-pub fn css_script() -> String {
+pub const fn traffic_inset() -> f64 {
+    inset_for(TRAFFIC_BUTTON)
+}
+
+pub fn variables_script(height: f64, inset: f64) -> String {
     format!(
-        "document.documentElement.style.setProperty('--topbar-height','{}px');document.documentElement.style.setProperty('--traffic-inset','{}px');",
-        TOPBAR_HEIGHT,
-        traffic_inset()
+        "(function(){{var apply=function(){{var root=document.documentElement;if(!root){{return false;}}root.style.setProperty('--topbar-height','{height}px');root.style.setProperty('--traffic-inset','{inset}px');return true;}};if(apply()){{return;}}var watcher=new MutationObserver(function(){{if(apply()){{watcher.disconnect();}}}});watcher.observe(document,{{childList:true}});document.addEventListener('DOMContentLoaded',function(){{watcher.disconnect();apply();}},{{once:true}});}})();"
     )
 }
 
+pub fn css_script() -> String {
+    variables_script(TOPBAR_HEIGHT, traffic_inset())
+}
+
+#[cfg(any(target_os = "macos", test))]
 pub fn button_top(button_height: f64) -> f64 {
     (TOPBAR_HEIGHT - button_height) / 2.0
 }
 
+#[cfg(any(target_os = "macos", test))]
 pub fn button_x(index: usize) -> f64 {
     TRAFFIC_X + index as f64 * TRAFFIC_PITCH
 }
 
+#[cfg(any(target_os = "macos", test))]
 pub fn container_height(current: f64) -> f64 {
     current.max(TOPBAR_HEIGHT)
 }
 
+#[cfg(any(target_os = "macos", test))]
 pub fn differs(a: f64, b: f64) -> bool {
     (a - b).abs() >= 0.01
 }
 
 #[cfg(target_os = "macos")]
-pub use platform::pin;
+pub use platform::{pin, refresh, unpin};
 
 #[cfg(not(target_os = "macos"))]
 pub fn pin(_window: &tauri::WebviewWindow) {}
 
+#[cfg(not(target_os = "macos"))]
+pub fn refresh(_window: &tauri::WebviewWindow) {}
+
+#[cfg(not(target_os = "macos"))]
+pub fn unpin(_window: &tauri::WebviewWindow) {}
+
 #[cfg(target_os = "macos")]
 mod platform {
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
 
     use objc2::rc::{Retained, Weak};
     use objc2::runtime::{AnyObject, NSObject};
-    use objc2::{define_class, msg_send, sel, AllocAnyThread, DefinedClass};
+    use objc2::{define_class, msg_send, sel, DefinedClass, MainThreadMarker, MainThreadOnly};
     use objc2_app_kit::{
         NSView, NSViewFrameDidChangeNotification, NSWindow, NSWindowButton,
         NSWindowDidBecomeKeyNotification, NSWindowDidChangeBackingPropertiesNotification,
@@ -56,9 +72,12 @@ mod platform {
     use objc2_foundation::{
         NSNotification, NSNotificationCenter, NSNotificationName, NSPoint, NSRect,
     };
-    use tauri::WebviewWindow;
+    use tauri::{Manager, WebviewWindow};
 
-    use super::{button_top, button_x, container_height, differs};
+    use super::{
+        button_top, button_x, container_height, differs, inset_for, traffic_inset,
+        variables_script, TOPBAR_HEIGHT,
+    };
 
     const BUTTONS: [NSWindowButton; 3] = [
         NSWindowButton::CloseButton,
@@ -68,10 +87,14 @@ mod platform {
 
     pub struct PinIvars {
         window: Weak<NSWindow>,
+        webview: WebviewWindow,
+        placing: Cell<bool>,
+        inset: Cell<f64>,
     }
 
     define_class!(
         #[unsafe(super(NSObject))]
+        #[thread_kind = MainThreadOnly]
         #[name = "DenTrafficLightPin"]
         #[ivars = PinIvars]
         pub struct Pin;
@@ -79,19 +102,41 @@ mod platform {
         impl Pin {
             #[unsafe(method(reposition:))]
             fn reposition(&self, _notification: &NSNotification) {
-                if let Some(window) = self.ivars().window.load() {
-                    place(&window);
-                }
+                self.apply();
             }
         }
     );
 
     impl Pin {
-        fn new(window: &NSWindow) -> Retained<Self> {
-            let this = Self::alloc().set_ivars(PinIvars {
+        fn new(mtm: MainThreadMarker, window: &NSWindow, webview: WebviewWindow) -> Retained<Self> {
+            let this = Self::alloc(mtm).set_ivars(PinIvars {
                 window: Weak::from(window),
+                webview,
+                placing: Cell::new(false),
+                inset: Cell::new(traffic_inset()),
             });
             unsafe { msg_send![super(this), init] }
+        }
+
+        fn apply(&self) {
+            let ivars = self.ivars();
+            if ivars.placing.replace(true) {
+                return;
+            }
+            let width = ivars.window.load().and_then(|window| place(&window));
+            ivars.placing.set(false);
+            let Some(width) = width else {
+                return;
+            };
+            let inset = inset_for(width);
+            if differs(inset, ivars.inset.get()) {
+                ivars.inset.set(inset);
+                let _ = ivars.webview.eval(variables_script(TOPBAR_HEIGHT, inset));
+            }
+        }
+
+        fn label(&self) -> &str {
+            self.ivars().webview.label()
         }
     }
 
@@ -99,13 +144,11 @@ mod platform {
         static PINS: RefCell<Vec<Retained<Pin>>> = const { RefCell::new(Vec::new()) };
     }
 
-    fn place(window: &NSWindow) {
+    fn place(window: &NSWindow) -> Option<f64> {
         if window.styleMask().contains(NSWindowStyleMask::FullScreen) {
-            return;
+            return None;
         }
-        let Some(close) = window.standardWindowButton(NSWindowButton::CloseButton) else {
-            return;
-        };
+        let close = window.standardWindowButton(NSWindowButton::CloseButton)?;
         let window_height = window.frame().size.height;
         if let Some(container) = unsafe { close.superview().and_then(|holder| holder.superview()) }
         {
@@ -140,6 +183,7 @@ mod platform {
                 button.setFrameOrigin(local.origin);
             }
         }
+        Some(close.frame().size.width)
     }
 
     fn observe(
@@ -158,8 +202,7 @@ mod platform {
         };
     }
 
-    fn watch(window: &NSWindow) {
-        let pin = Pin::new(window);
+    fn watch(pin: &Pin, window: &NSWindow) {
         let center = NSNotificationCenter::defaultCenter();
         let window_object: &AnyObject = window;
         for name in unsafe {
@@ -175,7 +218,7 @@ mod platform {
                 NSWindowDidChangeScreenNotification,
             ]
         } {
-            observe(&center, &pin, name, window_object);
+            observe(&center, pin, name, window_object);
         }
         for kind in BUTTONS {
             if let Some(button) = window.standardWindowButton(kind) {
@@ -183,7 +226,7 @@ mod platform {
                 view.setPostsFrameChangedNotifications(true);
                 observe(
                     &center,
-                    &pin,
+                    pin,
                     unsafe { NSViewFrameDidChangeNotification },
                     view,
                 );
@@ -197,34 +240,76 @@ mod platform {
             container.setPostsFrameChangedNotifications(true);
             observe(
                 &center,
-                &pin,
+                pin,
                 unsafe { NSViewFrameDidChangeNotification },
                 &container,
             );
         }
-        PINS.with(|pins| pins.borrow_mut().push(pin));
     }
 
     pub fn pin(window: &WebviewWindow) {
         let target = window.clone();
         let _ = window.run_on_main_thread(move || {
+            let Some(mtm) = MainThreadMarker::new() else {
+                return;
+            };
             let Ok(pointer) = target.ns_window() else {
                 return;
             };
             let Some(ns_window) = (unsafe { pointer.cast::<NSWindow>().as_ref() }) else {
                 return;
             };
-            place(ns_window);
-            watch(ns_window);
+            let label = target.label().to_string();
+            drop_pins(&label);
+            let pin = Pin::new(mtm, ns_window, target);
+            pin.apply();
+            watch(&pin, ns_window);
+            PINS.with(|pins| pins.borrow_mut().push(pin));
         });
+    }
+
+    pub fn refresh(window: &WebviewWindow) {
+        let label = window.label().to_string();
+        let _ = window.run_on_main_thread(move || {
+            PINS.with(|pins| {
+                for pin in pins.borrow().iter().filter(|pin| pin.label() == label) {
+                    pin.ivars().inset.set(traffic_inset());
+                    pin.apply();
+                }
+            });
+        });
+    }
+
+    pub fn unpin(window: &WebviewWindow) {
+        let label = window.label().to_string();
+        let _ = window
+            .app_handle()
+            .run_on_main_thread(move || drop_pins(&label));
+    }
+
+    fn drop_pins(label: &str) {
+        let removed: Vec<Retained<Pin>> = PINS.with(|pins| {
+            let mut pins = pins.borrow_mut();
+            let (removed, kept) = pins.drain(..).partition(|pin| pin.label() == label);
+            *pins = kept;
+            removed
+        });
+        if removed.is_empty() {
+            return;
+        }
+        let center = NSNotificationCenter::defaultCenter();
+        for pin in removed {
+            let observer: &AnyObject = &pin;
+            unsafe { center.removeObserver(observer) };
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        button_top, button_x, container_height, css_script, differs, traffic_inset, TOPBAR_HEIGHT,
-        TRAFFIC_X,
+        button_top, button_x, container_height, css_script, differs, inset_for, traffic_inset,
+        variables_script, TOPBAR_HEIGHT, TRAFFIC_BUTTON, TRAFFIC_X,
     };
 
     #[test]
@@ -277,5 +362,21 @@ mod tests {
         let script = css_script();
         assert!(script.contains("'--topbar-height','38px'"));
         assert!(script.contains("'--traffic-inset','84px'"));
+    }
+
+    #[test]
+    fn the_variables_wait_for_the_document_element() {
+        let script = css_script();
+        assert!(script.contains("if(!root){return false;}"));
+        assert!(script.contains("new MutationObserver"));
+        assert!(script.contains("'DOMContentLoaded'"));
+        assert!(!script.starts_with("document.documentElement"));
+    }
+
+    #[test]
+    fn the_inset_follows_the_real_button_width() {
+        assert_eq!(inset_for(TRAFFIC_BUTTON), traffic_inset());
+        assert_eq!(inset_for(16.0), traffic_inset() + 2.0);
+        assert!(variables_script(TOPBAR_HEIGHT, 86.0).contains("'--traffic-inset','86px'"));
     }
 }
