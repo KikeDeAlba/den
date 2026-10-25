@@ -5,6 +5,24 @@ use tauri::AppHandle;
 pub const LIVE: &str = "live-assist";
 pub const LIVE_WIDE: &str = "live-wide";
 
+const GO_PREFIX: &str = "go:";
+
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const SECTIONS: [(&str, &str, &str); 8] = [
+    ("ahora", "Ahora", "CmdOrCtrl+1"),
+    ("agentes", "Agentes", "CmdOrCtrl+2"),
+    ("tiempo", "Tiempo", "CmdOrCtrl+3"),
+    ("docs", "Documentación", "CmdOrCtrl+4"),
+    ("pendientes", "Pendientes y hallazgos", "CmdOrCtrl+5"),
+    ("reuniones", "Reuniones", "CmdOrCtrl+6"),
+    ("cerebro", "Cerebro", "CmdOrCtrl+7"),
+    ("ajustes", "Ajustes", "CmdOrCtrl+,"),
+];
+
+pub fn route_of(id: &str) -> Option<&str> {
+    id.strip_prefix(GO_PREFIX)
+}
+
 #[cfg(not(target_os = "macos"))]
 pub fn create(_app: &AppHandle) -> tauri::Result<()> {
     Ok(())
@@ -53,7 +71,41 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         ],
     )?;
 
-    let menu = Menu::with_items(app, &[&bita, &edit, &window])?;
+    let go = Submenu::with_id(app, "go", "Ir", true)?;
+    for (index, (route, label, accelerator)) in SECTIONS.iter().enumerate() {
+        if index == SECTIONS.len() - 1 {
+            go.append(&PredefinedMenuItem::separator(app)?)?;
+        }
+        go.append(&MenuItem::with_id(
+            app,
+            format!("{GO_PREFIX}{route}"),
+            *label,
+            true,
+            Some(*accelerator),
+        )?)?;
+    }
+
+    let menu = Menu::with_items(app, &[&bita, &edit, &go, &window])?;
     app.set_menu(menu)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{route_of, SECTIONS};
+
+    #[test]
+    fn go_items_carry_their_route() {
+        assert_eq!(route_of("go:tiempo"), Some("tiempo"));
+        assert_eq!(route_of("live-assist"), None);
+    }
+
+    #[test]
+    fn every_section_has_its_own_shortcut() {
+        let keys: std::collections::HashSet<_> = SECTIONS.iter().map(|(_, _, key)| *key).collect();
+        assert_eq!(keys.len(), SECTIONS.len());
+        assert_eq!(SECTIONS[0].2, "CmdOrCtrl+1");
+        assert_eq!(SECTIONS[6].2, "CmdOrCtrl+7");
+        assert_eq!(SECTIONS[7], ("ajustes", "Ajustes", "CmdOrCtrl+,"));
+    }
 }

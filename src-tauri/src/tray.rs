@@ -1,19 +1,15 @@
+use std::sync::Mutex;
+
 use tauri::{
     image::Image,
-    menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager,
+    menu::{Menu, MenuItem},
+    tray::TrayIconBuilder,
+    AppHandle, Manager, Wry,
 };
 
 use crate::model::LiveTimer;
-use crate::panel::{self, Anchor, TrayAnchor};
 
 pub const ID: &str = "bita";
-
-const OPEN: &str = "open";
-const QUIT: &str = "quit";
-const LIVE: &str = "tray-live";
-const LIVE_WIDE: &str = "tray-live-wide";
 
 const TEMPLATE_ICON: &[u8] = include_bytes!("../icons/trayTemplate@2x.png");
 
@@ -21,68 +17,131 @@ const MAX_LABEL_CHARS: usize = 12;
 
 const UNNAMED: &str = "sin nombre";
 
-const TOOLTIP: &str = "Den — clic para abrir, clic derecho para salir";
+const UNNAMED_ROW: &str = "Sin nombre";
+
+const TOOLTIP: &str = "Den — clic para ver los cronómetros";
+
+const IDLE_HEADER: &str = "Ningún cronómetro corriendo";
+
+const SEPARATOR: &str = " · ";
+
+#[derive(Default)]
+pub struct TrayList {
+    shown: Mutex<Shown>,
+}
+
+#[derive(Default)]
+struct Shown {
+    key: Option<String>,
+    rows: Vec<(MenuItem<Wry>, String)>,
+}
 
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, OPEN, "Abrir Den", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, QUIT, "Salir de Den", true, Some("CmdOrCtrl+Q"))?;
-    let live = MenuItem::with_id(app, LIVE, "Asistente de reunión", true, None::<&str>)?;
-    let wide = MenuItem::with_id(app, LIVE_WIDE, "Ventana amplia", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &live, &wide, &PredefinedMenuItem::separator(app)?, &quit])?;
+    let menu = Menu::with_items(app, &[&MenuItem::new(app, IDLE_HEADER, false, None::<&str>)?])?;
 
     TrayIconBuilder::with_id(ID)
         .icon(tray_icon(app)?)
         .icon_as_template(cfg!(target_os = "macos"))
         .tooltip(TOOLTIP)
         .menu(&menu)
-        .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| match event.id().as_ref() {
-            QUIT => app.exit(0),
-            OPEN => panel::toggle(app),
-            LIVE => crate::live::toggle(app),
-            LIVE_WIDE => crate::live::open_wide(app),
-            _ => {}
-        })
-        .on_tray_icon_event(|tray, event| {
-            let app = tray.app_handle();
-            remember(app, &event);
-            if let TrayIconEvent::Click {
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
-                ..
-            } = event
-            {
-                panel::toggle(app);
-            }
-        })
+        .show_menu_on_left_click(true)
         .build(app)?;
 
     Ok(())
 }
 
-fn remember(app: &AppHandle, event: &TrayIconEvent) {
-    let rect = match event {
-        TrayIconEvent::Click { rect, .. }
-        | TrayIconEvent::DoubleClick { rect, .. }
-        | TrayIconEvent::Enter { rect, .. }
-        | TrayIconEvent::Move { rect, .. }
-        | TrayIconEvent::Leave { rect, .. } => rect,
-        _ => return,
+pub fn update_list(app: &AppHandle, running: &[LiveTimer]) {
+    let ordered = by_start(running);
+    let key = list_key(&ordered);
+    let texts: Vec<String> = ordered.iter().map(|timer| row_text(timer)).collect();
+    let state = app.state::<TrayList>();
+    let mut shown = state.shown.lock().expect("tray list poisoned");
+
+    if shown.key.as_deref() == Some(key.as_str()) {
+        for ((item, current), text) in shown.rows.iter_mut().zip(texts) {
+            if *current != text {
+                let _ = item.set_text(&text);
+                *current = text;
+            }
+        }
+        return;
+    }
+
+    let Some(tray) = app.tray_by_id(ID) else {
+        return;
     };
+    let Ok(rows) = build_rows(app, &texts) else {
+        return;
+    };
+    let Ok(header) = MenuItem::new(app, header_text(ordered.len()), false, None::<&str>) else {
+        return;
+    };
+    let Ok(menu) = Menu::with_items(app, &[&header]) else {
+        return;
+    };
+    for (item, _) in &rows {
+        let _ = menu.append(item);
+    }
+    if tray.set_menu(Some(menu)).is_ok() {
+        shown.key = Some(key);
+        shown.rows = rows;
+    }
+}
 
-    let scale = app
-        .get_webview_window(panel::LABEL)
-        .and_then(|window| window.scale_factor().ok())
-        .unwrap_or(1.0);
+fn build_rows(app: &AppHandle, texts: &[String]) -> tauri::Result<Vec<(MenuItem<Wry>, String)>> {
+    texts
+        .iter()
+        .map(|text| Ok((MenuItem::new(app, text, false, None::<&str>)?, text.clone())))
+        .collect()
+}
 
-    let position = rect.position.to_physical::<f64>(scale);
-    let size = rect.size.to_physical::<f64>(scale);
-
-    app.state::<TrayAnchor>().remember(Anchor {
-        center_x: position.x + size.width / 2.0,
-        top_y: position.y,
-        bottom_y: position.y + size.height,
+fn by_start(running: &[LiveTimer]) -> Vec<&LiveTimer> {
+    let mut ordered: Vec<&LiveTimer> = running.iter().collect();
+    ordered.sort_by(|left, right| {
+        left.started_at
+            .cmp(&right.started_at)
+            .then(left.id.cmp(&right.id))
     });
+    ordered
+}
+
+fn list_key(ordered: &[&LiveTimer]) -> String {
+    ordered
+        .iter()
+        .map(|timer| {
+            format!(
+                "{}\u{1f}{}\u{1f}{}\u{1f}{}",
+                timer.id,
+                timer.title.as_deref().unwrap_or_default(),
+                timer.project_name.as_deref().unwrap_or_default(),
+                timer.draft
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\u{1e}")
+}
+
+pub fn header_text(count: usize) -> String {
+    match count {
+        0 => IDLE_HEADER.to_string(),
+        1 => "1 cronómetro corriendo".to_string(),
+        many => format!("{many} cronómetros corriendo"),
+    }
+}
+
+pub fn row_text(timer: &LiveTimer) -> String {
+    let title = timer
+        .title
+        .as_deref()
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .unwrap_or(UNNAMED_ROW);
+    let mut parts = vec![title.to_string()];
+    if let Some(project) = timer.project_name.as_deref() {
+        parts.push(project.to_string());
+    }
+    parts.push(format_clock(timer.elapsed_seconds));
+    parts.join(SEPARATOR)
 }
 
 fn tray_icon(app: &AppHandle) -> tauri::Result<Image<'static>> {
@@ -108,7 +167,7 @@ pub fn tooltip_for(title: &str) -> String {
     if title.is_empty() {
         TOOLTIP.to_string()
     } else {
-        format!("bita — {title}")
+        format!("Den — {title}")
     }
 }
 
@@ -158,7 +217,7 @@ fn truncate(text: &str, limit: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_clock, format_title, tooltip_for, truncate, TOOLTIP};
+    use super::{format_clock, format_title, header_text, list_key, row_text, tooltip_for, truncate, TOOLTIP};
     use crate::model::LiveTimer;
 
     fn timer(
@@ -242,12 +301,36 @@ mod tests {
     #[test]
     fn the_tooltip_carries_the_clock_where_there_is_no_title() {
         assert_eq!(tooltip_for(""), TOOLTIP);
-        assert_eq!(tooltip_for("0:58 Pharma STI"), "bita — 0:58 Pharma STI");
+        assert_eq!(tooltip_for("0:58 Pharma STI"), "Den — 0:58 Pharma STI");
     }
 
     #[test]
     fn truncation_keeps_short_names_whole() {
         assert_eq!(truncate("bita", 12), "bita");
         assert_eq!(truncate("Pharma STI", 12), "Pharma STI");
+    }
+
+    #[test]
+    fn a_menu_row_shows_title_project_and_clock() {
+        let named = timer(733, "2026-09-20T05:48:20Z", 3480, Some("Pharma STI"), false);
+        assert_eq!(row_text(&named), "Algo · Pharma STI · 0:58");
+        let draft = timer(734, "2026-09-20T06:42:46Z", 198, None, true);
+        assert_eq!(row_text(&draft), "Sin nombre · 0:03");
+    }
+
+    #[test]
+    fn the_menu_header_counts_the_timers() {
+        assert_eq!(header_text(0), "Ningún cronómetro corriendo");
+        assert_eq!(header_text(1), "1 cronómetro corriendo");
+        assert_eq!(header_text(3), "3 cronómetros corriendo");
+    }
+
+    #[test]
+    fn the_list_key_ignores_the_clock_but_not_the_names() {
+        let before = timer(733, "2026-09-20T05:48:20Z", 60, Some("Pharma STI"), false);
+        let later = timer(733, "2026-09-20T05:48:20Z", 3600, Some("Pharma STI"), false);
+        let renamed = timer(733, "2026-09-20T05:48:20Z", 3600, Some("Otro"), false);
+        assert_eq!(list_key(&[&before]), list_key(&[&later]));
+        assert_ne!(list_key(&[&before]), list_key(&[&renamed]));
     }
 }
