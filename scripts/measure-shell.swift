@@ -55,6 +55,16 @@ for (const id of sections) {
   } else if (content) {
     inside(`${id} sección`, box(host), content);
     if (host.scrollWidth > host.clientWidth + 1) problems.push(`${id}: la sección se desborda a lo ancho (${host.scrollWidth} > ${host.clientWidth})`);
+    if (id === 'docs') {
+      const hostBox = box(host);
+      for (const selector of ['.tree-rail', '.reader', '.aside']) {
+        const node = host.querySelector(selector);
+        if (!node) { problems.push(`docs: falta ${selector}`); continue; }
+        inside(`docs ${selector}`, box(node), hostBox);
+      }
+      const reader = host.querySelector('.reader');
+      if (reader && reader.getBoundingClientRect().width < 420) problems.push(`docs: el lector mide ${reader.getBoundingClientRect().width} px, menos de 420`);
+    }
   }
   const page = document.documentElement;
   if (page.scrollWidth > W + 1 || page.scrollHeight > H + 1) {

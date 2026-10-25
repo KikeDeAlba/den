@@ -1165,16 +1165,6 @@ body.resizing * {
   background: var(--card-quiet);
 }
 
-@media (max-width: 1100px) {
-  .notes-root {
-    --aside-w: 40px;
-  }
-
-  .notes-root .sash--aside {
-    display: none;
-  }
-}
-
 .notes-root .md-mermaid {
   margin: 16px 0;
   padding: 10px 12px 12px;

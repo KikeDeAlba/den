@@ -92,6 +92,10 @@ let loadingTree = true
 let loadingDoc = false
 let railOpen = remembered(RAIL_KEY)
 let asideOpen = remembered(ASIDE_KEY)
+const NARROW_MAX_PX = 1100
+let narrow = false
+let asidePeek = false
+let stopNarrowWatch: (() => void) | null = null
 let logOpen = true
 let scale = rememberedScale()
 let meetingTab: MeetingTab = 'document'
@@ -291,7 +295,7 @@ function readerState(): ReaderState {
     canPrev: at > 0,
     canNext: at !== -1 && at < order.length - 1,
     railOpen,
-    asideOpen,
+    asideOpen: asideShown(),
     meeting: meetingContext(),
     video: videoActions(),
     history: can('history'),
@@ -321,7 +325,7 @@ function asideState(): AsideState {
   return {
     page: opened,
     active,
-    open: asideOpen,
+    open: asideShown(),
     logOpen,
     onToggleLog: toggleLog,
     meeting: meetingContext(),
@@ -385,7 +389,7 @@ function readerSignature(): string {
     failure?.message ?? '',
     loadingDoc,
     railOpen,
-    asideOpen,
+    asideShown(),
     meetingSignature(),
   ].join('~')
 }
@@ -400,7 +404,7 @@ function asideSignature(): string {
     opened?.refs?.map((ref) => ref.url).join(',') ?? '',
     opened?.backlog?.map((item) => `${item.id}:${item.status}`).join(',') ?? '',
     active ?? '',
-    asideOpen,
+    asideShown(),
     logOpen,
     meetingLoad?.state ?? 'none',
     query,
@@ -590,10 +594,33 @@ function setRail(open: boolean): void {
   paint()
 }
 
+function asideShown(): boolean {
+  return narrow ? asidePeek : asideOpen
+}
+
 function setAside(open: boolean): void {
-  asideOpen = open
-  writeStored(ASIDE_KEY, open ? 'open' : 'closed')
+  if (narrow) {
+    asidePeek = open
+  } else {
+    asideOpen = open
+    writeStored(ASIDE_KEY, open ? 'open' : 'closed')
+  }
   paint()
+}
+
+function watchNarrow(root: HTMLElement): () => void {
+  const query = window.matchMedia(`(max-width: ${NARROW_MAX_PX}px)`)
+  const apply = (): void => {
+    if (narrow === query.matches) return
+    narrow = query.matches
+    asidePeek = false
+    root.classList.toggle('docs--narrow', narrow)
+    paint()
+  }
+  narrow = query.matches
+  root.classList.toggle('docs--narrow', narrow)
+  query.addEventListener('change', apply)
+  return () => query.removeEventListener('change', apply)
 }
 
 function toggleLog(): void {
@@ -1221,6 +1248,7 @@ export async function mount(host: HTMLElement, path: readonly string[]): Promise
   readerPainted = ''
   asidePainted = ''
   applyScale(scale)
+  stopNarrowWatch = watchNarrow(dom.root)
   initProse(dom.root)
   listenOnce()
   stopSpaceWatch = onSpaceChange((slug) => {
@@ -1249,6 +1277,9 @@ export function unmount(): void {
   spy = null
   stopSpaceWatch?.()
   stopSpaceWatch = null
+  stopNarrowWatch?.()
+  stopNarrowWatch = null
+  asidePeek = false
   dom = null
   treeLoaded = false
 }

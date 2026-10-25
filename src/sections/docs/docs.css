@@ -68,3 +68,21 @@
   min-width: 0;
   overflow: hidden;
 }
+
+[data-section='docs'] .docs--narrow {
+  --aside-w: 40px;
+}
+
+[data-section='docs'] .docs--narrow .sash--aside {
+  display: none;
+}
+
+[data-section='docs'] .docs--narrow .aside:not(.aside--closed) {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  width: min(var(--aside-open), calc(100% - var(--rail-w)));
+  box-shadow: -12px 0 24px rgba(0, 0, 0, 0.35);
+}
