@@ -13,7 +13,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",
-    "measure": "pnpm build && ./scripts/measure-panel.sh"
+    "measure": "pnpm build && ./scripts/measure-shell.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.1",

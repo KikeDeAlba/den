@@ -176,7 +176,7 @@ Dos cosas del dominio que la interfaz intenta hacer evidentes:
 ```sh
 pnpm tauri dev      # la app, con recarga del panel
 pnpm typecheck      # el frontend
-pnpm measure        # mide el panel en WebKit y falla si algo se sale
+pnpm measure        # mide la ventana a 900x600 y 1440x900 en WebKit y falla si algo se sale
 cargo test          # desde src-tauri/
 ```
 
@@ -297,7 +297,7 @@ seguiría arrastrando un segundo webview en los arranques en los que no se quier
 Al cerrarla se esconde en lugar de destruirse, así que reabrirla es inmediato.
 
 Lleva su propio HTML (`notas.html`) y no una rama dentro de `index.html`, porque
-`scripts/measure-panel.swift` carga `index.html` en un WKWebView pelado, sin IPC
+`scripts/measure-shell.swift` carga `index.html` en un WKWebView pelado, sin IPC
 de Tauri: una rama sobre `getCurrentWindow()` dejaría al test midiendo algo
 indeterminado. Rollup comparte `dom`, `format` y `bita` entre los dos bundles.
 

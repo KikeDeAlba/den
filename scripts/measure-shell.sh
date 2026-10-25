@@ -18,4 +18,4 @@ for _ in $(seq 1 40); do
   sleep 0.1
 done
 
-BITA_MEASURE_PORT="$PORT" swift "$ROOT/scripts/measure-panel.swift"
+BITA_MEASURE_PORT="$PORT" swift "$ROOT/scripts/measure-shell.swift"
