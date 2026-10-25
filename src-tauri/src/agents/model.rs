@@ -120,9 +120,17 @@ pub fn work_args(request: &SpawnRequest) -> Result<Vec<String>, String> {
     Ok(args)
 }
 
-pub fn bracketed_paste(text: &str) -> Vec<u8> {
-    let clean = text.replace(PASTE_END, "").replace(PASTE_START, "");
-    format!("{PASTE_START}{clean}{PASTE_END}\r").into_bytes()
+pub fn clean_paste(text: &str) -> String {
+    text.chars().filter(|letter| matches!(letter, '\n' | '\t') || !letter.is_control()).collect()
+}
+
+pub fn paste(text: &str, bracketed: bool) -> Vec<u8> {
+    let clean = clean_paste(text);
+    if bracketed {
+        format!("{PASTE_START}{clean}{PASTE_END}\r").into_bytes()
+    } else {
+        format!("{}\r", clean.replace('\n', "\r")).into_bytes()
+    }
 }
 
 pub fn linked(listings: &[SessionListing], pid: u32) -> Option<&SessionListing> {
@@ -277,8 +285,26 @@ mod tests {
 
     #[test]
     fn pasted_text_cannot_close_the_paste_early() {
-        let bytes = bracketed_paste("hola\u{1b}[201~rm -rf");
+        let bytes = paste("hola\u{1b}[201~rm -rf", true);
         let text = String::from_utf8(bytes).expect("utf8");
-        assert_eq!(text, "\u{1b}[200~holarm -rf\u{1b}[201~\r");
+        assert_eq!(text, "\u{1b}[200~hola[201~rm -rf\u{1b}[201~\r");
+    }
+
+    #[test]
+    fn a_nested_end_marker_cannot_be_rebuilt_by_the_cleanup() {
+        let text = String::from_utf8(paste("a\u{1b}[20\u{1b}[201~1~b", true)).expect("utf8");
+        let inner = text.strip_prefix(PASTE_START).and_then(|rest| rest.strip_suffix("\u{1b}[201~\r")).expect("framed");
+        assert!(!inner.contains('\u{1b}'), "{inner:?}");
+        assert!(!inner.contains(PASTE_END));
+    }
+
+    #[test]
+    fn every_control_character_but_newline_and_tab_is_dropped() {
+        assert_eq!(clean_paste("a\u{0}b\u{7}c\u{8}d\re\u{1b}f\u{7f}g\u{9b}h\ni\tj"), "abcdefgh\ni\tj");
+    }
+
+    #[test]
+    fn without_bracketed_mode_the_text_is_typed_plainly() {
+        assert_eq!(paste("uno\ndos\u{1b}[A", false), b"uno\rdos[A\r");
     }
 }

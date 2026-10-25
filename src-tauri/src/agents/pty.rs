@@ -387,6 +387,20 @@ mod tests {
     }
 
     #[test]
+    fn the_bracketed_paste_mode_follows_the_program() {
+        let (sender, _receiver) = mpsc::channel();
+        let pty = Pty::spawn(&shell("printf '\\033[?2004hon\\n'; read line; printf '\\033[?2004loff\\n'; read line"), exited(sender))
+            .expect("spawn");
+        let seen = collector(&pty);
+        assert!(wait_for(&seen, "on"));
+        assert!(pty.bracketed());
+        pty.write(b"\r").expect("write");
+        assert!(wait_for(&seen, "off"));
+        assert!(!pty.bracketed());
+        pty.write(b"\r").expect("write");
+    }
+
+    #[test]
     fn resizing_reaches_the_terminal() {
         let (sender, _receiver) = mpsc::channel();
         let pty = Pty::spawn(&shell("read line; stty size"), exited(sender)).expect("spawn");

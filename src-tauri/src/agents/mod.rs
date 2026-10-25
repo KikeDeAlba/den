@@ -355,9 +355,8 @@ fn agent_send(app: AppHandle, window: Window, id: u64, text: String) -> Result<(
     if text.trim().is_empty() {
         return Ok(());
     }
-    app.state::<Agents>()
-        .pty(id)?
-        .write(&model::bracketed_paste(&text))
+    let pty = app.state::<Agents>().pty(id)?;
+    pty.write(&model::paste(&text, pty.bracketed()))
         .map_err(|error| failed(format!("No pude mandarle el mensaje: {error}")))
 }
 
