@@ -14,8 +14,8 @@ mod model;
 mod notes;
 mod media;
 mod live;
-mod live_wide;
 mod meeting;
+mod minutes;
 mod notes_cmd;
 mod pay;
 mod pdf;
@@ -107,6 +107,10 @@ fn main() {
             notes_cmd::copy_text,
             meeting::meeting_for_entry,
             meeting::open_meeting_folder,
+            meeting::meeting_by_id,
+            minutes::meeting_transcript,
+            minutes::meeting_summary,
+            minutes::meeting_download,
             notes_cmd::notes_search_pages,
             notes_cmd::backlog_add,
             media::recap_list,
@@ -161,7 +165,6 @@ fn main() {
             }
             match id {
                 menu::LIVE => live::toggle(app),
-                menu::LIVE_WIDE => live::open_wide(app),
                 _ => {}
             }
         })

@@ -65,8 +65,8 @@ function header(): HTMLElement {
   const widen = document.createElement('button')
   widen.type = 'button'
   widen.className = 'live-icon'
-  widen.title = 'Ventana amplia'
-  widen.setAttribute('aria-label', 'Ampliar a ventana amplia')
+  widen.title = 'Abrir en Reuniones'
+  widen.setAttribute('aria-label', 'Abrir la reunión en la ventana de Den')
   widen.append(icon('expand', 14))
   widen.addEventListener('click', () => {
     void liveModeSet('wide')

@@ -3,7 +3,6 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::AppHandle;
 
 pub const LIVE: &str = "live-assist";
-pub const LIVE_WIDE: &str = "live-wide";
 
 const GO_PREFIX: &str = "go:";
 
@@ -67,7 +66,6 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             &PredefinedMenuItem::close_window(app, Some("Cerrar"))?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, LIVE, "Asistente de reunión", true, None::<&str>)?,
-            &MenuItem::with_id(app, LIVE_WIDE, "Ventana amplia", true, None::<&str>)?,
         ],
     )?;
 
@@ -92,7 +90,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{route_of, GO_PREFIX, LIVE, LIVE_WIDE, SECTIONS};
+    use super::{route_of, GO_PREFIX, LIVE, SECTIONS};
 
     #[test]
     fn go_items_carry_their_route() {
@@ -138,7 +136,6 @@ mod tests {
     #[test]
     fn the_window_items_never_read_as_a_go_route() {
         assert_eq!(route_of(LIVE), None);
-        assert_eq!(route_of(LIVE_WIDE), None);
         assert_eq!(route_of(""), None);
         assert_eq!(route_of("quit"), None);
     }
