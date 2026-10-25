@@ -1,6 +1,7 @@
-import { notesTree, onMeetingMediaChanged, onToolsChanged, recapList, toolsStatus, type MeetingRecord, type ToolsStatus } from '../../bita.ts'
+import { notesTree, recapList, toolsStatus, type MeetingRecord, type ToolsStatus } from '../../bita.ts'
 import { element, icon } from '../../dom.ts'
 import { go } from '../../shell/routes.ts'
+import type { ShellEvent } from '../section.ts'
 import { createLiveView, type LiveMeetingView } from './live.ts'
 import {
   ALL_PROJECTS,
@@ -184,11 +185,13 @@ export function mount(host: HTMLElement, path: readonly string[]): void {
   })
   live.start()
   paint()
-  onMeetingMediaChanged(() => void load())
-  onToolsChanged((status) => {
-    tools = status
-  })
   void load()
+}
+
+export function receive(event: ShellEvent): void {
+  if (event.type === 'meeting-media') void load()
+  else if (event.type === 'tools') tools = event.tools
+  else live?.receive(event)
 }
 
 export function update(path: readonly string[]): void {

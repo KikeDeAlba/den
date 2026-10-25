@@ -1,5 +1,6 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 
 export const SNAPSHOT_EVENT = 'bita://snapshot'
 export const DOCS_CHANGED_EVENT = 'bita://docs-changed'
@@ -8,6 +9,7 @@ export const SYNC_FINISHED_EVENT = 'bita://confluence-synced'
 export const LIVE_ANSWER_EVENT = 'bita://live-answer'
 export const LIVE_STATE_EVENT = 'bita://live-state'
 export const LIVE_TRANSCRIPT_EVENT = 'bita://live-transcript'
+export const CLOSE_REQUESTED_EVENT = 'tauri://close-requested'
 export const NAVIGATE_EVENT = 'den://navigate'
 export const TOOLS_EVENT = 'bita://tools-changed'
 
@@ -1541,6 +1543,25 @@ export function onLiveAnswer(handler: (event: LiveAnswerEvent) => void): void {
   void listen<LiveAnswerEvent>(LIVE_ANSWER_EVENT, (event) => {
     handler(event.payload)
   })
+}
+
+export function onWindowClosed(handler: () => void): Unsubscribe {
+  let stop: (() => void) | null = null
+  let cancelled = false
+  void getCurrentWindow()
+    .listen(CLOSE_REQUESTED_EVENT, () => {
+      if (!cancelled) handler()
+    })
+    .then((unlisten) => {
+      if (cancelled) unlisten()
+      else stop = unlisten
+    })
+    .catch(() => undefined)
+  return () => {
+    cancelled = true
+    stop?.()
+    stop = null
+  }
 }
 
 export function onLiveState(handler: () => void): void {

@@ -1,10 +1,14 @@
 import {
   describeProblem,
   onDocsChanged,
+  onLiveAnswer,
   onLiveState,
   onLiveTranscript,
+  onMeetingMediaChanged,
   onSnapshot,
+  onSyncFinished,
   onToolsChanged,
+  onWindowClosed,
   pendingProposals,
   refresh,
   snapshot,
@@ -75,8 +79,15 @@ function listenAll(): void {
     void loadProposals()
   })
   onLiveTranscript((update) => emit({ type: 'live-transcript', update }))
+  onLiveAnswer((answer) => emit({ type: 'live-answer', answer }))
+  onSyncFinished(() => emit({ type: 'sync-finished' }))
+  onMeetingMediaChanged((change) => emit({ type: 'meeting-media', change }))
+  onWindowClosed(() => emit({ type: 'hidden' }))
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible') return
+    if (document.visibilityState !== 'visible') {
+      emit({ type: 'hidden' })
+      return
+    }
     emit({ type: 'visible' })
     void loadProposals()
   })

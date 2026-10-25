@@ -1,10 +1,11 @@
-import { onToolsChanged, type Space } from '../../bita.ts'
+import type { Space } from '../../bita.ts'
 import { GAZE_FIXTURE } from '../../cerebro/flag.ts'
 import { element, icon } from '../../dom.ts'
 import { closeSwitcher, isSwitcherOpen, toggleSwitcher, withPages } from '../../notes/switcher.ts'
 import { isMac, modKey } from '../../platform.ts'
 import { chooseSpace, loadSpaces, rememberedSpace, rememberSpace } from '../../shell/space.ts'
 import { projectColor } from '../../shell/colors.ts'
+import type { ShellEvent } from '../section.ts'
 import { createBrain, type BrainView } from './brain.ts'
 import './cerebro.css'
 
@@ -19,14 +20,10 @@ interface Mounted {
 }
 
 let view: Mounted | null = null
-let watching = false
 
-function watchTools(): void {
-  if (watching || GAZE_FIXTURE) return
-  watching = true
-  onToolsChanged(() => {
-    if (view?.brain.failed() === true) void view.brain.load(view.space?.projectSlug ?? null)
-  })
+export function receive(event: ShellEvent): void {
+  if (event.type !== 'tools' || GAZE_FIXTURE) return
+  if (view?.brain.failed() === true) void view.brain.load(view.space?.projectSlug ?? null)
 }
 
 function spaceName(space: Space | null): string {
@@ -175,7 +172,6 @@ export function mount(host: HTMLElement, path: readonly string[]): Promise<void>
   paintPicker(mounted)
   parts.picker.addEventListener('click', () => togglePicker(mounted))
   window.addEventListener('keydown', (event) => keys(mounted, event), { capture: true, signal: mounted.lifetime.signal })
-  watchTools()
   return start(mounted, path[0] ?? null)
 }
 

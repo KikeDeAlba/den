@@ -9,10 +9,6 @@ import {
   notesDocument,
   notesSearchPages,
   notesTree,
-  onDocsChanged,
-  onMeetingMediaChanged,
-  onSyncFinished,
-  onToolsChanged,
   openDocument,
   openExternal,
   openMeetingFolder,
@@ -33,7 +29,7 @@ import { renderAside, type AsideState } from '../../notes/aside.ts'
 import { renderAtlassian } from '../../notes/atlassian.ts'
 import { openExportDialog } from '../../notes/export.ts'
 import { openHistoryDialog } from '../../notes/history.ts'
-import { isCompressing, onMediaJobs, openCompressDialog, openStripDialog } from '../../notes/media-dialogs.ts'
+import { isCompressing, mediaChanged, onMediaJobs, openCompressDialog, openStripDialog } from '../../notes/media-dialogs.ts'
 import {
   currentFrameSrc,
   hasVideo,
@@ -56,6 +52,7 @@ import { closeSwitcher, isSwitcherOpen, toggleSwitcher, withPages } from '../../
 import { formatRoute, go, parseRoute } from '../../shell/routes.ts'
 import { isSpaceShortcut, onSpaceChange, rememberedSpace, rememberSpace } from '../../shell/space.ts'
 import { pendientesRoute } from '../pendientes/route.ts'
+import type { ShellEvent } from '../section.ts'
 import { docsRoute, parseDocsPath, type DocsTarget, type DocsView } from './route.ts'
 import './docs.css'
 
@@ -1187,31 +1184,35 @@ function listenOnce(): void {
   if (listening) return
   listening = true
   window.addEventListener('keydown', keys)
-  onDocsChanged(() => {
-    if (!alive) return
-    void loadTree()
-    if (selected?.kind === 'page') void loadPage(selected.id, true)
-  })
-  onSyncFinished(() => {
-    if (!alive) return
-    confluenceLinks = new Map()
-    void loadTree()
-  })
-  onMeetingMediaChanged((change) => {
-    if (!alive) return
-    records = null
-    refreshStorage()
-    if (meetingLoad?.state === 'ready' && meetingLoad.view.id === change.id) reloadMeeting()
-    else paint()
-  })
   onMediaJobs(() => {
     if (!alive) return
     readerPainted = ''
     paint()
   })
-  onToolsChanged((status) => {
-    if (alive) applyModules(status.modules)
-  })
+}
+
+export function receive(event: ShellEvent): void {
+  if (event.type === 'meeting-media') mediaChanged(event.change)
+  if (!alive) return
+  switch (event.type) {
+    case 'docs-changed':
+      void loadTree()
+      if (selected?.kind === 'page') void loadPage(selected.id, true)
+      break
+    case 'sync-finished':
+      confluenceLinks = new Map()
+      void loadTree()
+      break
+    case 'meeting-media':
+      records = null
+      refreshStorage()
+      if (meetingLoad?.state === 'ready' && meetingLoad.view.id === event.change.id) reloadMeeting()
+      else paint()
+      break
+    case 'tools':
+      applyModules(event.tools.modules)
+      break
+  }
 }
 
 export async function mount(host: HTMLElement, path: readonly string[]): Promise<void> {

@@ -6,8 +6,6 @@ import {
   copyText,
   describeProblem,
   notesTree,
-  onDocsChanged,
-  onToolsChanged,
   toolsStatus,
   type BacklogItem,
   type BacklogKind,
@@ -36,6 +34,7 @@ import {
   type IssueGroup,
   type IssueState,
 } from './model.ts'
+import type { ShellEvent } from '../section.ts'
 import { parsePendientesPath, pendientesRoute, type PendientesTarget } from './route.ts'
 import './pendientes.css'
 
@@ -722,14 +721,16 @@ function listenOnce(): void {
   if (listening) return
   listening = true
   window.addEventListener('keydown', keys)
-  onDocsChanged(() => {
-    if (alive) void load()
-  })
-  onToolsChanged((status) => {
-    if (!alive) return
-    modules = status.modules
+}
+
+export function receive(event: ShellEvent): void {
+  if (!alive) return
+  if (event.type === 'docs-changed') {
     void load()
-  })
+  } else if (event.type === 'tools') {
+    modules = event.tools.modules
+    void load()
+  }
 }
 
 export async function mount(target: HTMLElement, path: readonly string[]): Promise<void> {

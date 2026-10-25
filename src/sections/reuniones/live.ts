@@ -33,6 +33,7 @@ import {
   type SourceActions,
 } from '../../live/render.ts'
 import { Session } from '../../live/session.ts'
+import type { ShellEvent } from '../section.ts'
 import { shortcutLabel } from '../../shortcut.ts'
 import '../../live/live.css'
 
@@ -61,6 +62,7 @@ export interface LiveMeetingView {
   session: Session
   start: () => void
   shown: () => void
+  receive: (event: ShellEvent) => void
   dispose: () => void
 }
 
@@ -704,7 +706,6 @@ export function createLiveView(hooks: LiveHooks): LiveMeetingView {
     root,
     session,
     start() {
-      session.listen()
       resetTranscript()
       paint()
       clockTimer = window.setInterval(tick, 1000)
@@ -714,6 +715,11 @@ export function createLiveView(hooks: LiveHooks): LiveMeetingView {
     },
     shown() {
       void loadConfig()
+    },
+    receive(event) {
+      if (event.type === 'live-state') session.stateChanged()
+      else if (event.type === 'live-transcript') session.transcribed(event.update)
+      else if (event.type === 'live-answer') session.answered(event.answer)
     },
     dispose() {
       window.clearInterval(clockTimer)

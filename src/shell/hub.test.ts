@@ -25,6 +25,10 @@ vi.mock('../bita.ts', async (original) => {
     onDocsChanged: keep('docs'),
     onLiveState: keep('live'),
     onLiveTranscript: keep('transcript'),
+    onLiveAnswer: keep('answer'),
+    onSyncFinished: keep('sync'),
+    onMeetingMediaChanged: keep('media'),
+    onWindowClosed: keep('closed'),
   }
 })
 
@@ -77,7 +81,7 @@ describe('startHub', () => {
     await startHub((event) => events.push(event))
     await vi.waitFor(() => expect(events.some((event) => event.type === 'proposals')).toBe(true))
 
-    expect([...api.handlers.keys()].sort()).toEqual(['docs', 'live', 'snapshot', 'tools', 'transcript'])
+    expect([...api.handlers.keys()].sort()).toEqual(['answer', 'closed', 'docs', 'live', 'media', 'snapshot', 'sync', 'tools', 'transcript'])
     expect(events.map((event) => event.type)).toEqual(['snapshot', 'tools', 'snapshot', 'proposals'])
     expect(shellState().snapshot).toEqual(counted)
 
@@ -97,6 +101,26 @@ describe('startHub', () => {
     await vi.waitFor(() => expect(events.filter((event) => event.type === 'proposals')).toHaveLength(2))
     expect(api.pendingProposals).not.toHaveBeenCalled()
     expect(events.some((event) => event.type === 'docs-changed')).toBe(true)
+  })
+
+  it('forwards media, sync, answers and window closes as shell events', async () => {
+    api.snapshot.mockResolvedValue(idle)
+    api.toolsStatus.mockResolvedValue(tools(true, false))
+    api.refresh.mockResolvedValue(idle)
+    const events: ShellEvent[] = []
+    await startHub((event) => events.push(event))
+    const change = { id: 'm1', kind: 'compress', ok: true }
+    const answer = { askId: 3, event: { type: 'done' } }
+    api.handlers.get('media')!(change)
+    api.handlers.get('sync')!()
+    api.handlers.get('answer')!(answer)
+    api.handlers.get('closed')!()
+    expect(events.slice(-4)).toEqual([
+      { type: 'meeting-media', change },
+      { type: 'sync-finished' },
+      { type: 'live-answer', answer },
+      { type: 'hidden' },
+    ])
   })
 
   it('turns a failed refresh into a snapshot problem', async () => {
