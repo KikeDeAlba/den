@@ -170,6 +170,7 @@ fn main() {
         })
         .setup(|app| {
             activation::regular(app.handle());
+            agents::quit::guard_terminate(app.handle());
             tools::migrate_app_settings(app.handle());
             menu::create(app.handle())?;
             tray::create(app.handle())?;
@@ -191,6 +192,13 @@ fn main() {
 }
 
 fn on_run_event(app: &AppHandle, event: RunEvent) {
+    if let RunEvent::ExitRequested { api, .. } = &event {
+        if agents::quit_decision(app) != agents::quit::QuitDecision::Exit {
+            api.prevent_exit();
+            agents::request_quit(app);
+        }
+        return;
+    }
     if let RunEvent::Exit = event {
         agents::hang_up_all(app);
         return;

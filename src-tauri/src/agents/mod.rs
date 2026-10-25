@@ -1,10 +1,11 @@
 pub mod model;
 pub mod pty;
+pub mod quit;
 
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -21,6 +22,7 @@ use crate::platform;
 use crate::registry::{self, Tool};
 use model::{SessionDirectory, SessionListing, SpawnRequest};
 use pty::{Pty, PtySpec, KILL_GRACE};
+use quit::QuitDecision;
 
 pub const PLUGIN: &str = "agents";
 pub const CHANGED_EVENT: &str = "den://agents/changed";
@@ -69,6 +71,8 @@ struct Session {
 pub struct Agents {
     sessions: Mutex<HashMap<u64, Session>>,
     next: AtomicU64,
+    quitting: AtomicBool,
+    asking: AtomicBool,
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -310,8 +314,12 @@ fn agent_resize(app: AppHandle, window: Window, id: u64, cols: u16, rows: u16) -
 #[tauri::command]
 fn agent_kill(app: AppHandle, window: Window, id: u64) -> Result<(), Problem> {
     ensure_main(&window)?;
-    app.state::<Agents>().pty(id)?.kill_tree(KILL_GRACE);
+    end_session(&app.state::<Agents>().pty(id)?);
     Ok(())
+}
+
+fn end_session(pty: &Arc<Pty>) {
+    pty.kill_tree(KILL_GRACE);
 }
 
 #[tauri::command]
@@ -392,21 +400,47 @@ pub fn quit_message(live: usize) -> String {
 fn end_all_and_exit(app: AppHandle, live: Vec<Arc<Pty>>) {
     std::thread::spawn(move || {
         for pty in &live {
-            pty.kill_tree(KILL_GRACE);
+            end_session(pty);
         }
         for pty in &live {
             pty.wait_exit(KILL_GRACE + Duration::from_millis(500));
         }
-        app.exit(0);
+        exit_now(&app);
     });
 }
 
-pub fn request_quit(app: &AppHandle) {
-    let live = app.try_state::<Agents>().map(|agents| agents.live()).unwrap_or_default();
-    if live.is_empty() {
-        app.exit(0);
-        return;
+fn exit_now(app: &AppHandle) {
+    if let Some(agents) = app.try_state::<Agents>() {
+        agents.quitting.store(true, Ordering::SeqCst);
     }
+    app.exit(0);
+}
+
+pub fn quit_decision(app: &AppHandle) -> QuitDecision {
+    let Some(agents) = app.try_state::<Agents>() else {
+        return QuitDecision::Exit;
+    };
+    quit::decide(
+        agents.live().len(),
+        agents.quitting.load(Ordering::SeqCst),
+        agents.asking.load(Ordering::SeqCst),
+    )
+}
+
+pub fn request_quit(app: &AppHandle) {
+    match quit_decision(app) {
+        QuitDecision::Exit => exit_now(app),
+        QuitDecision::Wait => {
+            let _ = crate::shell::show(app);
+        }
+        QuitDecision::Confirm => confirm_quit(app),
+    }
+}
+
+fn confirm_quit(app: &AppHandle) {
+    let agents = app.state::<Agents>();
+    let live = agents.live();
+    agents.asking.store(true, Ordering::SeqCst);
     let _ = crate::shell::show(app);
     let handle = app.clone();
     app.dialog()
@@ -415,7 +449,9 @@ pub fn request_quit(app: &AppHandle) {
         .kind(MessageDialogKind::Warning)
         .buttons(MessageDialogButtons::OkCancelCustom("Terminar y salir".into(), "Cancelar".into()))
         .show(move |confirmed| {
+            handle.state::<Agents>().asking.store(false, Ordering::SeqCst);
             if confirmed {
+                let live = handle.state::<Agents>().live();
                 end_all_and_exit(handle, live);
             }
         });
