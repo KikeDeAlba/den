@@ -8,7 +8,7 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter};
 
 use crate::cli;
-use crate::meeting::inside;
+use crate::meeting::{inside, meeting_id};
 use crate::model::{Problem, ProblemKind};
 use crate::recap::{recap_binary, recap_call, RecapError};
 
@@ -66,17 +66,6 @@ pub struct StorageReport {
 struct SegmentText {
     start_ms: i64,
     text: String,
-}
-
-fn valid_id(id: &str) -> Result<&str, Problem> {
-    let ok = !id.is_empty()
-        && !id.starts_with('-')
-        && id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
-    if ok {
-        Ok(id)
-    } else {
-        Err(Problem::new(ProblemKind::CliFailed, format!("«{id}» no es el id de una reunión.")))
-    }
 }
 
 pub(crate) fn valid_preset(preset: &str) -> Result<&str, Problem> {
@@ -290,7 +279,7 @@ pub(crate) fn media_args<'a>(action: &'a str, id: &'a str, preset: Option<&'a st
 
 #[tauri::command]
 pub async fn meeting_compress(app: AppHandle, id: String, preset: String, prune: bool) -> Result<(), Problem> {
-    valid_id(&id)?;
+    meeting_id(&id)?;
     let preset = valid_preset(&preset)?.to_string();
     if recap_binary().is_none() {
         return Err(crate::recap::missing());
@@ -307,7 +296,7 @@ pub async fn meeting_compress(app: AppHandle, id: String, preset: String, prune:
 
 #[tauri::command]
 pub async fn meeting_strip_video(app: AppHandle, id: String, prune: bool) -> Result<Value, Problem> {
-    valid_id(&id)?;
+    meeting_id(&id)?;
     let job = Job::claim(&id)?;
     let args = media_args("strip-video", &id, None, prune);
     let outcome = recap_call(&args, STRIP_TIMEOUT).await.map_err(Problem::from);
@@ -318,7 +307,7 @@ pub async fn meeting_strip_video(app: AppHandle, id: String, prune: bool) -> Res
 
 #[tauri::command]
 pub async fn meeting_prune(id: String) -> Result<Value, Problem> {
-    valid_id(&id)?;
+    meeting_id(&id)?;
     let _job = Job::claim(&id)?;
     recap_call(&["prune", &id, "--intermediates"], PRUNE_TIMEOUT)
         .await
@@ -327,7 +316,7 @@ pub async fn meeting_prune(id: String) -> Result<Value, Problem> {
 
 #[tauri::command]
 pub async fn meeting_delete(id: String) -> Result<Value, Problem> {
-    valid_id(&id)?;
+    meeting_id(&id)?;
     let _job = Job::claim(&id)?;
     recap_call(&["delete", &id], PRUNE_TIMEOUT).await.map_err(Problem::from)
 }
@@ -403,7 +392,7 @@ pub async fn reveal(target: &Path) -> Result<(), Problem> {
 
 #[cfg(test)]
 mod tests {
-    use super::{find_matches, fold, media_args, tree_size, valid_id, valid_preset};
+    use super::{find_matches, fold, meeting_id, media_args, tree_size, valid_preset};
     use std::fs;
 
     #[test]
@@ -441,10 +430,10 @@ mod tests {
 
     #[test]
     fn meeting_ids_cannot_smuggle_flags() {
-        assert!(valid_id("2026-10-06-1530-standup").is_ok());
-        assert!(valid_id("--all").is_err());
-        assert!(valid_id("a b").is_err());
-        assert!(valid_id("../x").is_err());
+        assert!(meeting_id("2026-10-06-1530-standup").is_ok());
+        assert!(meeting_id("--all").is_err());
+        assert!(meeting_id("a b").is_err());
+        assert!(meeting_id("../x").is_err());
     }
 
     #[test]

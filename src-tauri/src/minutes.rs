@@ -4,7 +4,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::meeting::{inside, Segment};
+use crate::meeting::{inside, meeting_id, Segment};
 use crate::model::{Problem, ProblemKind};
 use crate::pdf::{sanitize_with, unique_path_with};
 use crate::recap::recap_call;
@@ -107,17 +107,6 @@ fn unreadable(error: impl std::fmt::Display) -> Problem {
     Problem::new(ProblemKind::Unreadable, format!("No entiendo la respuesta de recap: {error}"))
 }
 
-fn valid_id(id: &str) -> Result<&str, Problem> {
-    let ok = !id.is_empty()
-        && !id.starts_with('-')
-        && id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
-    if ok {
-        Ok(id)
-    } else {
-        Err(Problem::new(ProblemKind::CliFailed, format!("«{id}» no es el id de una reunión.")))
-    }
-}
-
 pub(crate) fn read_transcript(data: Value) -> Result<MeetingTranscript, Problem> {
     let raw: RawTranscript = serde_json::from_value(data).map_err(unreadable)?;
     Ok(MeetingTranscript {
@@ -174,14 +163,14 @@ pub(crate) fn read_summary(data: Value) -> Result<MeetingSummary, Problem> {
 
 #[tauri::command]
 pub async fn meeting_transcript(id: String) -> Result<MeetingTranscript, Problem> {
-    let id = valid_id(&id)?;
+    let id = meeting_id(&id)?;
     let data = recap_call(&["transcript", id], CALL_TIMEOUT).await.map_err(Problem::from)?;
     read_transcript(data)
 }
 
 #[tauri::command]
 pub async fn meeting_summary(id: String) -> Result<MeetingSummary, Problem> {
-    let id = valid_id(&id)?;
+    let id = meeting_id(&id)?;
     let data = recap_call(&["summary", id], CALL_TIMEOUT).await.map_err(Problem::from)?;
     read_summary(data)
 }
@@ -227,7 +216,7 @@ pub async fn meeting_download(dir: String, recording: String, title: String) -> 
 
 #[cfg(test)]
 mod tests {
-    use super::{download_target, read_summary, read_transcript, valid_id, ActionItem};
+    use super::{download_target, meeting_id, read_summary, read_transcript, ActionItem};
     use serde_json::json;
     use std::path::Path;
 
@@ -287,10 +276,10 @@ mod tests {
 
     #[test]
     fn meeting_ids_cannot_smuggle_flags() {
-        assert!(valid_id("2026-10-24-daily").is_ok());
-        assert!(valid_id("--json").is_err());
-        assert!(valid_id("a b").is_err());
-        assert!(valid_id("").is_err());
+        assert!(meeting_id("2026-10-24-daily").is_ok());
+        assert!(meeting_id("--json").is_err());
+        assert!(meeting_id("a b").is_err());
+        assert!(meeting_id("").is_err());
     }
 
     #[test]

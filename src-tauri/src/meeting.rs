@@ -112,6 +112,19 @@ pub struct MeetingView {
     pub proposals: Vec<crate::proposals::Proposal>,
 }
 
+pub(crate) fn meeting_id(id: &str) -> Result<&str, Problem> {
+    let ok = !id.is_empty()
+        && !id.starts_with('-')
+        && id != "."
+        && id != ".."
+        && id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
+    if ok {
+        Ok(id)
+    } else {
+        Err(Problem::new(ProblemKind::CliFailed, format!("«{id}» no es el id de una reunión.")))
+    }
+}
+
 pub(crate) fn inside(dir: &Path, path: &str) -> Option<PathBuf> {
     let candidate = PathBuf::from(path);
     let resolved = if candidate.is_absolute() { candidate } else { dir.join(candidate) };
@@ -153,10 +166,8 @@ pub async fn meeting_for_entry(app: AppHandle, entry_id: i64) -> Result<Option<M
 
 #[tauri::command]
 pub async fn meeting_by_id(app: AppHandle, id: String) -> Result<Option<MeetingView>, Problem> {
-    if id.is_empty() || id.starts_with('-') {
-        return Err(Problem::new(ProblemKind::CliFailed, format!("«{id}» no es el id de una reunión.")));
-    }
-    view_of(&app, &["show", &id]).await
+    let id = meeting_id(&id)?;
+    view_of(&app, &["show", id]).await
 }
 
 async fn view_of(app: &AppHandle, args: &[&str]) -> Result<Option<MeetingView>, Problem> {
@@ -247,9 +258,18 @@ pub async fn open_meeting_folder(dir: String) -> Result<(), Problem> {
 
 #[cfg(test)]
 mod tests {
-    use super::{inside, is_video_file};
+    use super::{inside, is_video_file, meeting_id};
     use std::fs;
     use std::path::Path;
+
+    #[test]
+    fn one_validator_accepts_recap_ids_and_rejects_paths_and_flags() {
+        assert!(meeting_id("2026-10-06-1530-standup").is_ok());
+        assert!(meeting_id("2026.10.06_daily").is_ok());
+        for bad in ["", "-x", "--json", ".", "..", "../x", "a/b", "a\\b", "a b", "/abs"] {
+            assert!(meeting_id(bad).is_err(), "{bad} should be rejected");
+        }
+    }
 
     #[test]
     fn only_video_containers_count_as_video() {
