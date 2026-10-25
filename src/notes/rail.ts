@@ -1,6 +1,6 @@
 import type { PageNode, Space } from '../bita.ts'
 import { element, icon } from '../dom.ts'
-import { projectColor } from '../tabs.ts'
+import { projectColor } from '../shell/colors.ts'
 import { isRemote, latestMeeting } from './meeting.ts'
 import type { PageResult, SearchScope } from './search.ts'
 import { formatBytes } from './media-dialogs.ts'

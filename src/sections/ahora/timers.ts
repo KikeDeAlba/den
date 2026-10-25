@@ -1,7 +1,7 @@
 import { isMeetingKind, MEETING_KINDS, type LiveTimer, type Project } from '../../bita.ts'
 import { element, icon } from '../../dom.ts'
 import { clock, startedAt } from '../../format.ts'
-import { projectColor } from '../../tabs.ts'
+import { projectColor } from '../../shell/colors.ts'
 import { entryRoute } from './launch.ts'
 
 export interface Draft {

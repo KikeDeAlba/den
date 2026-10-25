@@ -1,6 +1,6 @@
 import type { Space } from '../bita.ts'
 import { element, icon } from '../dom.ts'
-import { projectColor } from '../tabs.ts'
+import { projectColor } from '../shell/colors.ts'
 import { foldForSearch } from './markdown.ts'
 import './spaces.css'
 import { modKey } from '../platform.ts'

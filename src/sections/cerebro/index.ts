@@ -4,7 +4,7 @@ import { element, icon } from '../../dom.ts'
 import { closeSwitcher, isSwitcherOpen, toggleSwitcher, withPages } from '../../notes/switcher.ts'
 import { isMac, modKey } from '../../platform.ts'
 import { chooseSpace, loadSpaces, rememberedSpace, rememberSpace } from '../../shell/space.ts'
-import { projectColor } from '../../tabs.ts'
+import { projectColor } from '../../shell/colors.ts'
 import { createBrain, type BrainView } from './brain.ts'
 import './cerebro.css'
 

@@ -15,7 +15,7 @@ import {
   type SyncResult,
 } from '../bita.ts'
 import { element, icon } from '../dom.ts'
-import { projectColor } from '../tabs.ts'
+import { projectColor } from '../shell/colors.ts'
 import { button } from './media-dialogs.ts'
 
 export interface SpaceSettingsContext {

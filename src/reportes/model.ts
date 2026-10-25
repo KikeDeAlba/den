@@ -1,4 +1,4 @@
-import { projectColor } from '../tabs.ts'
+import { projectColor } from '../shell/colors.ts'
 import type { Overtime, OvertimeTotals, ProjectSeconds, RangeQuery, ReportEntry, ReportProject, ReportView } from './types.ts'
 
 export type PresetId = 'week' | 'month' | '30d' | 'quarter' | 'custom'

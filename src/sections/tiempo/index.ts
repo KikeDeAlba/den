@@ -2,7 +2,7 @@ import { describeProblem, pending, snapshot, timeSummary, toolsStatus, worked } 
 import { element } from '../../dom.ts'
 import { mountReports, type Reports } from '../../reportes/mount.ts'
 import { go } from '../../shell/routes.ts'
-import { projectColor } from '../../tabs.ts'
+import { projectColor } from '../../shell/colors.ts'
 import {
   RANGES,
   excludedLine,

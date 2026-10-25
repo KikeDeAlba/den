@@ -21,7 +21,7 @@ import { closeSwitcher, isSwitcherOpen, toggleSwitcher, withPages } from '../../
 import { modKey } from '../../platform.ts'
 import { formatRoute, go, parseRoute } from '../../shell/routes.ts'
 import { isSpaceShortcut, onSpaceChange, rememberedSpace, rememberSpace } from '../../shell/space.ts'
-import { projectColor } from '../../tabs.ts'
+import { projectColor } from '../../shell/colors.ts'
 import { pageRoute } from '../docs/route.ts'
 import {
   ageLabel,

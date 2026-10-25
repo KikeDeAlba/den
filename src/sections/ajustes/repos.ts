@@ -11,7 +11,7 @@ import {
   type Scope,
 } from '../../bita.ts'
 import { element } from '../../dom.ts'
-import { projectColor } from '../../tabs.ts'
+import { projectColor } from '../../shell/colors.ts'
 import { block, problemBox, quietButton, waiting } from './parts.ts'
 
 interface Data {
