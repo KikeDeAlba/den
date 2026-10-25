@@ -866,7 +866,7 @@ mod tests {
             spec.args,
             [abs("/opt/bita.js").as_str(), "work", "--harness", "codex", "--project=0", "--prompt=hola", "--db-path", "/tmp/test.db"]
         );
-        assert_eq!(spec.cwd, Some(std::fs::canonicalize(folder).expect("canonical")));
+        assert_eq!(spec.cwd, Some(platform::simplified(&std::fs::canonicalize(folder).expect("canonical"))));
         assert_eq!((spec.cols, spec.rows), (DEFAULT_COLS, DEFAULT_ROWS));
     }
 
@@ -896,7 +896,7 @@ mod tests {
             ..SpawnRequest::default()
         };
         let spec = spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).expect("spec");
-        assert_eq!(spec.cwd, Some(std::fs::canonicalize(root.join("inner")).expect("canonical")));
+        assert_eq!(spec.cwd, Some(platform::simplified(&std::fs::canonicalize(root.join("inner")).expect("canonical"))));
         let _ = std::fs::remove_dir_all(&root);
     }
 
