@@ -905,7 +905,7 @@ pub fn openable_file(path: &str) -> Result<PathBuf, Problem> {
 #[tauri::command]
 pub async fn open_source_file(app: AppHandle, window: WebviewWindow, path: String) -> Result<(), Problem> {
     let target = openable_file(&path)?;
-    if window.label() == LABEL {
+    if window.label() != crate::shell::LABEL {
         live_source_file(&app, &target).await?;
     }
     let Some(editor) = crate::cli::editor_override() else {
