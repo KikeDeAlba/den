@@ -138,6 +138,19 @@ describe('pendientes section', () => {
     expect(page?.value).toBe('all')
   })
 
+  it('keeps focus on the filters and grouping buttons after they repaint', () => {
+    const filters = host.querySelector<HTMLButtonElement>('.pend-filter') as HTMLButtonElement
+    filters.focus()
+    filters.click()
+    expect(host.querySelector('#pend-filters')).not.toBeNull()
+    expect(document.activeElement).toBe(host.querySelector('.pend-filter'))
+    const grouping = host.querySelector<HTMLButtonElement>('.pend-grouping') as HTMLButtonElement
+    grouping.focus()
+    grouping.click()
+    expect(host.querySelector('.pend-grouping')).not.toBe(grouping)
+    expect(document.activeElement).toBe(host.querySelector('.pend-grouping'))
+  })
+
   it('groups the list by page', () => {
     host.querySelector<HTMLButtonElement>('.pend-grouping')?.click()
     const labels = [...host.querySelectorAll('.pend-group-label')].map((node) => node.textContent)

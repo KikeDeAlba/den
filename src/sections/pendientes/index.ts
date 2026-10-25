@@ -439,6 +439,7 @@ function header(): HTMLElement {
   filter.className = count > 0 ? 'pend-filter pend-filter--on' : 'pend-filter'
   filter.setAttribute('aria-expanded', String(filtersOpen))
   filter.setAttribute('aria-controls', 'pend-filters')
+  filter.dataset['focus'] = 'filters'
   filter.append(element('span', '', 'Filtros'))
   if (count > 0) filter.append(element('span', 'pend-badge', String(count)))
   filter.addEventListener('click', () => {
@@ -450,6 +451,7 @@ function header(): HTMLElement {
     setGrouping(grouping === 'page' ? 'state' : 'page'),
   )
   group.setAttribute('aria-pressed', String(grouping === 'page'))
+  group.dataset['focus'] = 'grouping'
   group.disabled = layout === 'board'
 
   const add = document.createElement('button')
@@ -930,7 +932,6 @@ function keys(event: KeyboardEvent): void {
     input?.select()
   }
 }
-
 
 export function receive(event: ShellEvent): void {
   if (!alive) return
