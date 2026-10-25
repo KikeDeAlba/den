@@ -135,6 +135,14 @@ pub fn paste(text: &str, bracketed: bool) -> Vec<u8> {
     }
 }
 
+pub fn message(text: &str, bracketed: bool) -> Option<Vec<u8>> {
+    if clean_paste(text).trim().is_empty() {
+        None
+    } else {
+        Some(paste(text, bracketed))
+    }
+}
+
 pub fn linked(listings: &[SessionListing], pid: u32) -> Option<&SessionListing> {
     listings
         .iter()
@@ -318,6 +326,15 @@ mod tests {
     #[test]
     fn every_control_character_but_newline_and_tab_is_dropped() {
         assert_eq!(clean_paste("a\u{0}b\u{7}c\u{8}d\re\u{1b}f\u{7f}g\u{9b}h\ni\tj"), "abcdefgh\ni\tj");
+    }
+
+    #[test]
+    fn a_message_that_cleans_down_to_nothing_sends_no_enter() {
+        for text in ["", "   ", "\u{1b}", "\u{1b}\u{7}\u{9b}", " \u{3}\n\t "] {
+            assert_eq!(message(text, true), None, "{text:?}");
+            assert_eq!(message(text, false), None, "{text:?}");
+        }
+        assert_eq!(message("\u{1b}hola", false), Some(b"hola\r".to_vec()));
     }
 
     #[test]

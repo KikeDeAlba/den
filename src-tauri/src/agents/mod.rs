@@ -25,8 +25,6 @@ use crate::platform;
 use crate::registry::{self, Tool};
 use model::{SessionDirectory, SessionListing, SpawnRequest};
 use pty::{Pty, PtySpec, KILL_GRACE};
-
-const EXIT_GRACE: Duration = Duration::from_millis(500);
 use quit::{Answer, QuitDecision, QuitState};
 
 pub const PLUGIN: &str = "agents";
@@ -46,6 +44,7 @@ const COMMANDS: &[&str] = &[
     "agent_pick_folder",
 ];
 
+const EXIT_GRACE: Duration = Duration::from_millis(500);
 const LINK_ATTEMPTS: u32 = 30;
 const LINK_EVERY: Duration = Duration::from_secs(1);
 const DEFAULT_COLS: u16 = 100;
@@ -442,11 +441,10 @@ async fn agent_write(app: AppHandle, window: Window, id: u64, data: Vec<u8>) -> 
 async fn agent_send(app: AppHandle, window: Window, id: u64, text: String) -> Result<(), Problem> {
     ensure_main(&window)?;
     within_input_limit(text.len())?;
-    if text.trim().is_empty() {
-        return Ok(());
-    }
     let pty = app.state::<Agents>().pty(id)?;
-    let bytes = model::paste(&text, pty.bracketed());
+    let Some(bytes) = model::message(&text, pty.bracketed()) else {
+        return Ok(());
+    };
     write_blocking(pty, bytes)
         .await
         .map_err(|error| failed(format!("No pude mandarle el mensaje: {error}")))
@@ -489,7 +487,7 @@ fn agent_list(app: AppHandle, window: Window) -> Result<Vec<AgentInfo>, Problem>
 pub fn sessions_args(cwd: Option<&str>, limit: u32) -> Vec<String> {
     let mut args = vec!["sessions".to_string(), "ls".to_string()];
     match cwd.map(str::trim).filter(|text| !text.is_empty()) {
-        Some(dir) => args.extend(["--cwd".to_string(), dir.to_string()]),
+        Some(dir) => args.push(format!("--cwd={dir}")),
         None => args.push("--all".into()),
     }
     args.extend(["--limit".to_string(), limit.max(1).to_string()]);
@@ -668,7 +666,28 @@ mod tests {
     fn listing_without_a_folder_asks_for_every_session() {
         assert_eq!(sessions_args(None, 50), ["sessions", "ls", "--all", "--limit", "50"]);
         assert_eq!(sessions_args(Some("  "), 0), ["sessions", "ls", "--all", "--limit", "1"]);
-        assert_eq!(sessions_args(Some("/tmp/den"), 10), ["sessions", "ls", "--cwd", "/tmp/den", "--limit", "10"]);
+        assert_eq!(sessions_args(Some("/tmp/den"), 10), ["sessions", "ls", "--cwd=/tmp/den", "--limit", "10"]);
+        assert_eq!(sessions_args(Some("--all"), 10), ["sessions", "ls", "--cwd=--all", "--limit", "10"]);
+    }
+
+    #[test]
+    fn xdg_variables_reach_the_agent_on_every_platform() {
+        let env = env_of(&[
+            ("XDG_CONFIG_HOME", "/cfg"),
+            ("XDG_DATA_HOME", "/data"),
+            ("XDG_STATE_HOME", "/state"),
+            ("XDG_CACHE_HOME", "/cache"),
+            ("XDG_RUNTIME_DIR", "/run/user/501"),
+        ]);
+        for (key, value) in [
+            ("XDG_CONFIG_HOME", "/cfg"),
+            ("XDG_DATA_HOME", "/data"),
+            ("XDG_STATE_HOME", "/state"),
+            ("XDG_CACHE_HOME", "/cache"),
+            ("XDG_RUNTIME_DIR", "/run/user/501"),
+        ] {
+            assert_eq!(lookup(&env, key).as_deref(), Some(value), "{key}");
+        }
     }
 
     fn env_of(pairs: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
