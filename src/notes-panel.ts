@@ -1,5 +1,7 @@
-import { openNotes, type LiveTimer, type NoteRow } from './bita.ts'
+import type { LiveTimer, NoteRow } from './bita.ts'
 import { element, icon } from './dom.ts'
+import { entryRoute } from './sections/docs/route.ts'
+import { go } from './shell/routes.ts'
 import { projectColor } from './tabs.ts'
 
 export function timerDoc(timer: LiveTimer): HTMLElement | null {
@@ -22,7 +24,7 @@ export function timerDoc(timer: LiveTimer): HTMLElement | null {
   link.append(element('span', undefined, 'Ver nota'))
   link.append(icon('next', 11))
   link.addEventListener('click', () => {
-    void openNotes(timer.id)
+    go(entryRoute(timer.id))
   })
   row.append(link)
   block.append(row)
@@ -53,7 +55,7 @@ export function todayNotes(rows: NoteRow[]): HTMLElement | null {
   all.className = 'quiet-link'
   all.textContent = 'Abrir todas'
   all.addEventListener('click', () => {
-    void openNotes(null)
+    go('docs')
   })
   head.append(element('span', 'spacer'), all)
   wrap.append(head)
@@ -99,7 +101,7 @@ function noteRow(row: NoteRow): HTMLElement {
   button.append(chevron)
 
   button.addEventListener('click', () => {
-    void openNotes(row.entryId)
+    go(entryRoute(row.entryId))
   })
   return button
 }

@@ -216,7 +216,7 @@ pub async fn project_atlassian(
     let args = space_args(&project, &settings);
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
     let value = raw(&cli, &refs, quick()).await?;
-    crate::notes::mark_stale(&app);
+    crate::shell::mark_docs_stale(&app);
     Ok(value.get("atlassian").cloned().unwrap_or(value))
 }
 
@@ -229,7 +229,7 @@ pub(crate) fn sync_args(project: Option<&str>) -> Vec<&str> {
 
 pub async fn run_sync(app: &AppHandle, project: Option<&str>) -> Result<Vec<Value>, Problem> {
     let value = sync_data(&sync_args(project), CallOptions::timeout(SYNC_SECONDS)).await?;
-    crate::notes::mark_stale(app);
+    crate::shell::mark_docs_stale(app);
     let _ = app.emit(SYNCED_EVENT, ());
     Ok(as_list(value))
 }
@@ -265,7 +265,7 @@ pub async fn confluence_resolve(app: AppHandle, page_id: i64, keep: String) -> R
         CallOptions::timeout(SYNC_SECONDS),
     )
     .await?;
-    crate::notes::mark_stale(&app);
+    crate::shell::mark_docs_stale(&app);
     Ok(())
 }
 

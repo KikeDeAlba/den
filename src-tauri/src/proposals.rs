@@ -284,7 +284,7 @@ pub async fn page_restore(app: AppHandle, page_id: i64, sha: String) -> Result<V
     let id = page_id.to_string();
     let sha = valid_rev(&sha)?;
     let result = docs::<Value>(Feature::History, &["page", "restore", &id, sha]).await?;
-    crate::notes::mark_stale(&app);
+    crate::shell::mark_docs_stale(&app);
     Ok(result)
 }
 
@@ -318,7 +318,7 @@ pub async fn proposal_accept(
         let _ = std::fs::remove_file(path);
     }
     let proposal = proposal_of(outcome?)?;
-    crate::notes::mark_stale(&app);
+    crate::shell::mark_docs_stale(&app);
     Ok(proposal)
 }
 

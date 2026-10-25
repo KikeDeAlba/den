@@ -2,12 +2,13 @@ import {
   describeProblem,
   type AskPhase,
   openExternal,
-  openNotes,
+  navigate,
   openSourceFile,
   type AnswerSource,
   type LiveAnswer,
   type MeetingSegment,
 } from '../bita.ts'
+import { pageRoute } from '../sections/docs/route.ts'
 import { element, icon } from '../dom.ts'
 import { renderMarkdown } from '../notes/markdown.ts'
 
@@ -135,9 +136,9 @@ export function sourceAction(source: AnswerSource, actions: SourceActions): { ti
   if (kind === 'page' && source.pageId !== undefined) {
     const pageId = source.pageId
     return {
-      title: 'Abrir la página en las notas',
+      title: 'Abrir la página en Documentación',
       run: () => {
-        void openNotes(pageId).catch((error: unknown) => actions.fail(describeProblem(error).message))
+        void navigate(pageRoute(pageId)).catch((error: unknown) => actions.fail(describeProblem(error).message))
       },
     }
   }
