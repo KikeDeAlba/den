@@ -11,10 +11,6 @@ const HEIGHT: f64 = 820.0;
 const MIN_WIDTH: f64 = 900.0;
 const MIN_HEIGHT: f64 = 600.0;
 const SCREEN_SHARE: f64 = 0.9;
-#[cfg(target_os = "macos")]
-const TRAFFIC_X: f64 = 16.0;
-#[cfg(target_os = "macos")]
-const TRAFFIC_Y: f64 = 13.0;
 
 pub fn navigation_allowed(url: &Url, dev: Option<&Url>) -> bool {
     let app_origin = match url.scheme() {
@@ -76,15 +72,16 @@ pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .transparent(false)
         .center()
         .visible(false)
+        .initialization_script(crate::titlebar::css_script())
         .on_navigation(navigation_guard(app));
 
     #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
-        .hidden_title(true)
-        .traffic_light_position(tauri::LogicalPosition::new(TRAFFIC_X, TRAFFIC_Y));
+        .hidden_title(true);
 
     let window = builder.build()?;
+    crate::titlebar::pin(&window);
     let target = window.clone();
     window.on_window_event(move |event| {
         if let WindowEvent::CloseRequested { api, .. } = event {

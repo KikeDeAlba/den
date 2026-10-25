@@ -27,6 +27,7 @@ mod report;
 mod shell;
 mod state;
 mod sync;
+mod titlebar;
 mod tools;
 mod tray;
 mod watch;
