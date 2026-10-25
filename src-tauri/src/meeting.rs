@@ -148,7 +148,19 @@ fn read_frames(dir: &Path, index: &Path) -> Vec<Frame> {
 #[tauri::command]
 pub async fn meeting_for_entry(app: AppHandle, entry_id: i64) -> Result<Option<MeetingView>, Problem> {
     let entry = entry_id.to_string();
-    let data = match recap_call(&["show", "--bita-entry", &entry], CALL_TIMEOUT).await {
+    view_of(&app, &["show", "--bita-entry", &entry]).await
+}
+
+#[tauri::command]
+pub async fn meeting_by_id(app: AppHandle, id: String) -> Result<Option<MeetingView>, Problem> {
+    if id.is_empty() || id.starts_with('-') {
+        return Err(Problem::new(ProblemKind::CliFailed, format!("«{id}» no es el id de una reunión.")));
+    }
+    view_of(&app, &["show", &id]).await
+}
+
+async fn view_of(app: &AppHandle, args: &[&str]) -> Result<Option<MeetingView>, Problem> {
+    let data = match recap_call(args, CALL_TIMEOUT).await {
         Ok(data) => data,
         Err(error) if error.is_not_found() => return Ok(None),
         Err(error) => return Err(error.into()),
