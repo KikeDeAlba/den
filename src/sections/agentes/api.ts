@@ -44,6 +44,10 @@ export function killAgent(id: number): Promise<void> {
   return invoke<void>(command('agent_kill'), { id })
 }
 
+export function closeAgent(id: number): Promise<void> {
+  return invoke<void>(command('agent_close'), { id })
+}
+
 export function listAgents(): Promise<AgentInfo[]> {
   return invoke<AgentInfo[]>(command('agent_list'))
 }

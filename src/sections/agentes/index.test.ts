@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   sendAgent: vi.fn(),
   resizeAgent: vi.fn(),
   killAgent: vi.fn(),
+  closeAgent: vi.fn(),
   listAgents: vi.fn(),
   bitaSessions: vi.fn(),
   bitaDirs: vi.fn(),
@@ -131,6 +132,7 @@ describe('agentes section', () => {
     api.writeAgent.mockResolvedValue(undefined)
     api.sendAgent.mockResolvedValue(undefined)
     api.killAgent.mockResolvedValue(undefined)
+    api.closeAgent.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -282,6 +284,7 @@ describe('agentes section', () => {
     section.update(['5'])
     click(host, '.agentes-composer button', 'Cerrar la pestaña')
     expect(terminals.made[0]?.disposed).toBe(true)
+    expect(api.closeAgent).toHaveBeenCalledWith(5)
   })
 
   it('lays every session side by side in the mosaic', async () => {

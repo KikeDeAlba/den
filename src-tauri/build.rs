@@ -5,6 +5,7 @@ const AGENT_COMMANDS: &[&str] = &[
     "agent_resize",
     "agent_send",
     "agent_kill",
+    "agent_close",
     "agent_list",
     "agent_sessions",
     "agent_dirs",

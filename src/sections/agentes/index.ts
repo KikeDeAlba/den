@@ -626,6 +626,7 @@ function dismiss(id: number): void {
   row.view.dispose()
   outbox.drop(id)
   rows.delete(id)
+  void api.closeAgent(id).catch(ignore)
   if (selected === id) selected = null
   render()
 }

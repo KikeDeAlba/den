@@ -37,6 +37,7 @@ const COMMANDS: &[&str] = &[
     "agent_resize",
     "agent_send",
     "agent_kill",
+    "agent_close",
     "agent_list",
     "agent_sessions",
     "agent_dirs",
@@ -48,6 +49,7 @@ const LINK_EVERY: Duration = Duration::from_secs(1);
 const DEFAULT_COLS: u16 = 100;
 const DEFAULT_ROWS: u16 = 30;
 pub const INPUT_LIMIT: usize = 256 * 1024;
+pub const LIVE_LIMIT: usize = 16;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -107,6 +109,28 @@ impl Agents {
             .filter(|session| session.pty.alive())
             .map(|session| Arc::clone(&session.pty))
             .collect()
+    }
+
+    fn close(&self, id: u64) -> Result<(), Problem> {
+        let mut sessions = lock(&self.sessions);
+        match sessions.get(&id) {
+            Some(session) if session.pty.alive() => Err(failed("La sesión sigue viva. Termínala antes de cerrar la pestaña.")),
+            Some(_) => {
+                sessions.remove(&id);
+                Ok(())
+            }
+            None => Ok(()),
+        }
+    }
+
+    fn admits_another(&self) -> Result<(), Problem> {
+        if self.live().len() >= LIVE_LIMIT {
+            Err(failed(format!(
+                "Ya hay {LIVE_LIMIT} sesiones abiertas. Termina alguna antes de arrancar otra."
+            )))
+        } else {
+            Ok(())
+        }
     }
 
     fn link(&self, id: u64, listing: SessionListing) -> Option<AgentInfo> {
@@ -292,6 +316,7 @@ async fn agent_spawn(
     on_output: Channel<InvokeResponseBody>,
 ) -> Result<AgentInfo, Problem> {
     ensure_main(&window)?;
+    app.state::<Agents>().admits_another()?;
     let cli = bita().await?;
     let spec = spec_for(cli.bin(), cli.database_path(), &request, cols, rows)?;
     let agents = app.state::<Agents>();
@@ -401,6 +426,12 @@ async fn agent_kill(app: AppHandle, window: Window, id: u64) -> Result<(), Probl
     Ok(())
 }
 
+#[tauri::command]
+async fn agent_close(app: AppHandle, window: Window, id: u64) -> Result<(), Problem> {
+    ensure_main(&window)?;
+    app.state::<Agents>().close(id)
+}
+
 fn end_session(pty: &Arc<Pty>) {
     pty.kill_tree(KILL_GRACE);
 }
@@ -460,6 +491,7 @@ pub fn plugin() -> TauriPlugin<Wry> {
             agent_resize,
             agent_send,
             agent_kill,
+            agent_close,
             agent_list,
             agent_sessions,
             agent_dirs,
@@ -698,6 +730,77 @@ mod tests {
         request.cwd = Some(std::env::temp_dir().to_string_lossy().into_owned());
         let spec = spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).expect("spec");
         assert_eq!(&spec.args[..4], ["work", "--resume", "--session", "7"]);
+    }
+
+    #[cfg(unix)]
+    fn session_running(script: &str) -> Session {
+        let pty = Arc::new(
+            Pty::spawn(&PtySpec {
+                program: PathBuf::from("/bin/sh"),
+                args: vec!["-c".into(), script.into()],
+                cwd: None,
+                env: vec![("PATH".into(), "/usr/bin:/bin".into())],
+                cols: 80,
+                rows: 24,
+            })
+            .expect("spawn"),
+        );
+        pty.watch(|_| ());
+        Session {
+            info: AgentInfo {
+                id: 0,
+                harness: None,
+                project: None,
+                cwd: None,
+                title: None,
+                prompt: None,
+                resume_session: None,
+                pid: pty.pid(),
+                started_at: String::new(),
+                alive: true,
+                exit_code: None,
+                bita: None,
+            },
+            pty,
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn closing_frees_only_sessions_that_ended() {
+        let agents = Agents::default();
+        let ended = session_running("exit 0");
+        let ended_pty = Arc::downgrade(&ended.pty);
+        assert!(ended.pty.wait_exit(Duration::from_secs(5)));
+        let live = session_running("sleep 30");
+        let live_pty = Arc::clone(&live.pty);
+        lock(&agents.sessions).insert(1, ended);
+        lock(&agents.sessions).insert(2, live);
+        agents.close(1).expect("close ended");
+        assert!(agents.info(1).is_none());
+        assert!(ended_pty.upgrade().is_none());
+        assert!(agents.close(2).is_err());
+        assert!(agents.info(2).is_some());
+        assert!(agents.close(99).is_ok());
+        live_pty.terminate(Duration::from_millis(200));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn there_is_a_cap_on_live_sessions() {
+        let agents = Agents::default();
+        let mut ptys = Vec::new();
+        for id in 0..LIVE_LIMIT as u64 {
+            let session = session_running("sleep 30");
+            ptys.push(Arc::clone(&session.pty));
+            assert!(agents.admits_another().is_ok());
+            lock(&agents.sessions).insert(id, session);
+        }
+        assert!(agents.admits_another().is_err());
+        for pty in &ptys {
+            pty.terminate(Duration::from_millis(200));
+        }
+        assert!(agents.admits_another().is_ok());
     }
 
     #[test]
