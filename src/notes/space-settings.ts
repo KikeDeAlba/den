@@ -183,7 +183,6 @@ function build(current: SpaceSettingsContext): HTMLElement {
 
 function bar(current: SpaceSettingsContext): HTMLElement {
   const row = element('div', 'reader-bar ss-bar')
-  row.setAttribute('data-tauri-drag-region', '')
   if (!current.railOpen) {
     const unfold = document.createElement('button')
     unfold.type = 'button'

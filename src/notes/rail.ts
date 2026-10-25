@@ -91,7 +91,6 @@ interface Chrome {
 
 function freshChrome(host: HTMLElement, state: RailState, handlers: RailHandlers): Chrome {
   const head = element('div', 'rail-head')
-  head.setAttribute('data-tauri-drag-region', '')
   const fold = document.createElement('button')
   fold.type = 'button'
   fold.className = 'icon-button'
@@ -232,7 +231,6 @@ function footRows(state: RailState, handlers: RailHandlers): HTMLElement[] {
 
 function collapsedStrip(state: RailState, handlers: RailHandlers): HTMLElement {
   const strip = element('div', 'rail-strip')
-  strip.setAttribute('data-tauri-drag-region', '')
 
   const unfold = document.createElement('button')
   unfold.type = 'button'
