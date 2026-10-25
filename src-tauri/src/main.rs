@@ -162,6 +162,10 @@ fn main() {
                 return;
             }
             match id {
+                tray::OPEN => {
+                    let _ = shell::show(app);
+                }
+                tray::QUIT => app.exit(0),
                 menu::LIVE => live::toggle(app),
                 menu::LIVE_WIDE => live::open_wide(app),
                 _ => {}

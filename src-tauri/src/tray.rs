@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use tauri::{
     image::Image,
-    menu::{Menu, MenuItem},
+    menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
     AppHandle, Manager, Wry,
 };
@@ -29,6 +29,32 @@ const IDLE_HEADER: &str = "Ningún cronómetro corriendo";
 const SEPARATOR: &str = " · ";
 
 const SETTINGS_FILE: &str = "menubar.json";
+
+pub const OPEN: &str = "tray-open";
+
+pub const QUIT: &str = "tray-quit";
+
+pub fn actions(macos: bool) -> &'static [(&'static str, &'static str)] {
+    if macos {
+        &[]
+    } else {
+        &[(OPEN, "Abrir Den"), (QUIT, "Salir de Den")]
+    }
+}
+
+fn append_actions(app: &AppHandle, menu: &Menu<Wry>) -> tauri::Result<()> {
+    let wanted = actions(cfg!(target_os = "macos"));
+    if wanted.is_empty() {
+        return Ok(());
+    }
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    for (id, label) in wanted {
+        let item: MenuItem<Wry> = MenuItem::with_id(app, *id, *label, true, None::<&str>)?;
+        let entry: &dyn IsMenuItem<Wry> = &item;
+        menu.append(entry)?;
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -57,6 +83,7 @@ struct Shown {
 
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &[&MenuItem::new(app, IDLE_HEADER, false, None::<&str>)?])?;
+    append_actions(app, &menu)?;
 
     TrayIconBuilder::with_id(ID)
         .icon(tray_icon(app)?)
@@ -158,6 +185,7 @@ pub fn update_list(app: &AppHandle, running: &[LiveTimer]) {
     for (item, _) in &rows {
         let _ = menu.append(item);
     }
+    let _ = append_actions(app, &menu);
     if tray.set_menu(Some(menu)).is_ok() {
         shown.key = Some(key);
         shown.rows = rows;
@@ -294,7 +322,7 @@ fn truncate(text: &str, limit: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        by_start, format_clock, format_title, header_text, icon_visible, list_key, read_settings, row_text,
+        actions, by_start, format_clock, format_title, header_text, icon_visible, list_key, read_settings, row_text,
         tooltip_for, truncate, write_settings, TraySettings, TOOLTIP,
     };
     use crate::model::LiveTimer;
@@ -559,5 +587,14 @@ mod tests {
         std::fs::write(&path, "not json").expect("broken file written");
         assert_eq!(read_settings(&path), TraySettings::default());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn open_and_quit_stay_in_the_tray_menu_outside_macos() {
+        assert!(actions(true).is_empty());
+        let labels: Vec<&str> = actions(false).iter().map(|(_, label)| *label).collect();
+        assert_eq!(labels, vec!["Abrir Den", "Salir de Den"]);
+        assert_eq!(actions(false)[0].0, super::OPEN);
+        assert_eq!(actions(false)[1].0, super::QUIT);
     }
 }
