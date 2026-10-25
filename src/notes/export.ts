@@ -253,7 +253,7 @@ export function openExportDialog(options: ExportOptions): void {
 
   refresh()
   document.addEventListener('keydown', onKey, true)
-  const host = document.getElementById('notas') ?? document.body
+  const host = document.querySelector<HTMLElement>('.section-host:not([hidden]) .notes-root') ?? document.body
   host.append(overlay)
   openDialog = overlay
   confirm.focus()
@@ -266,7 +266,7 @@ async function runExport(
   fileName: string,
   progress: (text: string) => void,
 ): Promise<string> {
-  const host = document.getElementById('notas') ?? document.body
+  const host = document.querySelector<HTMLElement>('.section-host:not([hidden]) .notes-root') ?? document.body
   document.getElementById('print-root')?.remove()
   const root = element('div', choice.diagrams ? 'print-root' : 'print-root print-root--no-diagrams')
   root.id = 'print-root'

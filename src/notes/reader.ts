@@ -36,6 +36,7 @@ export interface ReaderHandlers {
   onHistory: () => void
   onOpenPage: (pageId: number) => void
   onMeetingChanged: () => void
+  onCopyLink?: () => void
 }
 
 export interface VideoActions {
@@ -56,6 +57,7 @@ export interface ReaderState {
   meeting: MeetingContext | null
   video: VideoActions | null
   history: boolean
+  confluenceUrl?: string | null
 }
 
 export function renderReader(host: HTMLElement, state: ReaderState, handlers: ReaderHandlers): void {
@@ -161,6 +163,13 @@ function bar(state: ReaderState, handlers: ReaderHandlers): HTMLElement {
   if (page !== null && state.history && (state.meeting === null || state.meeting.tab === 'document')) {
     row.append(textAction('history', 'Historial', handlers.onHistory))
   }
+  if (page !== null && handlers.onCopyLink !== undefined) {
+    row.append(iconAction('link', 'Copiar el enlace', handlers.onCopyLink))
+  }
+  const confluence = state.confluenceUrl ?? null
+  if (page !== null && confluence !== null) {
+    row.append(iconAction('external', 'Abrir en Confluence', () => handlers.onOpenExternal(confluence)))
+  }
   if (page !== null) row.append(textAction('download', 'Exportar PDF', handlers.onExport))
   if (page !== null && (state.meeting === null || state.meeting.tab === 'document')) row.append(proseControl())
 
@@ -183,7 +192,7 @@ function textAction(glyph: 'compress' | 'trash' | 'download' | 'history', label:
 }
 
 function iconAction(
-  name: 'prev' | 'next' | 'up' | 'down' | 'panelLeft' | 'panelRight',
+  name: 'prev' | 'next' | 'up' | 'down' | 'panelLeft' | 'panelRight' | 'link' | 'external',
   label: string,
   onClick: () => void,
   disabled = false,
