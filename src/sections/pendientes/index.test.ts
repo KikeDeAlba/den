@@ -202,6 +202,22 @@ describe('pendientes section', () => {
     expect(api.backlogAdd).not.toHaveBeenCalled()
   })
 
+  it('does not create the item when the space disappears while the form is open', async () => {
+    host.querySelector<HTMLButtonElement>('.pend-new')?.click()
+    const typed = host.querySelector<HTMLInputElement>('.pend-form-title') as HTMLInputElement
+    typed.value = 'Rotar'
+    typed.dispatchEvent(new Event('input'))
+    api.notesTree.mockResolvedValue({ data: { spaces: [] } })
+    section.receive({ type: 'docs-changed' })
+    await flush()
+    const title = host.querySelector<HTMLInputElement>('.pend-form-title') as HTMLInputElement
+    expect(title.value).toBe('Rotar')
+    expect(host.querySelector<HTMLButtonElement>('.pend-resolve')?.disabled).toBe(true)
+    title.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    await flush()
+    expect(api.backlogAdd).not.toHaveBeenCalled()
+  })
+
   it('keeps focus and the typed draft when the docs change', async () => {
     host.querySelector<HTMLButtonElement>('.pend-new')?.click()
     const title = host.querySelector<HTMLInputElement>('.pend-form-title') as HTMLInputElement
