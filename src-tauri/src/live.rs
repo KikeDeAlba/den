@@ -748,17 +748,63 @@ pub fn live_cancel() -> bool {
     ask::cancel()
 }
 
+async fn fetch_sources(project: &str) -> Result<Option<Value>, Problem> {
+    match recap_call(&["ask", "--sources", "--project", project], CALL_TIMEOUT).await {
+        Ok(data) => Ok(Some(data)),
+        Err(RecapError::Missing) => Ok(None),
+        Err(RecapError::Failed(_)) => Ok(None),
+        Err(error) => Err(error.into()),
+    }
+}
+
 #[tauri::command]
 pub async fn live_sources(project: String) -> Result<Option<Value>, Problem> {
     let project = project.trim().to_string();
     if project.is_empty() {
         return Ok(None);
     }
-    match recap_call(&["ask", "--sources", "--project", &project], CALL_TIMEOUT).await {
-        Ok(data) => Ok(Some(data)),
-        Err(RecapError::Missing) => Ok(None),
-        Err(RecapError::Failed(_)) => Ok(None),
-        Err(error) => Err(error.into()),
+    fetch_sources(&project).await
+}
+
+fn active_project(app: &AppHandle) -> Option<String> {
+    let session = app.state::<LiveSession>();
+    let mut inner = session.lock();
+    inner.active.as_ref()?;
+    if inner.project.is_none() {
+        inner.project = project_of(app, inner.entry_id);
+    }
+    inner.project.clone().filter(|project| !project.trim().is_empty())
+}
+
+pub fn source_roots(sources: &Value) -> Vec<PathBuf> {
+    let docs = sources.get("docsRoot").and_then(Value::as_str).into_iter();
+    let repos = sources
+        .get("repos")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|repo| repo.get("exists").and_then(Value::as_bool).unwrap_or(false))
+        .filter_map(|repo| repo.get("path").and_then(Value::as_str));
+    docs.chain(repos)
+        .map(PathBuf::from)
+        .filter(|root| root.is_absolute())
+        .filter_map(|root| fs::canonicalize(root).ok())
+        .filter(|root| root.is_dir())
+        .collect()
+}
+
+pub fn within_sources(target: &Path, roots: &[PathBuf]) -> bool {
+    roots.iter().any(|root| target.starts_with(root))
+}
+
+async fn live_source_file(app: &AppHandle, target: &Path) -> Result<(), Problem> {
+    let outside = || Problem::new(ProblemKind::CliFailed, format!("{} no es una fuente de esta reunión.", target.display()));
+    let project = active_project(app).ok_or_else(outside)?;
+    let sources = fetch_sources(&project).await?.ok_or_else(outside)?;
+    if within_sources(target, &source_roots(&sources)) {
+        Ok(())
+    } else {
+        Err(outside())
     }
 }
 
@@ -862,8 +908,11 @@ pub fn openable_file(path: &str) -> Result<PathBuf, Problem> {
 }
 
 #[tauri::command]
-pub async fn open_source_file(path: String) -> Result<(), Problem> {
+pub async fn open_source_file(app: AppHandle, window: WebviewWindow, path: String) -> Result<(), Problem> {
     let target = openable_file(&path)?;
+    if window.label() == LABEL {
+        live_source_file(&app, &target).await?;
+    }
     let Some(editor) = crate::cli::editor_override() else {
         return crate::platform::open_as_text(&target)
             .await
@@ -881,7 +930,8 @@ pub async fn open_source_file(path: String) -> Result<(), Problem> {
 mod tests {
     use super::{
         config_value, increment, openable_file, parse_active, parse_asking, parse_config, read_asking, read_asking_dir,
-        read_pending_asks, state_dir_from, tail, toggle_action, AskPhase, StoredSettings, Toggle,
+        read_pending_asks, source_roots, state_dir_from, tail, toggle_action, within_sources, AskPhase, StoredSettings,
+        Toggle,
     };
     use serde_json::json;
     use std::path::PathBuf;
@@ -1165,5 +1215,51 @@ mod tests {
         std::fs::write(&file, "x").expect("write");
         assert!(openable_file(&file.display().to_string()).is_ok());
         let _ = std::fs::remove_file(&file);
+    }
+
+    #[test]
+    fn the_live_window_only_opens_files_inside_the_meeting_sources() {
+        let root = std::env::temp_dir().join(format!("bita-live-sources-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let docs = root.join("docs");
+        let repo = root.join("repo");
+        let gone = root.join("gone");
+        let other = root.join("other");
+        for dir in [&docs, &repo, &other] {
+            std::fs::create_dir_all(dir).expect("dir");
+        }
+        let sources = json!({
+            "project": "den",
+            "docsRoot": docs.display().to_string(),
+            "repos": [
+                {"path": repo.display().to_string(), "slug": "den", "exists": true},
+                {"path": other.display().to_string(), "slug": "otro", "exists": false},
+                {"path": gone.display().to_string(), "slug": "ido", "exists": true},
+                {"path": "relative", "slug": "rel", "exists": true}
+            ]
+        });
+        let roots = source_roots(&sources);
+        assert_eq!(roots.len(), 2);
+        let inside = repo.join("src").join("main.rs");
+        std::fs::create_dir_all(inside.parent().expect("parent")).expect("src");
+        std::fs::write(&inside, "x").expect("inside");
+        let page = docs.join("page.md");
+        std::fs::write(&page, "x").expect("page");
+        let stray = other.join("secret.txt");
+        std::fs::write(&stray, "x").expect("stray");
+        let opened = |path: &PathBuf| openable_file(&path.display().to_string()).expect("openable");
+        assert!(within_sources(&opened(&inside), &roots));
+        assert!(within_sources(&opened(&page), &roots));
+        assert!(!within_sources(&opened(&stray), &roots));
+        let escape = repo.join("..").join("other").join("secret.txt");
+        assert!(!within_sources(&opened(&escape), &roots));
+        #[cfg(unix)]
+        {
+            let link = repo.join("link.txt");
+            std::os::unix::fs::symlink(&stray, &link).expect("link");
+            assert!(!within_sources(&opened(&link), &roots));
+        }
+        assert!(source_roots(&json!({})).is_empty());
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
