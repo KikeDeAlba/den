@@ -240,4 +240,40 @@ describe('tiempo section', () => {
     expect(host.querySelector('.tiempo-range[aria-pressed="true"]')?.textContent).toBe('Hoy')
     expect(reports.dispose).toHaveBeenCalledTimes(1)
   })
+
+  it('refreshes the table when a timer starts or stops and keeps the newest answer', async () => {
+    const today = await bita.timeSummary()
+    section.mount(host, [])
+    await flush()
+    const idle = { running: [], todaySeconds: 0, problem: null }
+    const timer = { id: 9 } as never
+    section.receive({ type: 'snapshot', snapshot: idle })
+    section.receive({ type: 'snapshot', snapshot: idle })
+    await flush()
+    expect(bita.timeSummary).toHaveBeenCalledTimes(2)
+
+    let releaseOld: (value: unknown) => void = () => undefined
+    bita.timeSummary.mockImplementationOnce(() => new Promise((done) => (releaseOld = done)))
+    bita.timeSummary.mockResolvedValueOnce({ ...today, groups: [{ ...today.groups[0], summary: 'Nueva' }] })
+    section.receive({ type: 'snapshot', snapshot: { ...idle, running: [timer] } })
+    section.receive({ type: 'snapshot', snapshot: idle })
+    await flush()
+    releaseOld({ ...today, groups: [{ ...today.groups[0], summary: 'Vieja' }] })
+    await flush()
+    expect(bita.timeSummary).toHaveBeenCalledTimes(4)
+    expect(texts(host, '.tiempo-row:not(.tiempo-row--head) .tiempo-title')).toEqual(['Nueva'])
+  })
+
+  it('refreshes the table when the window shows again but not for the reports', async () => {
+    section.mount(host, ['semana'])
+    await flush()
+    const before = bita.timeSummary.mock.calls.length
+    section.receive({ type: 'visible' })
+    await flush()
+    expect(bita.timeSummary.mock.calls.length).toBe(before + 1)
+    section.update(['mes'])
+    section.receive({ type: 'visible' })
+    await flush()
+    expect(bita.timeSummary.mock.calls.length).toBe(before + 1)
+  })
 })

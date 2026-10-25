@@ -32,6 +32,10 @@ let span: SpanForm | null = null
 let reports: Reports | null = null
 let range: RangeId | null = null
 let ticket = 0
+let runningKey: string | null = null
+let loadedAt = 0
+
+const RUNNING_REFRESH_MS = 60_000
 
 function rangePicker(): HTMLElement {
   const group = element('div', 'tiempo-ranges')
@@ -204,6 +208,7 @@ async function loadTable(which: 'today' | 'week'): Promise<{ table: TimeTable; p
 
 async function showTable(target: HTMLElement, which: 'today' | 'week', mine: number): Promise<void> {
   if (target.childElementCount === 0) target.append(element('p', 'tiempo-empty', 'Cargando…'))
+  loadedAt = Date.now()
   try {
     const { table, problem } = await loadTable(which)
     if (mine !== ticket) return
@@ -247,8 +252,35 @@ function select(next: RangeId): void {
   if (next === 'rango') fillSpan()
 }
 
+function refreshTable(): void {
+  if (body === null || range === null || !isTable(range)) return
+  if (root?.closest<HTMLElement>('.section-host')?.hidden === true) return
+  ticket += 1
+  void showTable(body, range === 'hoy' ? 'today' : 'week', ticket)
+}
+
+function keyOf(running: readonly { id: number }[]): string {
+  return running
+    .map((timer) => timer.id)
+    .sort((left, right) => left - right)
+    .join(',')
+}
+
 export function receive(event: ShellEvent): void {
-  if (event.type === 'hidden') reports?.conceal()
+  if (event.type === 'hidden') {
+    reports?.conceal()
+    return
+  }
+  if (event.type === 'visible') {
+    refreshTable()
+    return
+  }
+  if (event.type !== 'snapshot') return
+  const key = keyOf(event.snapshot.running)
+  const changed = runningKey !== null && key !== runningKey
+  runningKey = key
+  const stale = key !== '' && Date.now() - loadedAt >= RUNNING_REFRESH_MS
+  if (changed || stale) refreshTable()
 }
 
 export function mount(host: HTMLElement, path: readonly string[]): void {
@@ -281,4 +313,5 @@ export function unmount(): void {
   reportsHost = null
   span = null
   range = null
+  runningKey = null
 }
