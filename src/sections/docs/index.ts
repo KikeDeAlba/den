@@ -96,6 +96,7 @@ const NARROW_MAX_PX = 1100
 let narrow = false
 let asidePeek = false
 let stopNarrowWatch: (() => void) | null = null
+let stopSashes: Array<() => void> = []
 let logOpen = true
 let scale = rememberedScale()
 let meetingTab: MeetingTab = 'document'
@@ -1167,30 +1168,33 @@ function build(host: HTMLElement): Dom {
   root.append(rail, reader, aside, railSash, asideSash)
   host.replaceChildren(root)
 
-  attachSash({
-    handle: railSash,
-    root,
-    variable: '--rail-open',
-    side: 'left',
-    storageKey: 'bita.notes.rail-width',
-    initial: 240,
-    min: 180,
-    max: 520,
-    readerMin: 420,
-    otherWidth: () => aside.getBoundingClientRect().width,
-  })
-  attachSash({
-    handle: asideSash,
-    root,
-    variable: '--aside-open',
-    side: 'right',
-    storageKey: 'bita.notes.aside-width',
-    initial: 200,
-    min: 160,
-    max: 440,
-    readerMin: 420,
-    otherWidth: () => rail.getBoundingClientRect().width,
-  })
+  stopSashes.forEach((stop) => stop())
+  stopSashes = [
+    attachSash({
+      handle: railSash,
+      root,
+      variable: '--rail-open',
+      side: 'left',
+      storageKey: 'bita.notes.rail-width',
+      initial: 240,
+      min: 180,
+      max: 520,
+      readerMin: 420,
+      otherWidth: () => aside.getBoundingClientRect().width,
+    }),
+    attachSash({
+      handle: asideSash,
+      root,
+      variable: '--aside-open',
+      side: 'right',
+      storageKey: 'bita.notes.aside-width',
+      initial: 200,
+      min: 160,
+      max: 440,
+      readerMin: 420,
+      otherWidth: () => rail.getBoundingClientRect().width,
+    }),
+  ]
   return { host, root, rail, reader, aside }
 }
 
@@ -1279,6 +1283,8 @@ export function unmount(): void {
   stopSpaceWatch = null
   stopNarrowWatch?.()
   stopNarrowWatch = null
+  stopSashes.forEach((stop) => stop())
+  stopSashes = []
   asidePeek = false
   dom = null
   treeLoaded = false

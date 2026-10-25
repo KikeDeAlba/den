@@ -96,8 +96,7 @@ describe.each(IDS)('%s mount cycle', (id) => {
     document.body.replaceChildren()
   })
 
-  const leaks = id === 'docs' ? it.fails : it
-  leaks('mounts and unmounts repeatedly without growing its global listeners', async () => {
+  it('mounts and unmounts repeatedly without growing its global listeners', async () => {
     const module = await LOADERS[id]()
     const onWindow = watch(window)
     const onDocument = watch(document)

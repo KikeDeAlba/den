@@ -42,7 +42,7 @@ function store(key: string, width: number | null): void {
   }
 }
 
-export function attachSash(spec: SashSpec): void {
+export function attachSash(spec: SashSpec): () => void {
   let width = stored(spec.storageKey) ?? spec.initial
 
   const apply = (next: number): void => {
@@ -92,7 +92,11 @@ export function attachSash(spec: SashSpec): void {
     store(spec.storageKey, width)
   })
 
-  window.addEventListener('resize', () => {
+  const onResize = (): void => {
     apply(width)
-  })
+  }
+  window.addEventListener('resize', onResize)
+  return () => {
+    window.removeEventListener('resize', onResize)
+  }
 }
