@@ -148,6 +148,6 @@ describe('drag regions', () => {
     const owners = files(SRC, '.ts').filter(
       (path) => !path.endsWith('.test.ts') && readFileSync(path, 'utf8').includes('data-tauri-drag-region'),
     )
-    expect(owners.map((path) => path.slice(SRC.length)).sort()).toEqual(['live.ts', 'shell/topbar.ts'])
+    expect(owners.map((path) => path.slice(SRC.length).split(sep).join('/')).sort()).toEqual(['live.ts', 'shell/topbar.ts'])
   })
 })
