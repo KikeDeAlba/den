@@ -4,6 +4,8 @@ pub const HARNESSES: [&str; 4] = ["claude", "opencode", "codex", "gemini"];
 pub const NO_PROJECT: &str = "0";
 pub const PASTE_START: &str = "\u{1b}[200~";
 pub const PASTE_END: &str = "\u{1b}[201~";
+pub const PROMPT_LIMIT: usize = 32 * 1024;
+const PROJECT_NAME_LIMIT: usize = 80;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -73,6 +75,23 @@ fn filled(value: &Option<String>) -> Option<&str> {
     value.as_deref().map(str::trim).filter(|text| !text.is_empty())
 }
 
+pub fn valid_project(value: &str) -> bool {
+    if !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return true;
+    }
+    let count = value.chars().count();
+    (1..=PROJECT_NAME_LIMIT).contains(&count)
+        && value.chars().all(|letter| letter.is_alphanumeric() || matches!(letter, '_' | ' ' | '.' | '-'))
+}
+
+fn project_flag(value: &str) -> Result<String, String> {
+    if valid_project(value) {
+        Ok(format!("--project={value}"))
+    } else {
+        Err("El proyecto no es válido.".into())
+    }
+}
+
 pub fn work_args(request: &SpawnRequest) -> Result<Vec<String>, String> {
     let mut args = vec!["work".to_string()];
     let project = filled(&request.project);
@@ -82,7 +101,7 @@ pub fn work_args(request: &SpawnRequest) -> Result<Vec<String>, String> {
         }
         args.extend(["--resume".into(), "--session".into(), session.to_string()]);
         if let Some(project) = project {
-            args.extend(["--project".into(), project.to_string()]);
+            args.push(project_flag(project)?);
         }
     } else {
         let harness = filled(&request.harness).ok_or("Elige un agente.")?;
@@ -90,9 +109,12 @@ pub fn work_args(request: &SpawnRequest) -> Result<Vec<String>, String> {
             return Err(format!("No conozco el agente «{harness}»."));
         }
         args.extend(["--harness".into(), harness.to_string()]);
-        args.extend(["--project".into(), project.unwrap_or(NO_PROJECT).to_string()]);
+        args.push(project_flag(project.unwrap_or(NO_PROJECT))?);
     }
     if let Some(prompt) = request.prompt.as_deref().filter(|text| !text.trim().is_empty()) {
+        if prompt.len() > PROMPT_LIMIT {
+            return Err("El primer mensaje es demasiado largo (máximo 32 KiB).".into());
+        }
         args.push(format!("--prompt={prompt}"));
     }
     Ok(args)
@@ -173,14 +195,14 @@ mod tests {
 
     #[test]
     fn a_new_session_names_harness_and_project() {
-        assert_eq!(work_args(&request()).expect("args"), ["work", "--harness", "claude", "--project", "3"]);
+        assert_eq!(work_args(&request()).expect("args"), ["work", "--harness", "claude", "--project=3"]);
     }
 
     #[test]
     fn no_project_means_zero() {
         let mut plain = request();
         plain.project = None;
-        assert_eq!(work_args(&plain).expect("args")[4], "0");
+        assert_eq!(work_args(&plain).expect("args")[3], "--project=0");
     }
 
     #[test]
@@ -214,6 +236,43 @@ mod tests {
             ..SpawnRequest::default()
         };
         assert!(work_args(&bad).is_err());
+    }
+
+    #[test]
+    fn projects_are_ids_or_plain_names() {
+        assert!(valid_project("12"));
+        assert!(valid_project("Den 2.0_beta-x"));
+        assert!(valid_project("Conciliación"));
+        assert!(!valid_project(""));
+        assert!(!valid_project("--db-path=/tmp/x"));
+        assert!(!valid_project("a;rm -rf"));
+        assert!(!valid_project("x/y"));
+        assert!(!valid_project(&"a".repeat(81)));
+        assert!(valid_project(&"a".repeat(80)));
+    }
+
+    #[test]
+    fn a_project_that_looks_like_a_flag_rides_glued_to_its_own() {
+        let mut odd = request();
+        odd.project = Some("-x".into());
+        assert_eq!(work_args(&odd).expect("args")[3], "--project=-x");
+        odd.project = Some("den\nrm".into());
+        assert!(work_args(&odd).is_err());
+        let resume = SpawnRequest {
+            resume_session: Some(5),
+            project: Some("a=b".into()),
+            ..SpawnRequest::default()
+        };
+        assert!(work_args(&resume).is_err());
+    }
+
+    #[test]
+    fn the_prompt_is_capped_at_32_kib() {
+        let mut ask = request();
+        ask.prompt = Some("a".repeat(PROMPT_LIMIT));
+        assert!(work_args(&ask).is_ok());
+        ask.prompt = Some("a".repeat(PROMPT_LIMIT + 1));
+        assert!(work_args(&ask).is_err());
     }
 
     #[test]

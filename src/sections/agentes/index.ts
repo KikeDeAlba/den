@@ -256,8 +256,8 @@ function activityPlaceholder(): HTMLElement {
   return box
 }
 
-async function resume(listingId: number, title: string | null): Promise<void> {
-  await launch({ resumeSession: listingId, ...(title === null ? {} : { title }) })
+async function resume(listing: SessionListing, title: string | null): Promise<void> {
+  await launch({ resumeSession: listing.id, cwd: listing.cwd, ...(title === null ? {} : { title }) })
 }
 
 function composerRow(row: Row): HTMLElement {
@@ -286,7 +286,7 @@ function composerActions(row: Row): HTMLElement[] {
     const linked = row.info.bita
     if (linked !== null) {
       const again = button('Retomar', 'ghost-button')
-      again.addEventListener('click', () => void resume(linked.id, model.sessionTitle(row.info)))
+      again.addEventListener('click', () => void resume(linked, model.sessionTitle(row.info)))
       bar.push(again)
     }
     const close = button('Cerrar la pestaña', 'quiet-link')
@@ -492,7 +492,7 @@ function resumeSection(): HTMLElement {
     text.append(title, element('span', 'agentes-resume-meta', model.resumeMeta(listing, now)))
     const again = button('Retomar', 'agentes-resume-button')
     again.title = model.commandPreview({ resumeSession: listing.id })
-    again.addEventListener('click', () => void resume(listing.id, model.resumeTitle(listing)))
+    again.addEventListener('click', () => void resume(listing, model.resumeTitle(listing)))
     item.append(text, again)
     section.append(item)
   }

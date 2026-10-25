@@ -135,7 +135,7 @@ export function commandPreview(request: SpawnRequest): string {
   if (request.resumeSession !== undefined) {
     parts.push('--resume', '--session', String(request.resumeSession))
   } else {
-    parts.push('--harness', request.harness ?? 'claude', '--project', request.project ?? NO_PROJECT)
+    parts.push('--harness', request.harness ?? 'claude', `--project=${request.project ?? NO_PROJECT}`)
   }
   const prompt = request.prompt?.trim() ?? ''
   if (prompt !== '') parts.push(`--prompt=${request.prompt ?? ''}`)

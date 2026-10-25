@@ -220,18 +220,19 @@ pub fn pty_env(bin: &[OsString], inherited: impl IntoIterator<Item = (OsString, 
     list
 }
 
-fn directory(request: &SpawnRequest) -> Result<Option<PathBuf>, Problem> {
+fn directory(request: &SpawnRequest) -> Result<PathBuf, Problem> {
     let Some(raw) = request.cwd.as_deref().map(str::trim).filter(|text| !text.is_empty()) else {
-        if request.resume_session.is_some() {
-            return Ok(platform::home());
-        }
         return Err(failed("Elige la carpeta donde trabaja el agente."));
     };
     let path = PathBuf::from(raw);
-    if !path.is_absolute() || !path.is_dir() {
-        return Err(failed(format!("La carpeta {raw} no existe.")));
+    if !path.is_absolute() {
+        return Err(failed(format!("La carpeta {raw} no es una ruta completa.")));
     }
-    Ok(Some(path))
+    match std::fs::canonicalize(&path) {
+        Ok(found) if found.is_dir() => Ok(platform::simplified(&found)),
+        Ok(_) => Err(failed(format!("{raw} no es una carpeta."))),
+        Err(_) => Err(failed(format!("La carpeta {raw} ya no existe. Elige otra para la sesión."))),
+    }
 }
 
 pub fn spec_for(cli_bin: &[OsString], database: &Path, request: &SpawnRequest, cols: u16, rows: u16) -> Result<PtySpec, Problem> {
@@ -243,7 +244,7 @@ pub fn spec_for(cli_bin: &[OsString], database: &Path, request: &SpawnRequest, c
     Ok(PtySpec {
         program: PathBuf::from(program),
         args,
-        cwd: directory(request)?,
+        cwd: Some(directory(request)?),
         env: pty_env(cli_bin, std::env::vars_os()),
         cols: if cols == 0 { DEFAULT_COLS } else { cols },
         rows: if rows == 0 { DEFAULT_ROWS } else { rows },
@@ -621,9 +622,9 @@ mod tests {
         assert_eq!(spec.program, PathBuf::from("/usr/bin/node"));
         assert_eq!(
             spec.args,
-            ["/opt/bita.js", "work", "--harness", "codex", "--project", "0", "--prompt=hola", "--db-path", "/tmp/test.db"]
+            ["/opt/bita.js", "work", "--harness", "codex", "--project=0", "--prompt=hola", "--db-path", "/tmp/test.db"]
         );
-        assert_eq!(spec.cwd, Some(folder));
+        assert_eq!(spec.cwd, Some(std::fs::canonicalize(folder).expect("canonical")));
         assert_eq!((spec.cols, spec.rows), (DEFAULT_COLS, DEFAULT_ROWS));
     }
 
@@ -636,18 +637,39 @@ mod tests {
         };
         assert!(spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).is_err());
         request.cwd = Some("/definitely/not/here".into());
-        assert!(spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).is_err());
+        let missing = spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).expect_err("missing");
+        assert!(missing.message.contains("ya no existe"));
         request.cwd = Some("relative/dir".into());
         assert!(spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).is_err());
     }
 
     #[test]
-    fn resuming_does_not_need_a_folder() {
+    fn the_folder_is_canonicalized() {
+        let root = std::env::temp_dir().join(format!("den-agent-cwd-{}", std::process::id()));
+        std::fs::create_dir_all(root.join("inner")).expect("dirs");
         let bin = [OsString::from("/usr/bin/bita")];
         let request = SpawnRequest {
+            harness: Some("claude".into()),
+            cwd: Some(root.join("inner").join("..").join("inner").to_string_lossy().into_owned()),
+            ..SpawnRequest::default()
+        };
+        let spec = spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).expect("spec");
+        assert_eq!(spec.cwd, Some(std::fs::canonicalize(root.join("inner")).expect("canonical")));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn resuming_runs_in_the_session_folder_and_fails_when_it_is_gone() {
+        let bin = [OsString::from("/usr/bin/bita")];
+        let mut request = SpawnRequest {
             resume_session: Some(7),
             ..SpawnRequest::default()
         };
+        assert!(spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).is_err());
+        request.cwd = Some("/definitely/not/here".into());
+        let gone = spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).expect_err("gone");
+        assert!(gone.message.contains("ya no existe"));
+        request.cwd = Some(std::env::temp_dir().to_string_lossy().into_owned());
         let spec = spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).expect("spec");
         assert_eq!(&spec.args[..4], ["work", "--resume", "--session", "7"]);
     }

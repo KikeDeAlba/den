@@ -159,7 +159,7 @@ describe('agentes section', () => {
     expect(texts(host, '.agentes-recent-path')).toEqual(['dev/den', 'dev/qa'])
     expect(host.querySelector('.agentes-folder-path')?.textContent).toBe('/Users/me/dev/den')
     expect((host.querySelector('#agentes-project') as HTMLSelectElement).value).toBe('3')
-    expect(host.querySelector('.agentes-preview')?.textContent).toBe('bita work --harness claude --project 3')
+    expect(host.querySelector('.agentes-preview')?.textContent).toBe('bita work --harness claude --project=3')
     expect(texts(host, '.agentes-resume-title')).toEqual(['Barra de menús #41'])
     expect(api.bitaSessions).toHaveBeenLastCalledWith(null)
   })
@@ -181,7 +181,7 @@ describe('agentes section', () => {
     const prompt = host.querySelector('#agentes-prompt') as HTMLTextAreaElement
     prompt.value = 'arregla el pipeline'
     prompt.dispatchEvent(new Event('input'))
-    expect(host.querySelector('.agentes-preview')?.textContent).toBe("bita work --harness codex --project 3 '--prompt=arregla el pipeline'")
+    expect(host.querySelector('.agentes-preview')?.textContent).toBe("bita work --harness codex --project=3 '--prompt=arregla el pipeline'")
   })
 
   it('starts a session, streams its output and opens its tab', async () => {
@@ -247,7 +247,7 @@ describe('agentes section', () => {
     await flush()
     click(host, '.agentes-composer button', 'Retomar')
     await flush()
-    expect(api.spawnAgent.mock.calls.at(-1)?.[0]).toEqual({ resumeSession: 77, title: 'Barra de menús' })
+    expect(api.spawnAgent.mock.calls.at(-1)?.[0]).toEqual({ resumeSession: 77, cwd: '/Users/me/dev/den', title: 'Barra de menús' })
     section.update(['5'])
     click(host, '.agentes-composer button', 'Cerrar la pestaña')
     expect(terminals.made[0]?.disposed).toBe(true)

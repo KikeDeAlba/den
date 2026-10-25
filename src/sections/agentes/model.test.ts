@@ -148,8 +148,8 @@ describe('titles and clocks', () => {
 
 describe('the new session form', () => {
   it('previews the exact bita work command', () => {
-    expect(commandPreview({ harness: 'claude', project: '3' })).toBe('bita work --harness claude --project 3')
-    expect(commandPreview({ harness: 'gemini', project: '0', prompt: "it's -x" })).toBe("bita work --harness gemini --project 0 '--prompt=it'\\''s -x'")
+    expect(commandPreview({ harness: 'claude', project: '3' })).toBe('bita work --harness claude --project=3')
+    expect(commandPreview({ harness: 'gemini', project: '0', prompt: "it's -x" })).toBe("bita work --harness gemini --project=0 '--prompt=it'\\''s -x'")
     expect(commandPreview({ resumeSession: 41 })).toBe('bita work --resume --session 41')
   })
 
