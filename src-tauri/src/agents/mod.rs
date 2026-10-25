@@ -2,6 +2,8 @@ pub mod model;
 pub mod pty;
 pub mod quit;
 pub mod scan;
+#[cfg(all(test, unix))]
+mod smoke;
 
 use std::collections::HashMap;
 use std::ffi::OsString;
