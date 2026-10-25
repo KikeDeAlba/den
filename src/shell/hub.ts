@@ -1,5 +1,6 @@
 import {
   describeProblem,
+  onAgentChanged,
   onDocsChanged,
   onLiveAnswer,
   onLiveState,
@@ -82,6 +83,7 @@ function listenAll(): void {
   onLiveAnswer((answer) => emit({ type: 'live-answer', answer }))
   onSyncFinished(() => emit({ type: 'sync-finished' }))
   onMeetingMediaChanged((change) => emit({ type: 'meeting-media', change }))
+  onAgentChanged((info) => emit({ type: 'agent', info }))
   onWindowClosed(() => emit({ type: 'hidden' }))
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') {

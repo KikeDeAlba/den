@@ -29,6 +29,7 @@ vi.mock('../bita.ts', async (original) => {
     onSyncFinished: keep('sync'),
     onMeetingMediaChanged: keep('media'),
     onWindowClosed: keep('closed'),
+    onAgentChanged: keep('agent'),
   }
 })
 
@@ -81,7 +82,7 @@ describe('startHub', () => {
     await startHub((event) => events.push(event))
     await vi.waitFor(() => expect(events.some((event) => event.type === 'proposals')).toBe(true))
 
-    expect([...api.handlers.keys()].sort()).toEqual(['answer', 'closed', 'docs', 'live', 'media', 'snapshot', 'sync', 'tools', 'transcript'])
+    expect([...api.handlers.keys()].sort()).toEqual(['agent', 'answer', 'closed', 'docs', 'live', 'media', 'snapshot', 'sync', 'tools', 'transcript'])
     expect(events.map((event) => event.type)).toEqual(['snapshot', 'tools', 'snapshot', 'proposals'])
     expect(shellState().snapshot).toEqual(counted)
 
@@ -121,6 +122,17 @@ describe('startHub', () => {
       { type: 'live-answer', answer },
       { type: 'hidden' },
     ])
+  })
+
+  it('forwards agent session changes as shell events', async () => {
+    api.snapshot.mockResolvedValue(idle)
+    api.toolsStatus.mockResolvedValue(tools(true, false))
+    api.refresh.mockResolvedValue(idle)
+    const events: ShellEvent[] = []
+    await startHub((event) => events.push(event))
+    const info = { id: 1, alive: false }
+    api.handlers.get('agent')!(info)
+    expect(events.at(-1)).toEqual({ type: 'agent', info })
   })
 
   it('turns a failed refresh into a snapshot problem', async () => {
