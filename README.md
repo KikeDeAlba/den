@@ -100,9 +100,19 @@ src-tauri/target/debug/den --tools-status
 
 Cada versión se publica en
 [GitHub Releases](https://github.com/KikeDeAlba/den/releases) como un
-`.dmg` para Apple Silicon, firmado ad hoc y sin notarizar: la primera vez hay
+`.dmg` para Apple Silicon, sin notarizar: la primera vez hay
 que abrirlo con clic derecho → Abrir. Para compilarlo tú mismo, sigue estos
 pasos.
+
+Den necesita **macOS 15 (Sequoia) o más reciente**. El mínimo sube desde el 13
+porque Recap solo puede grabar el micrófono junto con el audio del sistema vía
+ScreenCaptureKit a partir de macOS 15, y la captura de Den se apoya en esas
+mismas APIs; en versiones anteriores no habría con qué grabar.
+
+Los Releases se publican firmados con el certificado Apple Development del
+autor, el mismo de Recap.app. Ese certificado va dentro del bundle y por tanto
+incluye su nombre y su correo; es lo normal en cualquier app firmada y no
+expone nada que no vea ya quien inspeccione la firma.
 
 ### 1. Toolchain
 
@@ -123,8 +133,11 @@ pnpm install
 
 ### 3. Compilar
 
+Requiere macOS 15 o más reciente (ver arriba: es el mínimo de Recap y de las
+APIs de captura que usa Den).
+
 ```sh
-pnpm tauri build --bundles app
+pnpm build:mac
 cp -R src-tauri/target/release/bundle/macos/Den.app /Applications/
 open /Applications/Den.app
 ```
@@ -132,9 +145,87 @@ open /Applications/Den.app
 La primera compilación baja y construye unos 500 crates: entre cinco y quince
 minutos. Las siguientes, un minuto.
 
-El `.app` va firmado **ad hoc**, que es lo que evita el diálogo de «está dañada»
-al moverlo. No está notarizado, así que en otro Mac habrá que abrirlo la primera
-vez desde Ajustes → Privacidad y seguridad.
+`pnpm build:mac` (`scripts/build-macos.sh`) compila el `.app` y lo firma con una
+identidad estable. No acepta banderas libres: solo `--dmg`, que además genera el
+`.dmg` en `src-tauri/target/release/bundle/dmg/`. Antes de compilar borra el
+bundle anterior y quita del entorno las variables que cambian la configuración,
+la firma o la ruta de salida de Tauri y Cargo (`TAURI_CONFIG`,
+`APPLE_CERTIFICATE`, `APPLE_ID`, `APPLE_PROVIDER_SHORT_NAME`, `APPLE_API_KEY`,
+`CARGO_TARGET_DIR` y similares). Al terminar comprueba la ruta real del bundle,
+su identificador, el hardened runtime y el requisito de firma. Con `--dmg` monta
+la imagen en solo lectura, verifica el `.app` de dentro con los mismos
+controles y la desmonta siempre; además rechaza firmar ad hoc, porque ese
+`.dmg` es el que se distribuye.
+
+| Variable | Efecto |
+|---|---|
+| `DEN_SIGN_IDENTITY` | Hash SHA-1 de 40 hex de un certificado «Apple Development», o `-` solo con `DEN_ALLOW_ADHOC=1` (y sin `--dmg`). Si no se fija, usa el único certificado «Apple Development» del llavero; con varios, se detiene y los lista. Si Recap.app está instalada con otro certificado, avisa |
+| `DEN_ALLOW_ADHOC` | `1` permite firmar ad hoc. Sin ella, si no hay identidad, el build falla |
+
+Los errores del llavero se muestran tal cual; no se silencian.
+
+```sh
+pnpm build:mac
+pnpm build:mac --dmg
+DEN_ALLOW_ADHOC=1 DEN_SIGN_IDENTITY=- pnpm build:mac
+```
+
+La firma estable importa porque macOS ata los permisos de privacidad (TCC) al
+requisito de firma de la app. Con una firma ad hoc el requisito es el hash del
+binario y cambia en cada compilación, así que los permisos se piden otra vez
+tras cada actualización. Con el certificado Apple Development el requisito es
+`identifier "com.kikedealba.den"` más ese certificado, y se conserva entre
+versiones. Es el mismo certificado que firma Recap.app.
+
+`scripts/designated-requirement.txt` fija la parte del requisito que no depende
+de la persona (`identifier "com.kikedealba.den" and anchor apple generic`); el
+requisito completo incluye el nombre y el correo del certificado, que no se
+versionan. Tras firmar, el script exige que el requisito real empiece por ese
+texto y que la firma cumpla además `certificate leaf = H"<hash>"` con el hash de
+la identidad usada. Para comprobarlo a mano:
+
+```sh
+codesign --verify --deep --strict src-tauri/target/release/bundle/macos/Den.app
+```
+
+No pegues la salida de `codesign -dvv` ni de `codesign -dr -` en un MR, un
+issue o un log: incluye el nombre y el correo del certificado. Para compartir
+una verificación basta el resultado de `codesign --verify` y el hash de 8
+caracteres que imprime el script.
+
+Se firma con hardened runtime y `src-tauri/Entitlements.plist` vacío: Den lanza
+procesos hijos y un PTY, y nada de eso necesita entitlements. `pnpm tauri build`
+a secas firma ad hoc según `tauri.conf.json`; para releases se usa
+`pnpm build:mac --dmg`, no ese comando. El `.app` no está notarizado, así que en
+otro Mac habrá que abrirlo la primera vez desde Ajustes → Privacidad y seguridad.
+
+#### Proteger la clave privada del certificado
+
+Den y Recap.app comparten el certificado, así que cualquier proceso que pueda
+usar su clave privada puede firmar código con esa identidad. Para que cada uso
+pida confirmación:
+
+1. Abre **Acceso a Llaveros** y entra en el llavero «inicio de sesión», sección
+   «Mis certificados».
+2. Despliega el certificado «Apple Development» y selecciona la **clave
+   privada** que cuelga de él.
+3. Menú Archivo → Obtener información → pestaña **Control de acceso**.
+4. Elige **Confirmar antes de permitir el acceso** y quita de la lista de apps
+   con acceso permitido todo lo que no necesites (deja vacía la lista si puedes).
+5. Guarda los cambios.
+
+Desde entonces `pnpm build:mac` hará que macOS pregunte por la contraseña del
+llavero al firmar; usa «Permitir» (una sola vez). No pulses «Permitir siempre»:
+añadiría la app que pidió el acceso a la lista de confianza de la clave y
+desharía la protección de los pasos anteriores.
+
+#### Permisos de privacidad (TCC)
+
+Los permisos que se concedan a Den los heredan los procesos que lance: los
+agentes que corren en su terminal integrada actúan con lo que Den tenga
+concedido. Por eso no conviene darle **Acceso total al disco** ni
+**Accesibilidad**. Grabar la pantalla y el micrófono es de **Recap.app**, no de
+Den; esos permisos se conceden allí.
 
 No hay icono en el Dock ni ventana: vive en la barra de arriba. Para cerrarlo,
 clic derecho en el icono → **Salir de Den**.
