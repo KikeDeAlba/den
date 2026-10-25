@@ -1034,6 +1034,7 @@ export interface PageNode {
 
 export interface Space {
   projectId: number | null
+  projectKey?: string | null
   projectName: string | null
   projectSlug: string
   active: boolean

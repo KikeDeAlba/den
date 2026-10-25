@@ -18,7 +18,7 @@ import { element, icon } from '../../dom.ts'
 import { closeSwitcher, isSwitcherOpen, toggleSwitcher, withPages } from '../../notes/switcher.ts'
 import { modKey } from '../../platform.ts'
 import { formatRoute, go, parseRoute } from '../../shell/routes.ts'
-import { isSpaceShortcut, onSpaceChange, rememberedSpace, rememberSpace } from '../../shell/space.ts'
+import { inkwellProjectOf, isSpaceShortcut, onSpaceChange, rememberedSpace, rememberSpace } from '../../shell/space.ts'
 import { projectColor } from '../../shell/colors.ts'
 import {
   activeFilters,
@@ -346,7 +346,7 @@ async function create(draft: Draft): Promise<void> {
   paint()
   try {
     const body = draft.body.trim()
-    const payload = await backlogAdd(draft.kind, title, body.length > 0 ? body : null, draft.pageId, activeSpace)
+    const payload = await backlogAdd(draft.kind, title, body.length > 0 ? body : null, draft.pageId, inkwellProjectOf(spaces, activeSpace))
     items = [...(items ?? []), payload.data]
     creating = null
     selectedId = payload.data.id

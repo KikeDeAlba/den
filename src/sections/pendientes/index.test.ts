@@ -50,6 +50,7 @@ function item(id: number, fields: Partial<BacklogItem> = {}): BacklogItem {
 
 const SPACE = {
   projectId: 1,
+  projectKey: 'VC',
   projectName: 'Viva Cash',
   projectSlug: 'viva',
   active: true,
@@ -172,6 +173,17 @@ describe('pendientes section', () => {
     toPending?.click()
     await flush()
     expect(api.backlogSetKind).toHaveBeenCalledWith(1, 'pending')
+  })
+
+  it('creates the item in the space inkwell knows by its key, not by its slug', async () => {
+    api.backlogAdd.mockResolvedValue({ data: item(7, { title: 'Rotar' }) })
+    host.querySelector<HTMLButtonElement>('.pend-new')?.click()
+    const title = host.querySelector<HTMLInputElement>('.pend-form-title') as HTMLInputElement
+    title.value = 'Rotar'
+    title.dispatchEvent(new Event('input'))
+    host.querySelector<HTMLButtonElement>('.pend-resolve')?.click()
+    await flush()
+    expect(api.backlogAdd).toHaveBeenCalledWith('pending', 'Rotar', null, null, 'VC')
   })
 
   it('keeps focus and the typed draft when the docs change', async () => {

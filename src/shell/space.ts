@@ -62,3 +62,32 @@ export function chooseSpace(list: readonly Space[], wanted: string | null): Spac
     null
   )
 }
+
+type SpaceRef = Pick<Space, 'projectId' | 'projectKey' | 'projectName' | 'projectSlug'>
+
+function filled(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? ''
+  return trimmed.length > 0 ? trimmed : null
+}
+
+export function inkwellProject(space: SpaceRef): string {
+  return (
+    filled(space.projectKey) ??
+    (space.projectId === null ? null : String(space.projectId)) ??
+    filled(space.projectName) ??
+    space.projectSlug
+  )
+}
+
+export function inkwellProjectOf(list: readonly SpaceRef[], slug: string | null): string | null {
+  if (slug === null) return null
+  const space = list.find((candidate) => candidate.projectSlug === slug)
+  return space === undefined ? slug : inkwellProject(space)
+}
+
+export function sameProject(space: SpaceRef, project: string): boolean {
+  const wanted = project.trim().toLowerCase()
+  return [space.projectKey, space.projectName, space.projectSlug, space.projectId === null ? null : String(space.projectId)].some(
+    (value) => filled(value)?.toLowerCase() === wanted,
+  )
+}

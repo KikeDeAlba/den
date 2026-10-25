@@ -50,7 +50,7 @@ import { renderSpaceSettings } from '../../notes/space-settings.ts'
 import { renderStorage, spaceStorageTotal } from '../../notes/storage.ts'
 import { closeSwitcher, isSwitcherOpen, toggleSwitcher, withPages } from '../../notes/switcher.ts'
 import { formatRoute, go, parseRoute } from '../../shell/routes.ts'
-import { isSpaceShortcut, onSpaceChange, rememberedSpace, rememberSpace } from '../../shell/space.ts'
+import { inkwellProject, isSpaceShortcut, onSpaceChange, rememberedSpace, rememberSpace } from '../../shell/space.ts'
 import type { ShellEvent } from '../section.ts'
 import { docsRoute, parseDocsPath, pendientesRoute, type DocsTarget, type DocsView } from '../../shell/links.ts'
 import './docs.css'
@@ -251,7 +251,7 @@ async function loadConfluenceLinks(space: Space | null): Promise<void> {
   if (base === null) return
   confluenceLinks.set(space.projectSlug, new Map())
   try {
-    const mappings = await confluenceSyncStatus(space.projectSlug)
+    const mappings = await confluenceSyncStatus(inkwellProject(space))
     const links = new Map(
       mappings.map((mapping) => [mapping.pageId, `${base}/wiki/pages/viewpage.action?pageId=${encodeURIComponent(mapping.confluenceId)}`]),
     )
@@ -949,7 +949,7 @@ function runQuery(value: string): void {
 async function search(value: string, token: number): Promise<void> {
   const space = scope === 'space' ? currentSpace() : null
   try {
-    const payload = await notesSearchPages(value, space?.projectSlug ?? null)
+    const payload = await notesSearchPages(value, space === null ? null : inkwellProject(space))
     if (searchToken !== token) return
     const pages = space === null ? allPages() : spacePages(space)
     const allowed = new Set(pages.map((page) => page.pageId))
