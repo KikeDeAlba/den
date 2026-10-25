@@ -6,7 +6,7 @@ use crate::cli::Cli;
 use crate::docs::Feature;
 use crate::doctor::{self, Report};
 use crate::worked::{self, WorkedView};
-use crate::model::{Entry, Problem, ProblemKind, Scope, SummaryData, SummaryMeta, SummaryView, Snapshot};
+use crate::model::{Entry, Problem, Scope, SummaryData, SummaryMeta, SummaryView, Snapshot};
 use crate::registry::{Origin, Tool};
 use crate::state::AppState;
 
