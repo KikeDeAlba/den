@@ -32,6 +32,7 @@ export interface StorageContext {
   onExpandRail: () => void
   onOpenPage: (pageId: number) => void
   beforeReplace: (meetingId: string) => void
+  lockSpace?: boolean
 }
 
 type SortKey = 'title' | 'when' | 'video' | 'audio' | 'intermediate' | 'total'
@@ -70,17 +71,46 @@ let host: HTMLElement | null = null
 let context: StorageContext | null = null
 let root: HTMLElement | null = null
 let unsubscribe: (() => void) | null = null
-let totalCache: { at: number; value: Promise<number> } | null = null
+let reportCache: { at: number; value: Promise<StorageReport> } | null = null
 
-export function storageTotal(): Promise<number> {
+function cachedReport(): Promise<StorageReport> {
   const now = Date.now()
-  if (totalCache !== null && now - totalCache.at < TOTAL_TTL_MS) return totalCache.value
-  const value = storageReport().then(sumReport)
-  totalCache = { at: now, value }
+  if (reportCache !== null && now - reportCache.at < TOTAL_TTL_MS) return reportCache.value
+  const value = storageReport()
+  reportCache = { at: now, value }
   value.catch(() => {
-    totalCache = null
+    reportCache = null
   })
   return value
+}
+
+export function storageTotal(): Promise<number> {
+  return cachedReport().then(sumReport)
+}
+
+export function spaceStorageTotal(spaces: Space[], slug: string): Promise<number> {
+  return cachedReport().then((value) => {
+    const space = spaces.find((candidate) => candidate.projectSlug === slug)
+    if (space === undefined) return 0
+    const meetings = rowsOf(value, spaces)
+      .filter((row) => row.space?.projectSlug === slug)
+      .reduce((sum, row) => sum + row.total, 0)
+    return meetings + pagesBytes(space)
+  })
+}
+
+function pagesBytes(space: Space): number {
+  const walk = (pages: PageNode[]): number =>
+    pages.reduce((sum, page) => sum + page.byteSize + walk(page.children ?? []), 0)
+  return walk(space.pages)
+}
+
+function lockedSlug(current: StorageContext | null): string | null {
+  return current?.lockSpace === true ? (current.activeSpace?.projectSlug ?? null) : null
+}
+
+function effectiveFilter(): string | null {
+  return context?.lockSpace === true ? lockedSlug(context) : spaceFilter
 }
 
 function sumReport(value: StorageReport): number {
@@ -102,12 +132,12 @@ export function renderStorage(target: HTMLElement, next: StorageContext): void {
 
 async function reload(): Promise<void> {
   loading = true
-  totalCache = null
+  reportCache = null
   try {
     report = await storageReport()
     measuredAt = Date.now()
     failure = null
-    totalCache = { at: Date.now(), value: Promise.resolve(sumReport(report)) }
+    reportCache = { at: Date.now(), value: Promise.resolve(report) }
     const ids = new Set(report.meetings.map((meeting) => meeting.id))
     for (const id of [...selected]) if (!ids.has(id)) selected.delete(id)
   } catch (error) {
@@ -170,8 +200,9 @@ function rowsOf(value: StorageReport, spaces: Space[]): Row[] {
 
 function visibleRows(rows: Row[]): Row[] {
   const filtered = rows.filter((row) => {
-    if (onlyOrphans && row.page !== null) return false
-    if (spaceFilter !== null && row.space?.projectSlug !== spaceFilter) return false
+    if (onlyOrphans) return row.page === null
+    const filter = effectiveFilter()
+    if (filter !== null && row.space?.projectSlug !== filter) return false
     return true
   })
   const value = (row: Row): number | string => {
@@ -215,9 +246,16 @@ function build(current: StorageContext): HTMLElement {
   scroll.append(body)
   wrap.append(scroll)
 
-  const rows = report === null ? [] : rowsOf(report, current.spaces)
-  const visible = visibleRows(rows)
-  const pages = current.spaces.reduce((sum, space) => sum + space.pageCount, 0)
+  const all = report === null ? [] : rowsOf(report, current.spaces)
+  const locked = lockedSlug(current)
+  const rows = current.lockSpace === true ? all.filter((row) => row.space?.projectSlug === locked) : all
+  const visible = visibleRows(all)
+  const pages =
+    current.lockSpace === true
+      ? (current.activeSpace?.pageCount ?? 0)
+      : current.spaces.reduce((sum, space) => sum + space.pageCount, 0)
+  const recorded = current.lockSpace === true ? rows.length : (report?.meetings.length ?? 0)
+  const prefix = current.lockSpace === true ? `${current.activeSpace?.projectName ?? 'Sin proyecto'} · ` : ''
 
   const top = element('div', 'st-top')
   const heading = element('div', 'st-heading')
@@ -226,10 +264,11 @@ function build(current: StorageContext): HTMLElement {
     element(
       'p',
       'st-lede',
-      report === null ? (failure === null ? 'Midiendo…' : 'No pude medir el almacenamiento.') : `${report.meetings.length} ${report.meetings.length === 1 ? 'reunión grabada' : 'reuniones grabadas'} · ${pages} páginas · ${measuredLabel()}`,
+      report === null ? (failure === null ? 'Midiendo…' : 'No pude medir el almacenamiento.') : `${prefix}${recorded} ${recorded === 1 ? 'reunión grabada' : 'reuniones grabadas'} · ${pages} páginas · ${measuredLabel()}`,
     ),
   )
-  top.append(heading, spacePicker(current, rows))
+  top.append(heading)
+  if (current.lockSpace !== true) top.append(spacePicker(current, rows))
   body.append(top)
 
   if (failure !== null && report === null) {
@@ -244,8 +283,12 @@ function build(current: StorageContext): HTMLElement {
     body.append(element('p', 'st-notice', 'recap no está instalado en este equipo: solo se mide lo de bita.'))
   }
 
-  body.append(usage(report, spaceFilter === null && !onlyOrphans ? rows : visible))
-  const hints = suggestions(rows)
+  body.append(
+    current.lockSpace === true
+      ? spaceUsage(rows, current.activeSpace)
+      : usage(report, spaceFilter === null && !onlyOrphans ? rows : visible),
+  )
+  const hints = suggestions(rows, all.filter((row) => row.page === null))
   if (hints !== null) body.append(hints)
   if (actionFailure !== null) {
     const line = element('p', 'st-error')
@@ -343,20 +386,40 @@ function spacePicker(current: StorageContext, rows: Row[]): HTMLElement {
   return wrap
 }
 
-function usage(value: StorageReport, rows: Row[]): HTMLElement {
+interface UsagePart {
+  label: string
+  color: string
+  bytes: number
+}
+
+function meetingParts(rows: Row[]): UsagePart[] {
   const sum = (pick: (row: Row) => number): number => rows.reduce((total, row) => total + pick(row), 0)
-  const parts = [
+  return [
     { label: 'Videos', color: 'var(--blue)', bytes: sum((row) => row.video ?? 0) },
     { label: 'WAV intermedios', color: 'var(--estimate)', bytes: sum((row) => row.intermediate ?? 0) },
     { label: 'Audio', color: 'var(--aqua)', bytes: sum((row) => row.audio ?? 0) },
     { label: 'Capturas', color: 'var(--purple)', bytes: sum((row) => row.record.storage.framesBytes) },
-    {
-      label: 'Documentos y diagramas',
-      color: 'var(--running)',
-      bytes: value.docsBytes + sum((row) => row.record.storage.otherBytes),
-    },
-    { label: 'bita.db', color: 'var(--fg-mute)', bytes: value.dbBytes },
   ]
+}
+
+function spaceUsage(rows: Row[], space: Space | null): HTMLElement {
+  const other = rows.reduce((total, row) => total + row.record.storage.otherBytes, 0)
+  return usageSection([
+    ...meetingParts(rows),
+    { label: 'Documentos y diagramas', color: 'var(--running)', bytes: (space === null ? 0 : pagesBytes(space)) + other },
+  ])
+}
+
+function usage(value: StorageReport, rows: Row[]): HTMLElement {
+  const other = rows.reduce((total, row) => total + row.record.storage.otherBytes, 0)
+  return usageSection([
+    ...meetingParts(rows),
+    { label: 'Documentos y diagramas', color: 'var(--running)', bytes: value.docsBytes + other },
+    { label: 'bita.db', color: 'var(--fg-mute)', bytes: value.dbBytes },
+  ])
+}
+
+function usageSection(parts: UsagePart[]): HTMLElement {
   const total = parts.reduce((all, part) => all + part.bytes, 0)
 
   const section = element('section', 'st-usage')
@@ -396,7 +459,7 @@ function suggestionCard(tone: string, kicker: string, title: string, size: numbe
   return card
 }
 
-function suggestions(rows: Row[]): HTMLElement | null {
+function suggestions(rows: Row[], orphans: Row[]): HTMLElement | null {
   const section = element('section', 'st-suggestions')
   section.setAttribute('aria-label', 'Sugerencias')
 
@@ -426,7 +489,6 @@ function suggestions(rows: Row[]): HTMLElement | null {
     )
   }
 
-  const orphans = rows.filter((row) => row.page === null)
   if (orphans.length > 0) {
     const size = orphans.reduce((sum, row) => sum + row.total, 0)
     section.append(

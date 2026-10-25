@@ -146,7 +146,7 @@ function placeholder(input: HTMLInputElement, state: RailState): void {
   const text = state.scope === 'space' && name !== null ? `Buscar páginas en ${name}` : 'Buscar en todos los espacios'
   input.placeholder = text
   input.setAttribute('aria-label', text)
-  const body = input.closest('.rail')?.querySelector('.rail-body')
+  const body = input.closest('.rail-search')?.parentElement?.querySelector('.rail-body')
   body?.setAttribute('aria-label', name === null ? 'Páginas' : `Páginas de ${name}`)
 }
 

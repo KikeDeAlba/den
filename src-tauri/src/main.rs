@@ -11,7 +11,6 @@ mod gaze;
 mod worked;
 mod menu;
 mod model;
-mod notes;
 mod media;
 mod live;
 mod live_wide;
@@ -59,7 +58,6 @@ fn main() {
         .manage(AppState::new())
         .manage(live::LiveSession::default())
         .manage(tray::TrayList::default())
-        .manage(notes::NotesFocus::default())
         .invoke_handler(tauri::generate_handler![
             commands::snapshot,
             commands::refresh,
@@ -87,13 +85,11 @@ fn main() {
             commands::unset_scope,
             commands::doctor_report,
             tools::tools_status,
-            commands::open_notes,
             commands::open_reports,
             commands::open_brain,
             gaze::gaze_graph,
             gaze::gaze_show,
             gaze::gaze_search,
-            commands::notes_take_focus,
             notes_cmd::notes_tree,
             notes_cmd::notes_list,
             notes_cmd::notes_today,
@@ -130,8 +126,6 @@ fn main() {
             atlassian_cmd::confluence_sync,
             atlassian_cmd::confluence_sync_status,
             atlassian_cmd::confluence_resolve,
-            commands::open_notes_meeting,
-            commands::notes_take_meeting,
             live::live_state,
             live::live_show,
             live::live_hide,

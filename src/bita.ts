@@ -3,14 +3,12 @@ import { listen } from '@tauri-apps/api/event'
 
 export const SNAPSHOT_EVENT = 'bita://snapshot'
 export const DOCS_CHANGED_EVENT = 'bita://docs-changed'
-export const NOTES_FOCUS_EVENT = 'bita://notes-focus'
 export const MEETING_MEDIA_EVENT = 'bita://meeting-media-changed'
 export const SYNC_FINISHED_EVENT = 'bita://confluence-synced'
 export const LIVE_ANSWER_EVENT = 'bita://live-answer'
 export const LIVE_STATE_EVENT = 'bita://live-state'
 export const LIVE_TRANSCRIPT_EVENT = 'bita://live-transcript'
 export const NAVIGATE_EVENT = 'den://navigate'
-export const NOTES_MEETING_EVENT = 'bita://notes-meeting'
 export const TOOLS_EVENT = 'bita://tools-changed'
 
 export type ProblemKind =
@@ -485,20 +483,12 @@ export function installHint(status: ToolsStatus | null, tool: ToolName): string 
   return status?.tools.find((found) => found.name === tool)?.install ?? `npm install -g @kikedealba/${tool} && ${tool} setup`
 }
 
-export function openNotes(entryId: number | null): Promise<void> {
-  return invoke<void>('open_notes', { entryId })
-}
-
 export function openReports(): Promise<void> {
   return invoke<void>('open_reports')
 }
 
 export function openBrain(): Promise<void> {
   return invoke<void>('open_brain')
-}
-
-export function notesTakeFocus(): Promise<number | null> {
-  return invoke<number | null>('notes_take_focus')
 }
 
 export type SectionState = 'written' | 'empty' | 'absent'
@@ -865,11 +855,6 @@ export interface PendingMeeting {
   title: string
   endedAt: string | null
   proposals: Proposal[]
-}
-
-export interface MeetingFocus {
-  entryId: number
-  tab: string
 }
 
 export interface MeetingStorage {
@@ -1397,12 +1382,6 @@ export function onDocsChanged(handler: () => void): void {
   })
 }
 
-export function onNotesFocus(handler: (entryId: number) => void): void {
-  void listen<number>(NOTES_FOCUS_EVENT, (event) => {
-    handler(event.payload)
-  })
-}
-
 export function quit(): Promise<void> {
   return invoke<void>('quit')
 }
@@ -1487,14 +1466,6 @@ export function openSourceFile(path: string): Promise<void> {
   return invoke('open_source_file', { path })
 }
 
-export function openNotesMeeting(entryId: number, tab: string): Promise<void> {
-  return invoke('open_notes_meeting', { entryId, tab })
-}
-
-export function notesTakeMeeting(): Promise<MeetingFocus | null> {
-  return invoke<MeetingFocus | null>('notes_take_meeting')
-}
-
 export function docsBranchDiff(branch: string, sha: string): Promise<BranchDiff> {
   return invoke<BranchDiff>('docs_branch_diff', { branch, sha })
 }
@@ -1541,12 +1512,6 @@ export function onLiveState(handler: () => void): void {
 
 export function onLiveTranscript(handler: (update: LiveTranscriptUpdate) => void): void {
   void listen<LiveTranscriptUpdate>(LIVE_TRANSCRIPT_EVENT, (event) => {
-    handler(event.payload)
-  })
-}
-
-export function onNotesMeeting(handler: (focus: MeetingFocus) => void): void {
-  void listen<MeetingFocus>(NOTES_MEETING_EVENT, (event) => {
     handler(event.payload)
   })
 }

@@ -243,16 +243,6 @@ pub async fn doctor_report() -> Result<Report, Problem> {
 }
 
 #[tauri::command]
-pub fn open_notes(app: AppHandle, entry_id: Option<i64>) -> Result<(), Problem> {
-    crate::notes::open(&app, entry_id).map_err(|error| {
-        Problem::new(
-            ProblemKind::Unreadable,
-            format!("No pude abrir la ventana de notas: {error}"),
-        )
-    })
-}
-
-#[tauri::command]
 pub fn open_reports(app: AppHandle) -> Result<(), Problem> {
     crate::reports::open(&app).map_err(|error| {
         Problem::new(
@@ -270,30 +260,6 @@ pub fn open_brain(app: AppHandle) -> Result<(), Problem> {
             format!("No pude abrir la ventana del cerebro: {error}"),
         )
     })
-}
-
-#[tauri::command]
-pub fn notes_take_focus(app: AppHandle) -> Option<i64> {
-    crate::notes::take_focus(&app)
-}
-
-#[tauri::command]
-pub fn open_notes_meeting(app: AppHandle, entry_id: i64, tab: String) -> Result<(), Problem> {
-    let tab = match tab.as_str() {
-        "proposals" | "answers" | "meeting" | "minutes" => tab,
-        _ => "document".to_string(),
-    };
-    crate::notes::open_meeting(&app, crate::notes::MeetingFocus { entry_id, tab }).map_err(|error| {
-        Problem::new(
-            ProblemKind::Unreadable,
-            format!("No pude abrir la ventana de notas: {error}"),
-        )
-    })
-}
-
-#[tauri::command]
-pub fn notes_take_meeting(app: AppHandle) -> Option<crate::notes::MeetingFocus> {
-    crate::notes::take_meeting(&app)
 }
 
 #[tauri::command]

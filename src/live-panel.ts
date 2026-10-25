@@ -3,7 +3,7 @@ import {
   liveShortcutSet,
   liveShow,
   liveSources,
-  openNotesMeeting,
+  navigate,
   recapConfig,
   recapConfigSet,
   toolsStatus,
@@ -14,6 +14,7 @@ import {
   type LiveView,
   type PendingMeeting,
 } from './bita.ts'
+import { meetingRoute } from './sections/docs/route.ts'
 import { element, icon } from './dom.ts'
 import { acceleratorFrom, shortcutLabel } from './shortcut.ts'
 
@@ -108,7 +109,7 @@ export function proposalsCard(meeting: PendingMeeting): HTMLElement {
   review.className = 'proposals-review'
   review.append(icon('check', 14), element('span', '', 'Revisar cambios'))
   review.addEventListener('click', () => {
-    void openNotesMeeting(meeting.entryId, 'proposals')
+    void navigate(meetingRoute(meeting.entryId, 'proposals'))
   })
   card.append(review)
   return card

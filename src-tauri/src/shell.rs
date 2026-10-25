@@ -4,6 +4,7 @@ use crate::model::{Problem, ProblemKind};
 
 pub const LABEL: &str = "main";
 pub const NAVIGATE_EVENT: &str = "den://navigate";
+pub const DOCS_CHANGED_EVENT: &str = "bita://docs-changed";
 
 const WIDTH: f64 = 1280.0;
 const HEIGHT: f64 = 820.0;
@@ -88,6 +89,12 @@ pub fn show(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     window.show()?;
     window.set_focus()?;
     Ok(window)
+}
+
+pub fn mark_docs_stale(app: &AppHandle) {
+    if is_showing(app) {
+        let _ = app.emit(DOCS_CHANGED_EVENT, ());
+    }
 }
 
 pub fn navigate(app: &AppHandle, route: &str) -> tauri::Result<()> {

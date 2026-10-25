@@ -49,7 +49,7 @@ pub async fn changed(app: &AppHandle) {
     ensure_inkwell_watchers(app);
     let _ = app.emit(TOOLS_EVENT, &status);
     app.state::<AppState>().refresh(app).await;
-    crate::notes::mark_stale(app);
+    crate::shell::mark_docs_stale(app);
 }
 
 pub fn warm(app: AppHandle) {

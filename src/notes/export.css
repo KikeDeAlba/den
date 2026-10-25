@@ -476,13 +476,13 @@
     background: #ffffff !important;
   }
 
-  body.printing #notas {
+  body.printing .notes-root {
     display: block !important;
     height: auto !important;
     background: #ffffff !important;
   }
 
-  body.printing #notas > :not(#print-root) {
+  body.printing .notes-root > :not(#print-root) {
     display: none !important;
   }
 
