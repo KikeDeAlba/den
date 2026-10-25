@@ -65,6 +65,7 @@ let failure: Problem | null = null
 let actionFailure: string | null = null
 let modules: Modules | null = null
 let activeSpace: string | null = rememberedSpace()
+let routeSpace: string | null = null
 let selectedId: number | null = null
 let query = ''
 let layout: Layout = rememberedLayout()
@@ -148,9 +149,9 @@ function chooseDefaultSpace(): void {
 
 function switchSpace(slug: string): void {
   if (!spaces.some((space) => space.projectSlug === slug)) return
+  rememberSpace(slug)
   if (slug === activeSpace) return
   activeSpace = slug
-  rememberSpace(slug)
   selectedId = null
   creating = null
   paint()
@@ -178,6 +179,7 @@ function jumpTo(item: BacklogItem): void {
 function applyTarget(target: PendientesTarget): void {
   if (items === null || spaces.length === 0) {
     if (target.space !== null) activeSpace = target.space
+    routeSpace = target.space
     pendingKey = target.key
     return
   }
@@ -211,6 +213,8 @@ async function load(): Promise<void> {
   }
   if (tree.status === 'rejected' && failure === null) failure = describeProblem(tree.reason)
   chooseDefaultSpace()
+  if (routeSpace !== null && routeSpace === activeSpace) rememberSpace(routeSpace)
+  routeSpace = null
   if (pendingKey !== null) {
     const key = pendingKey
     pendingKey = null

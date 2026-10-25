@@ -51,11 +51,17 @@ vi.mock('../sections/cerebro/brain.ts', () => ({
 }))
 
 import { NO_MODULES } from '../bita.ts'
-import { loadSpaces, rememberedSpace, rememberSpace } from './space.ts'
 
-const docs = await import('../sections/docs/index.ts')
-const pendientes = await import('../sections/pendientes/index.ts')
-const cerebro = await import('../sections/cerebro/index.ts')
+type SpaceModule = typeof import('./space.ts')
+type DocsModule = typeof import('../sections/docs/index.ts')
+type PendientesModule = typeof import('../sections/pendientes/index.ts')
+type CerebroModule = typeof import('../sections/cerebro/index.ts')
+
+let docs: DocsModule
+let pendientes: PendientesModule
+let cerebro: CerebroModule
+let rememberedSpace: SpaceModule['rememberedSpace']
+let rememberSpace: SpaceModule['rememberSpace']
 
 function space(projectSlug: string, projectName: string): Space {
   return { projectId: projectSlug.length, projectName, projectSlug, active: true, entryCount: 0, pageCount: 1, pages: [] }
@@ -74,7 +80,14 @@ describe('the space shared by Docs, Pendientes and Cerebro', () => {
     api.notesTree.mockResolvedValue({ data: { spaces: [space('alpha', 'Alpha'), space('beta', 'Beta')] } })
     api.backlogList.mockResolvedValue({ data: [] })
     api.toolsStatus.mockResolvedValue({ modules: { ...NO_MODULES, notes: true, backlog: true } })
-    await loadSpaces(true)
+    vi.resetModules()
+    const shared = await import('./space.ts')
+    rememberedSpace = shared.rememberedSpace
+    rememberSpace = shared.rememberSpace
+    docs = await import('../sections/docs/index.ts')
+    pendientes = await import('../sections/pendientes/index.ts')
+    cerebro = await import('../sections/cerebro/index.ts')
+    await shared.loadSpaces(true)
     hosts = { docs: document.createElement('section'), pendientes: document.createElement('section'), cerebro: document.createElement('section') }
     document.body.append(hosts.docs, hosts.pendientes, hosts.cerebro)
   })
@@ -105,12 +118,26 @@ describe('the space shared by Docs, Pendientes and Cerebro', () => {
     expect(api.brains[0]?.load).toHaveBeenCalledWith('beta')
   })
 
-  it.fails('shares the space of a Pendientes deep link with the rest of the shell', async () => {
+  it('shares the space of a Pendientes deep link with the rest of the shell', async () => {
     await pendientes.mount(hosts.pendientes, ['beta'])
     await flush()
     expect(rememberedSpace()).toBe('beta')
     await cerebro.mount(hosts.cerebro, [])
     expect(api.brains[0]?.load).toHaveBeenCalledWith('beta')
+  })
+
+  it('shares a Pendientes deep link to the space it already shows', async () => {
+    await pendientes.mount(hosts.pendientes, ['beta'])
+    await flush()
+    pendientes.unmount()
+    localStorage.clear()
+    expect(rememberedSpace()).toBeNull()
+    await pendientes.mount(hosts.pendientes, ['beta'])
+    await flush()
+    expect(rememberedSpace()).toBe('beta')
+    pendientes.update(['beta'])
+    await flush()
+    expect(rememberedSpace()).toBe('beta')
   })
 
   it('carries a space picked in Cerebro back to the sections that stay alive', async () => {
