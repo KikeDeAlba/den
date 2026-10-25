@@ -8,7 +8,7 @@ mod smoke;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -79,6 +79,7 @@ struct Session {
 pub struct Agents {
     sessions: Mutex<HashMap<u64, Session>>,
     next: AtomicU64,
+    reserved: AtomicUsize,
     quitting: AtomicBool,
     asking: AtomicBool,
     ending: AtomicBool,
@@ -127,14 +128,17 @@ impl Agents {
         }
     }
 
-    fn admits_another(&self) -> Result<(), Problem> {
-        if self.live().len() >= LIVE_LIMIT {
-            Err(failed(format!(
+    fn reserve(&self) -> Result<Slot<'_>, Problem> {
+        let sessions = lock(&self.sessions);
+        let live = sessions.values().filter(|session| session.pty.alive()).count();
+        if live + self.reserved.load(Ordering::SeqCst) >= LIVE_LIMIT {
+            return Err(failed(format!(
                 "Ya hay {LIVE_LIMIT} sesiones abiertas. Termina alguna antes de arrancar otra."
-            )))
-        } else {
-            Ok(())
+            )));
         }
+        self.reserved.fetch_add(1, Ordering::SeqCst);
+        drop(sessions);
+        Ok(Slot { agents: self, held: true })
     }
 
     fn link(&self, id: u64, listing: SessionListing) -> Option<AgentInfo> {
@@ -142,6 +146,29 @@ impl Agents {
         let session = sessions.get_mut(&id)?;
         session.info.bita = Some(listing);
         Some(current(session))
+    }
+}
+
+struct Slot<'a> {
+    agents: &'a Agents,
+    held: bool,
+}
+
+impl Slot<'_> {
+    fn fill(mut self, id: u64, session: Session) {
+        let mut sessions = lock(&self.agents.sessions);
+        sessions.insert(id, session);
+        self.agents.reserved.fetch_sub(1, Ordering::SeqCst);
+        self.held = false;
+    }
+}
+
+impl Drop for Slot<'_> {
+    fn drop(&mut self) {
+        if self.held {
+            let _sessions = lock(&self.agents.sessions);
+            self.agents.reserved.fetch_sub(1, Ordering::SeqCst);
+        }
     }
 }
 
@@ -336,10 +363,10 @@ async fn agent_spawn(
     on_output: Channel<InvokeResponseBody>,
 ) -> Result<AgentInfo, Problem> {
     ensure_main(&window)?;
-    app.state::<Agents>().admits_another()?;
+    let agents = app.state::<Agents>();
+    let slot = agents.reserve()?;
     let cli = bita().await?;
     let spec = spec_for(cli.bin(), cli.database_path(), &request, cols, rows)?;
-    let agents = app.state::<Agents>();
     let id = agents.next.fetch_add(1, Ordering::SeqCst) + 1;
     let pty = Arc::new(Pty::spawn(&spec).map_err(|error| failed(format!("No pude lanzar bita work: {error}")))?);
     pty.attach(sink(on_output));
@@ -358,7 +385,7 @@ async fn agent_spawn(
         exit_code: None,
         bita: None,
     };
-    lock(&agents.sessions).insert(
+    slot.fill(
         id,
         Session {
             info,
@@ -879,14 +906,49 @@ mod tests {
         for id in 0..LIVE_LIMIT as u64 {
             let session = session_running("sleep 30");
             ptys.push(Arc::clone(&session.pty));
-            assert!(agents.admits_another().is_ok());
-            lock(&agents.sessions).insert(id, session);
+            agents.reserve().expect("room").fill(id, session);
         }
-        assert!(agents.admits_another().is_err());
+        assert!(agents.reserve().is_err());
+        assert_eq!(agents.reserved.load(Ordering::SeqCst), 0);
         for pty in &ptys {
             pty.terminate(Duration::from_millis(200));
         }
-        assert!(agents.admits_another().is_ok());
+        assert!(agents.reserve().is_ok());
+    }
+
+    #[test]
+    fn a_reserved_slot_counts_until_it_is_filled_or_dropped() {
+        let agents = Agents::default();
+        let slots: Vec<Slot<'_>> = (0..LIVE_LIMIT).map(|_| agents.reserve().expect("room")).collect();
+        assert!(agents.reserve().is_err());
+        drop(slots);
+        assert_eq!(agents.reserved.load(Ordering::SeqCst), 0);
+        let failed_spawn = agents.reserve().expect("room");
+        drop(failed_spawn);
+        assert_eq!(agents.reserved.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn concurrent_spawns_cannot_overshoot_the_cap() {
+        let agents = Arc::new(Agents::default());
+        let barrier = Arc::new(std::sync::Barrier::new(LIVE_LIMIT * 2));
+        let workers: Vec<_> = (0..LIVE_LIMIT * 2)
+            .map(|_| {
+                let agents = Arc::clone(&agents);
+                let barrier = Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    let slot = agents.reserve();
+                    let won = slot.is_ok();
+                    std::thread::sleep(Duration::from_millis(50));
+                    drop(slot);
+                    won
+                })
+            })
+            .collect();
+        let won = workers.into_iter().filter_map(|worker| worker.join().ok()).filter(|won| *won).count();
+        assert_eq!(won, LIVE_LIMIT);
+        assert_eq!(agents.reserved.load(Ordering::SeqCst), 0);
     }
 
     #[test]
