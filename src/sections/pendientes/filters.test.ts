@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import type { BacklogItem, Space } from '../../bita.ts'
-import { activeFilters, defaultFilters, groupByPage, meetingEntryIds, originOf, otherKind, pagesOf, passes } from './model.ts'
+import {
+  activeFilters,
+  daysSince,
+  defaultFilters,
+  groupByPage,
+  meetingEntryIds,
+  originOf,
+  otherKind,
+  pagesOf,
+  passes,
+  type CreatedFilter,
+} from './model.ts'
 
 function item(id: number, fields: Partial<BacklogItem> = {}): BacklogItem {
   return {
@@ -60,6 +71,35 @@ describe('pendientes filters', () => {
     expect(ids({ ...base, created: 'old' })).toEqual([2])
     expect(activeFilters({ ...base, kind: 'finding', created: 'old' })).toBe(2)
     expect(activeFilters(base)).toBe(0)
+  })
+
+  it('counts creation days by the local calendar, not by 24-hour spans', () => {
+    const now = new Date(2026, 9, 25, 0, 30)
+    const at = (year: number, month: number, day: number, hour: number, minute = 0) =>
+      new Date(year, month, day, hour, minute).toISOString()
+    const created = (createdAt: string, filter: CreatedFilter) =>
+      passes(item(1, { createdAt }), { ...defaultFilters(), created: filter }, now, new Set())
+    expect(created(at(2026, 9, 25, 0, 0), 'today')).toBe(true)
+    expect(created(at(2026, 9, 24, 23, 59), 'today')).toBe(false)
+    expect(daysSince(at(2026, 9, 24, 23, 59), now)).toBe(1)
+    expect(created(at(2026, 9, 19, 9), 'week')).toBe(true)
+    expect(created(at(2026, 9, 18, 23, 59), 'week')).toBe(false)
+    expect(created(at(2026, 9, 11, 0, 0), 'old')).toBe(false)
+    expect(created(at(2026, 9, 10, 23, 59), 'old')).toBe(true)
+    expect(daysSince(at(2026, 9, 10, 23, 59), now)).toBe(15)
+    expect(created(at(2026, 9, 26, 9), 'today')).toBe(false)
+  })
+
+  it('never counts a broken creation date as today or as old', () => {
+    for (const createdAt of ['', 'mañana', '2026-13-45T99:00:00Z']) {
+      const created = (filter: CreatedFilter) =>
+        passes(item(1, { createdAt }), { ...defaultFilters(), created: filter }, NOW, new Set())
+      expect(daysSince(createdAt, NOW)).toBeNull()
+      expect(created('today')).toBe(false)
+      expect(created('week')).toBe(false)
+      expect(created('old')).toBe(false)
+      expect(created('any')).toBe(true)
+    }
   })
 
   it('groups by page with the pageless group last', () => {

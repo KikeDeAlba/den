@@ -141,10 +141,22 @@ export function pageKeyOf(item: Pick<BacklogItem, 'pageId'>): string {
   return item.pageId === null ? NO_PAGE : String(item.pageId)
 }
 
-function daysSince(iso: string, now: Date): number {
-  const then = Date.parse(iso)
-  if (Number.isNaN(then)) return 0
-  return Math.max(0, Math.floor((now.getTime() - then) / DAY_MS))
+function localDay(at: Date): number {
+  return Date.UTC(at.getFullYear(), at.getMonth(), at.getDate()) / DAY_MS
+}
+
+export function daysSince(iso: string, now: Date): number | null {
+  const then = new Date(iso)
+  if (Number.isNaN(then.getTime())) return null
+  return localDay(now) - localDay(then)
+}
+
+function createdWithin(created: CreatedFilter, days: number | null): boolean {
+  if (created === 'any') return true
+  if (days === null || days < 0) return false
+  if (created === 'today') return days === 0
+  if (created === 'week') return days < WEEK_DAYS
+  return days > OLD_DAYS
 }
 
 export function passes(item: BacklogItem, filters: Filters, now: Date, meetingIds: ReadonlySet<number>): boolean {
@@ -152,11 +164,7 @@ export function passes(item: BacklogItem, filters: Filters, now: Date, meetingId
   if (filters.kind !== 'all' && item.kind !== filters.kind) return false
   if (filters.page !== ALL_PAGES && pageKeyOf(item) !== filters.page) return false
   if (filters.origin !== 'all' && originOf(item, meetingIds) !== filters.origin) return false
-  const days = daysSince(item.createdAt, now)
-  if (filters.created === 'today' && days !== 0) return false
-  if (filters.created === 'week' && days > WEEK_DAYS) return false
-  if (filters.created === 'old' && days <= OLD_DAYS) return false
-  return true
+  return createdWithin(filters.created, daysSince(item.createdAt, now))
 }
 
 export function pagesOf(items: readonly BacklogItem[]): { key: string; label: string }[] {
