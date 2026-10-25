@@ -1,0 +1,960 @@
+.section-host[data-section='reuniones'] {
+  overflow: hidden;
+}
+
+[data-section='reuniones'] .spacer {
+  flex-grow: 1;
+}
+
+[data-section='reuniones'] .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+[data-section='reuniones'] :focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+[data-section='reuniones'] button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+[data-section='reuniones'] button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+[data-section='reuniones'] .rec-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 25%, transparent);
+}
+
+[data-section='reuniones'] .rec-dot--idle {
+  background: var(--fg-faint);
+  box-shadow: none;
+}
+
+[data-section='reuniones'] .quiet-link {
+  color: var(--blue);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+[data-section='reuniones'] .rm {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(200px, 250px) minmax(0, 1fr);
+  min-height: 0;
+}
+
+[data-section='reuniones'] .rm-nav {
+  min-height: 0;
+  overflow: hidden auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 10px;
+  border-right: 1px solid var(--line-soft);
+}
+
+[data-section='reuniones'] .rm--full {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+[data-section='reuniones'] .rm--full .rm-nav {
+  display: none;
+}
+
+[data-section='reuniones'] .rm-project {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 0 4px 8px;
+  color: var(--fg-dim);
+}
+
+[data-section='reuniones'] .rm-project select {
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 24px 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--inset);
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 12px;
+}
+
+[data-section='reuniones'] .rm-project svg {
+  position: absolute;
+  right: 8px;
+  pointer-events: none;
+}
+
+[data-section='reuniones'] .rm-group {
+  padding: 10px 10px 4px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+[data-section='reuniones'] .rm-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 10px;
+  border-radius: var(--radius-control);
+  text-align: left;
+}
+
+[data-section='reuniones'] .rm-row:hover,
+[data-section='reuniones'] .rm-row--on {
+  background: var(--card);
+}
+
+[data-section='reuniones'] .rm-row-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+[data-section='reuniones'] .rm-row-meta {
+  font-size: 11px;
+  color: var(--fg-mute);
+  overflow-wrap: anywhere;
+}
+
+[data-section='reuniones'] .rm-empty {
+  padding: 10px;
+  font-size: 12px;
+  color: var(--fg-mute);
+}
+
+[data-section='reuniones'] .rm-empty--detail {
+  padding: 32px;
+}
+
+[data-section='reuniones'] .rm-detail {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+[data-section='reuniones'] .rl,
+[data-section='reuniones'] .rp {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  container-type: inline-size;
+}
+
+[data-section='reuniones'] .rl-head,
+[data-section='reuniones'] .rp-head {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 18px 28px 10px;
+}
+
+[data-section='reuniones'] .rl-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg-bright);
+  overflow-wrap: anywhere;
+}
+
+[data-section='reuniones'] .rl-sub,
+[data-section='reuniones'] .rl-mono {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--fg-mute);
+}
+
+[data-section='reuniones'] .rl-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+[data-section='reuniones'] .rl-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-control);
+  color: var(--fg-dim);
+}
+
+[data-section='reuniones'] .rl-icon:hover:not(:disabled),
+[data-section='reuniones'] .rl-icon[aria-pressed='true'] {
+  background: var(--card);
+  color: var(--fg);
+}
+
+[data-section='reuniones'] .rl-detect {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: var(--radius-control);
+  font-size: 11.5px;
+  color: var(--fg-mute);
+}
+
+[data-section='reuniones'] .rl-detect:hover {
+  background: var(--card);
+}
+
+[data-section='reuniones'] .rl-detect-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+}
+
+[data-section='reuniones'] .rl-detect--on .rl-detect-dot {
+  background: var(--ok);
+}
+
+[data-section='reuniones'] .rl-end {
+  padding: 4px 8px;
+  border-radius: var(--radius-control);
+  font-size: 12px;
+  color: var(--danger);
+}
+
+[data-section='reuniones'] .rl-end:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+[data-section='reuniones'] .rl-body {
+  flex-grow: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 34%);
+  border-top: 1px solid var(--line-soft);
+}
+
+[data-section='reuniones'] .rl-transcript {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0 0 28px;
+}
+
+[data-section='reuniones'] .rl-label-row {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 8px 0;
+}
+
+[data-section='reuniones'] .rl-label,
+[data-section='reuniones'] .rp-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+[data-section='reuniones'] .rl-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-mute);
+}
+
+[data-section='reuniones'] .rl-follow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: var(--radius-control);
+  font-size: 11px;
+  color: var(--fg-mute);
+}
+
+[data-section='reuniones'] .rl-follow-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+}
+
+[data-section='reuniones'] .rl-follow--on .rl-follow-dot {
+  background: var(--aqua);
+}
+
+[data-section='reuniones'] .rl-lines-frame {
+  position: relative;
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+[data-section='reuniones'] .rl-lines {
+  flex-grow: 1;
+  min-height: 0;
+  overflow: hidden auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 20px 16px 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+[data-section='reuniones'] .rl-line {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 10px;
+  padding: 2px 6px;
+  border-left: 2px solid transparent;
+  border-radius: 4px;
+}
+
+[data-section='reuniones'] .rl-line--question {
+  border-left-color: var(--estimate);
+  cursor: pointer;
+}
+
+[data-section='reuniones'] .rl-line--selected {
+  background: var(--card);
+}
+
+[data-section='reuniones'] .rl-line .live-stamp {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  padding-top: 2px;
+}
+
+[data-section='reuniones'] .rl-line .live-said {
+  overflow-wrap: anywhere;
+}
+
+[data-section='reuniones'] .rl-caption {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  width: min(92%, 760px);
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--inset) 88%, transparent);
+  color: var(--fg-bright);
+  font-size: 18px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+[data-section='reuniones'] .rl--full .rl-caption,
+[data-section='reuniones'] .rp-stage:fullscreen .rp-caption {
+  font-size: 26px;
+}
+
+[data-section='reuniones'] .rl-caption[hidden],
+[data-section='reuniones'] .rp-caption[hidden] {
+  display: none;
+}
+
+[data-section='reuniones'] .rl-assist {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 40%) minmax(0, 1fr);
+  border-left: 1px solid var(--line-soft);
+}
+
+[data-section='reuniones'] .rl-questions {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0 0 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+[data-section='reuniones'] .rl-list {
+  min-height: 0;
+  overflow: hidden auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 10px 10px 0;
+}
+
+[data-section='reuniones'] .rl-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 8px;
+  border-radius: var(--radius-control);
+  text-align: left;
+}
+
+[data-section='reuniones'] .rl-item:hover,
+[data-section='reuniones'] .rl-item--on {
+  background: var(--card);
+}
+
+[data-section='reuniones'] .rl-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--fg-mute);
+}
+
+[data-section='reuniones'] .rl-item-question {
+  font-size: 12.5px;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+[data-section='reuniones'] .rl-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+[data-section='reuniones'] .rl-status--answered {
+  color: var(--ok);
+}
+
+[data-section='reuniones'] .rl-status--missing {
+  color: var(--estimate);
+}
+
+[data-section='reuniones'] .rl-answer {
+  min-height: 0;
+  overflow: hidden auto;
+  padding: 14px 16px;
+}
+
+[data-section='reuniones'] .rl-answer-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+[data-section='reuniones'] .rl-question {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-bright);
+  overflow-wrap: anywhere;
+}
+
+[data-section='reuniones'] .rl-answer-body {
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+[data-section='reuniones'] .rl-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+[data-section='reuniones'] .rl-source {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: var(--radius-control);
+  font-size: 12px;
+  text-align: left;
+}
+
+[data-section='reuniones'] .rl-source:hover:not(:disabled) {
+  background: var(--card);
+}
+
+[data-section='reuniones'] .rl-source-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-section='reuniones'] .rl-source-where {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--fg-faint);
+}
+
+[data-section='reuniones'] .rl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+[data-section='reuniones'] .rl-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+
+[data-section='reuniones'] .rl-action:hover:not(:disabled) {
+  background: var(--card);
+}
+
+[data-section='reuniones'] .rl-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--fg-mute);
+}
+
+[data-section='reuniones'] .rl-hint-title {
+  font-weight: 600;
+  color: var(--fg-dim);
+}
+
+[data-section='reuniones'] .rl-empty,
+[data-section='reuniones'] .rp-empty {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--fg-mute);
+}
+
+[data-section='reuniones'] .rl-foot {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 28px;
+  padding: 12px 0 16px;
+  border-top: 1px solid var(--line-soft);
+}
+
+[data-section='reuniones'] .rl-ask {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+[data-section='reuniones'] .rl-ask input {
+  flex-grow: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+}
+
+[data-section='reuniones'] .rl-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-control);
+  background: var(--card);
+  color: var(--fg-dim);
+}
+
+[data-section='reuniones'] .rl-hint-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--fg-faint);
+}
+
+[data-section='reuniones'] .rl-notice {
+  color: var(--aqua);
+}
+
+[data-section='reuniones'] .rp-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fg-bright);
+  overflow-wrap: anywhere;
+}
+
+[data-section='reuniones'] .rp-detail {
+  font-size: 11.5px;
+  color: var(--fg-mute);
+}
+
+[data-section='reuniones'] .rp-watch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: var(--radius-control);
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+[data-section='reuniones'] .rp-watch:hover:not(:disabled) {
+  background: var(--card);
+}
+
+[data-section='reuniones'] .rp-status {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--fg-mute);
+  overflow-wrap: anywhere;
+}
+
+[data-section='reuniones'] .rp-status:empty {
+  display: none;
+}
+
+[data-section='reuniones'] .rp-tabs {
+  flex-shrink: 0;
+  display: flex;
+  gap: 18px;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 12px;
+}
+
+[data-section='reuniones'] .rp-tab {
+  padding: 8px 0;
+  border-bottom: 2px solid transparent;
+  color: var(--fg-mute);
+}
+
+[data-section='reuniones'] .rp-tab--on {
+  border-bottom-color: var(--running);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+[data-section='reuniones'] .rp-body {
+  flex-grow: 1;
+  min-height: 0;
+  overflow: hidden auto;
+  padding: 22px 28px 32px;
+}
+
+[data-section='reuniones'] .rp-minuta {
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+[data-section='reuniones'] .rp-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+[data-section='reuniones'] .rp-prose,
+[data-section='reuniones'] .rp-minuta .doc-body {
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+[data-section='reuniones'] .rp-agreements {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+[data-section='reuniones'] .rp-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line-soft);
+  text-align: left;
+}
+
+[data-section='reuniones'] .rp-item:hover .rp-item-text {
+  color: var(--fg-bright);
+}
+
+[data-section='reuniones'] .rp-item-key {
+  flex-shrink: 0;
+  width: 64px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--fg-mute);
+}
+
+[data-section='reuniones'] .rp-item-text {
+  flex-grow: 1;
+  min-width: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+[data-section='reuniones'] .rp-item-state {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--fg-faint);
+}
+
+[data-section='reuniones'] .rp-doc {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--fg-mute);
+}
+
+[data-section='reuniones'] .rp-lines {
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+[data-section='reuniones'] .rp-player .rp-lines {
+  max-height: 46vh;
+  overflow: hidden auto;
+  margin-top: 14px;
+}
+
+[data-section='reuniones'] .rp-line {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+[data-section='reuniones'] .rp-line--now {
+  background: var(--card);
+}
+
+[data-section='reuniones'] .rp-stamp {
+  align-self: start;
+  padding-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  text-align: left;
+}
+
+[data-section='reuniones'] .rp-stamp:hover:not(:disabled) {
+  color: var(--blue);
+}
+
+[data-section='reuniones'] .rp-stamp:disabled {
+  opacity: 1;
+}
+
+[data-section='reuniones'] .rp-words {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+[data-section='reuniones'] .rp-who {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--aqua);
+}
+
+[data-section='reuniones'] .rp-line--system .rp-who {
+  color: var(--blue);
+}
+
+[data-section='reuniones'] .rp-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+[data-section='reuniones'] .rp-player {
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+[data-section='reuniones'] .rp-stage {
+  position: relative;
+}
+
+[data-section='reuniones'] .rp-stage--video {
+  background: #000;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+[data-section='reuniones'] .rp-media {
+  display: block;
+  width: 100%;
+}
+
+[data-section='reuniones'] .rp-media--video {
+  max-height: 60vh;
+}
+
+[data-section='reuniones'] .rp-caption {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-card);
+  background: var(--inset);
+  color: var(--fg-bright);
+  font-size: 15px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+[data-section='reuniones'] .rp-stage--video .rp-caption {
+  position: absolute;
+  left: 50%;
+  bottom: 52px;
+  transform: translateX(-50%);
+  width: min(90%, 760px);
+  margin: 0;
+  background: color-mix(in srgb, #000 70%, transparent);
+  color: #fff;
+}
+
+[data-section='reuniones'] .rp-player-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+[data-section='reuniones'] .md-heading {
+  margin: 14px 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-bright);
+}
+
+[data-section='reuniones'] .md-paragraph {
+  margin: 0 0 10px;
+}
+
+[data-section='reuniones'] .md-list {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+[data-section='reuniones'] .md-inline-code,
+[data-section='reuniones'] .md-code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--inset);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+[data-section='reuniones'] .md-code {
+  display: block;
+  padding: 10px 12px;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+[data-section='reuniones'] .md-link {
+  color: var(--blue);
+}
+
+[data-section='reuniones'] .md-quote {
+  margin: 0 0 10px;
+  padding-left: 12px;
+  border-left: 2px solid var(--line);
+  color: var(--fg-dim);
+}
+
+[data-section='reuniones'] .md-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+[data-section='reuniones'] .md-table {
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+[data-section='reuniones'] .md-table th,
+[data-section='reuniones'] .md-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  text-align: left;
+  vertical-align: top;
+}
+
+[data-section='reuniones'] .stamp {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--blue);
+}
+
+@container (max-width: 700px) {
+  [data-section='reuniones'] .rl-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 45%);
+  }
+
+  [data-section='reuniones'] .rl-assist {
+    border-left: none;
+    border-top: 1px solid var(--line-soft);
+  }
+
+  [data-section='reuniones'] .rl-head,
+  [data-section='reuniones'] .rp-head,
+  [data-section='reuniones'] .rp-body {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  [data-section='reuniones'] .rl-transcript {
+    padding-left: 18px;
+  }
+
+  [data-section='reuniones'] .rl-foot {
+    margin: 0 18px;
+  }
+}
