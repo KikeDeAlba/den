@@ -258,11 +258,44 @@
 }
 
 [data-section='reuniones'] .rl-body {
+  position: relative;
   flex-grow: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 34%);
+  grid-template-columns: minmax(0, 1fr) var(--questions-open, minmax(240px, 34%));
   border-top: 1px solid var(--line-soft);
+}
+
+[data-section='reuniones'] .rl-sash {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(var(--questions-open, 34%) - 5px);
+  z-index: 5;
+  width: 9px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+[data-section='reuniones'] .rl-sash::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 1px;
+  background: transparent;
+  transition: background 120ms ease;
+}
+
+[data-section='reuniones'] .rl-sash:hover::after,
+[data-section='reuniones'] .rl-sash:focus-visible::after,
+[data-section='reuniones'] .rl-sash.sash--dragging::after {
+  background: var(--blue);
+}
+
+[data-section='reuniones'] .rl-sash:focus-visible {
+  outline: none;
 }
 
 [data-section='reuniones'] .rl-transcript {
@@ -938,6 +971,10 @@
     grid-template-rows: minmax(0, 1fr) minmax(0, 45%);
   }
 
+  [data-section='reuniones'] .rl-sash {
+    display: none;
+  }
+
   [data-section='reuniones'] .rl-assist {
     border-left: none;
     border-top: 1px solid var(--line-soft);
@@ -957,4 +994,10 @@
   [data-section='reuniones'] .rl-foot {
     margin: 0 18px;
   }
+}
+
+body.resizing [data-section='reuniones'],
+body.resizing [data-section='reuniones'] * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
