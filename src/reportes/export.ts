@@ -378,13 +378,12 @@ async function run(app: App, state: ExportState): Promise<void> {
 }
 
 async function printPdf(app: App, state: ExportState, report: ReportView): Promise<string> {
-  const host = document.getElementById('reportes') ?? document.body
   document.getElementById('print-root')?.remove()
   const root = element('div', 'print-root')
   root.id = 'print-root'
   const colors = state.report === null ? new Map<string, string>() : colorMap(state.report)
   root.append(paper(report, paperOptions(app, state, colors)))
-  host.append(root)
+  document.body.append(root)
   try {
     document.body.classList.add('printing')
     return await exportPdf(fileBase(state))

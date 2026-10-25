@@ -1,7 +1,0 @@
-{
-  "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "reportes",
-  "description": "Permissions for the reports window",
-  "windows": ["reportes"],
-  "permissions": ["core:default", "core:window:allow-start-dragging"]
-}

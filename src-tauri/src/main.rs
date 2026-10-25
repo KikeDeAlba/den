@@ -25,7 +25,6 @@ mod proposals;
 mod recap;
 mod registry;
 mod report;
-mod reports;
 mod shell;
 mod state;
 mod sync;
@@ -70,6 +69,7 @@ fn main() {
             commands::amend_timer,
             commands::worked,
             commands::pending,
+            commands::time_summary,
             report::report,
             pay::get_pay,
             pay::set_pay,
@@ -85,7 +85,6 @@ fn main() {
             commands::unset_scope,
             commands::doctor_report,
             tools::tools_status,
-            commands::open_reports,
             commands::open_brain,
             gaze::gaze_graph,
             gaze::gaze_show,
