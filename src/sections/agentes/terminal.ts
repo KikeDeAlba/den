@@ -3,6 +3,7 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal, type ITheme } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { binaryBytes } from './outbox.ts'
+import { guardPaste } from './paste.ts'
 
 export interface TerminalHooks {
   input(data: string): void
@@ -64,6 +65,7 @@ export function createTerminal(hooks: TerminalHooks): TerminalView {
   terminal.onData((data) => hooks.input(data))
   terminal.onBinary((data) => hooks.bytes(binaryBytes(data)))
   terminal.onResize(({ cols, rows }) => hooks.resize(cols, rows))
+  const releasePaste = guardPaste(element, (text) => terminal.paste(text))
 
   let opened = false
   let visible = false
@@ -133,6 +135,7 @@ export function createTerminal(hooks: TerminalHooks): TerminalView {
       cancelAnimationFrame(frame)
       observer?.disconnect()
       disableWebgl()
+      releasePaste()
       terminal.dispose()
       element.remove()
     },
