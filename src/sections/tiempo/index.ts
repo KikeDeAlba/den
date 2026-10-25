@@ -1,8 +1,10 @@
 import { describeProblem, pending, snapshot, timeSummary, toolsStatus, worked } from '../../bita.ts'
 import { element } from '../../dom.ts'
+import { dateField } from '../../reportes/ui.ts'
 import { mountReports, type Reports } from '../../reportes/mount.ts'
 import { go } from '../../shell/routes.ts'
 import { projectColor } from '../../shell/colors.ts'
+import type { ShellEvent } from '../section.ts'
 import {
   RANGES,
   excludedLine,
@@ -26,6 +28,7 @@ let picker: HTMLElement | null = null
 let totals: HTMLElement | null = null
 let body: HTMLElement | null = null
 let reportsHost: HTMLElement | null = null
+let span: SpanForm | null = null
 let reports: Reports | null = null
 let range: RangeId | null = null
 let ticket = 0
@@ -43,6 +46,36 @@ function rangePicker(): HTMLElement {
     group.append(button)
   }
   return group
+}
+
+interface SpanForm {
+  form: HTMLFormElement
+  from: HTMLInputElement
+  to: HTMLInputElement
+}
+
+function spanForm(): SpanForm {
+  const form = element('form', 'tiempo-span') as HTMLFormElement
+  form.setAttribute('aria-label', 'Rango de fechas')
+  const from = dateField('Desde', '', 'span-from')
+  const to = dateField('Hasta', '', 'span-to')
+  const apply = element('button', 'tiempo-span-apply', 'Ver rango') as HTMLButtonElement
+  apply.type = 'submit'
+  form.append(from.label, to.label, apply)
+  form.hidden = true
+  form.addEventListener('submit', (event) => {
+    event.preventDefault()
+    if (from.input.value === '' || to.input.value === '') return
+    reports?.span(from.input.value, to.input.value)
+  })
+  return { form, from: from.input, to: to.input }
+}
+
+function fillSpan(): void {
+  if (span === null || reports === null) return
+  const choice = reports.current()
+  span.from.value = choice.from
+  span.to.value = choice.to
 }
 
 function figure(text: string, className: string): HTMLElement {
@@ -197,6 +230,7 @@ function select(next: RangeId): void {
   }
   ticket += 1
   if (isTable(next)) {
+    if (span !== null) span.form.hidden = true
     body.hidden = false
     reportsHost.hidden = true
     if (changed) body.replaceChildren()
@@ -209,6 +243,12 @@ function select(next: RangeId): void {
   const preset = next === 'mes' ? 'month' : 'custom'
   if (reports === null) reports = mountReports(reportsHost, preset)
   else reports.choose(preset)
+  if (span !== null) span.form.hidden = next !== 'rango'
+  if (next === 'rango') fillSpan()
+}
+
+export function receive(event: ShellEvent): void {
+  if (event.type === 'hidden') reports?.conceal()
 }
 
 export function mount(host: HTMLElement, path: readonly string[]): void {
@@ -216,7 +256,8 @@ export function mount(host: HTMLElement, path: readonly string[]): void {
   const header = element('header', 'tiempo-head')
   picker = rangePicker()
   totals = element('div', 'tiempo-totals')
-  header.append(element('h1', 'tiempo-heading', 'Tiempo'), picker, element('span', 'tiempo-spacer'), totals)
+  span = spanForm()
+  header.append(element('h1', 'tiempo-heading', 'Tiempo'), picker, span.form, element('span', 'tiempo-spacer'), totals)
   body = element('div', 'tiempo-body')
   reportsHost = element('div')
   reportsHost.id = 'reportes'
@@ -238,5 +279,6 @@ export function unmount(): void {
   totals = null
   body = null
   reportsHost = null
+  span = null
   range = null
 }

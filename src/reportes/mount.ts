@@ -10,6 +10,9 @@ import { DEFAULT_PAY, fetchReport, type ReportView } from './types.ts'
 
 export interface Reports {
   choose(preset: PresetId): void
+  span(from: string, to: string): void
+  current(): RangeChoice
+  conceal(): void
   dispose(): void
 }
 
@@ -115,12 +118,7 @@ export function mountReports(root: HTMLElement, preset: PresetId): Reports {
   }
 
   function selectPreset(next: PresetId): void {
-    if (next === 'custom') {
-      app.choice = presetChoice('custom', today, resolved(app.choice))
-      render()
-      return
-    }
-    applyRange(presetChoice(next, today, app.choice))
+    applyRange(presetChoice(next, today, next === 'custom' ? resolved(app.choice) : app.choice))
   }
 
   function applyRange(choice: RangeChoice): void {
@@ -256,13 +254,6 @@ export function mountReports(root: HTMLElement, preset: PresetId): Reports {
   listen(document, 'visibilitychange', onVisibility)
   window.addEventListener('pagehide', hideCoworkers)
   cleanups.push(() => window.removeEventListener('pagehide', hideCoworkers))
-  void import('@tauri-apps/api/window')
-    .then(({ getCurrentWindow }) => getCurrentWindow().listen('tauri://close-requested', hideCoworkers))
-    .then((unlisten) => {
-      if (disposed) unlisten()
-      else cleanups.push(unlisten)
-    })
-    .catch(() => undefined)
 
   loadMain()
   void loadPay(app).then(() => {
@@ -275,6 +266,12 @@ export function mountReports(root: HTMLElement, preset: PresetId): Reports {
       if (app.view.name !== 'dashboard') navigate({ name: 'dashboard' })
       selectPreset(next)
     },
+    span(from, to) {
+      if (app.view.name !== 'dashboard') navigate({ name: 'dashboard' })
+      applyRange({ preset: 'custom', from: from <= to ? from : to, to: from <= to ? to : from })
+    },
+    current: () => app.choice,
+    conceal: hideCoworkers,
     dispose() {
       if (disposed) return
       hideCoworkers()

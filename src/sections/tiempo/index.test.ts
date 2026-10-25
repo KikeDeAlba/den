@@ -11,6 +11,9 @@ const bita = vi.hoisted(() => ({
 const reports = vi.hoisted(() => ({
   mountReports: vi.fn(),
   choose: vi.fn(),
+  span: vi.fn(),
+  current: vi.fn(),
+  conceal: vi.fn(),
   dispose: vi.fn(),
 }))
 
@@ -41,7 +44,8 @@ describe('tiempo section', () => {
     host.className = 'section-host'
     host.dataset['section'] = 'tiempo'
     document.body.append(host)
-    reports.mountReports.mockReturnValue({ choose: reports.choose, dispose: reports.dispose })
+    reports.mountReports.mockReturnValue({ choose: reports.choose, span: reports.span, current: reports.current, conceal: reports.conceal, dispose: reports.dispose })
+    reports.current.mockReturnValue({ preset: 'custom', from: '2026-10-01', to: '2026-10-07' })
     bita.toolsStatus.mockResolvedValue({ modules: { jira: true } })
     bita.pending.mockResolvedValue({ groups: [{ entryIds: [1] }] })
     bita.snapshot.mockResolvedValue({ running: [], todaySeconds: 0, problem: null })
@@ -117,12 +121,24 @@ describe('tiempo section', () => {
     const reportsHost = host.querySelector<HTMLElement>('#reportes')
     expect(reportsHost?.hidden).toBe(false)
     expect(host.querySelector<HTMLElement>('.tiempo-body')?.hidden).toBe(true)
+    const form = host.querySelector<HTMLFormElement>('.tiempo-span')
+    expect(form?.hidden).toBe(true)
     section.update(['rango'])
     expect(reports.mountReports).toHaveBeenCalledTimes(1)
     expect(reports.choose).toHaveBeenCalledWith('custom')
+    expect(form?.hidden).toBe(false)
+    const from = host.querySelector<HTMLInputElement>('[data-key="span-from"]')
+    const to = host.querySelector<HTMLInputElement>('[data-key="span-to"]')
+    expect([from?.value, to?.value]).toEqual(['2026-10-01', '2026-10-07'])
+    if (from !== null) from.value = '2026-09-01'
+    form?.requestSubmit()
+    expect(reports.span).toHaveBeenCalledWith('2026-09-01', '2026-10-07')
+    section.receive({ type: 'hidden' })
+    expect(reports.conceal).toHaveBeenCalledTimes(1)
     section.update(['hoy'])
     await flush()
     expect(reportsHost?.hidden).toBe(true)
+    expect(form?.hidden).toBe(true)
     section.unmount()
     expect(reports.dispose).toHaveBeenCalledTimes(1)
   })

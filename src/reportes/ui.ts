@@ -279,3 +279,14 @@ export function notice(text: string): HTMLElement {
   box.append(icon('warning', 13), element('span', undefined, text))
   return box
 }
+
+export function dateField(label: string, value: string, key: string): { label: HTMLLabelElement; input: HTMLInputElement } {
+  const wrap = element('label', 'report-field') as HTMLLabelElement
+  const input = document.createElement('input')
+  input.type = 'date'
+  input.value = value
+  input.className = 'report-input'
+  input.dataset['key'] = key
+  wrap.append(element('span', 'report-field-label', label), input)
+  return { label: wrap, input }
+}

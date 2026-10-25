@@ -64,6 +64,41 @@
   border-radius: 3px;
 }
 
+.section-host[data-section='tiempo'] .tiempo-span {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.section-host[data-section='tiempo'] .tiempo-span[hidden] {
+  display: none;
+}
+
+.section-host[data-section='tiempo'] .tiempo-span .report-input {
+  width: 132px;
+}
+
+.section-host[data-section='tiempo'] .tiempo-span-apply {
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.section-host[data-section='tiempo'] .tiempo-span-apply:hover {
+  color: var(--fg);
+  background: var(--elev);
+}
+
+.section-host[data-section='tiempo'] .tiempo-span-apply:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
 .section-host[data-section='tiempo'] .tiempo-spacer {
   flex-grow: 1;
 }

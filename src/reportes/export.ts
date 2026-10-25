@@ -1,11 +1,11 @@
 import { copyText, describeProblem, exportPdf } from '../bita.ts'
 import { element, icon } from '../dom.ts'
 import type { App, Destination, ExportState } from './app.ts'
-import { dateField, overtimeCurrency } from './dashboard.ts'
+import { overtimeCurrency } from './dashboard.ts'
 import { colorMap, filterReport, OTHERS_COLOR, plural, presetChoice, projectKey, projectLabel, summaryText, type PresetId } from './model.ts'
 import { paper, type PaperOptions } from './paper.ts'
 import { exportReport, type ExportFormat, type ExportInclude, type GroupBy, type ReportView } from './types.ts'
-import { button, loading, problemState, segmented } from './ui.ts'
+import { button, dateField, loading, problemState, segmented } from './ui.ts'
 
 const PILL_LIMIT = 5
 

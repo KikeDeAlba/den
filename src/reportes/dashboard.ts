@@ -19,7 +19,6 @@ import {
   overlapFor,
   percent,
   plural,
-  PRESETS,
   presetPhrase,
   projectKey,
   projectLabel,
@@ -72,50 +71,9 @@ function rail(app: App): HTMLElement {
   head.append(mark, element('span', 'report-rail-word', 'Den'), element('span', 'report-rail-sub', '· reportes'))
   aside.append(head)
 
-  const nav = element('nav', 'report-rail-group')
-  nav.setAttribute('aria-label', 'Rango')
-  nav.append(element('div', 'report-rail-label', 'Rango'))
-  for (const preset of PRESETS) {
-    const item = button(preset.label, 'report-rail-item', () => app.selectPreset(preset.id))
-    item.dataset['key'] = `preset-${preset.id}`
-    if (preset.id === app.choice.preset) item.setAttribute('aria-current', 'true')
-    nav.append(item)
-  }
-  if (app.choice.preset === 'custom') nav.append(customRange(app))
-  aside.append(nav)
-
   const report = app.main.report
   if (report !== null && report.projects.length > 0) aside.append(projectFilter(app, report))
   return aside
-}
-
-function customRange(app: App): HTMLElement {
-  const form = element('form', 'report-custom')
-  form.setAttribute('aria-label', 'Rango personalizado')
-  const from = dateField('Desde', app.choice.from, 'custom-from')
-  const to = dateField('Hasta', app.choice.to, 'custom-to')
-  const apply = element('button', 'ghost-button report-custom-apply', 'Ver rango') as HTMLButtonElement
-  apply.type = 'submit'
-  form.append(from.label, to.label, apply)
-  form.addEventListener('submit', (event) => {
-    event.preventDefault()
-    const start = from.input.value
-    const end = to.input.value
-    if (start === '' || end === '') return
-    app.applyRange({ preset: 'custom', from: start <= end ? start : end, to: start <= end ? end : start })
-  })
-  return form
-}
-
-export function dateField(label: string, value: string, key: string): { label: HTMLLabelElement; input: HTMLInputElement } {
-  const wrap = element('label', 'report-field') as HTMLLabelElement
-  const input = document.createElement('input')
-  input.type = 'date'
-  input.value = value
-  input.className = 'report-input'
-  input.dataset['key'] = key
-  wrap.append(element('span', 'report-field-label', label), input)
-  return { label: wrap, input }
 }
 
 function projectFilter(app: App, report: ReportView): HTMLElement {
