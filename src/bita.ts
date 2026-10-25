@@ -489,10 +489,6 @@ export function installHint(status: ToolsStatus | null, tool: ToolName): string 
   return status?.tools.find((found) => found.name === tool)?.install ?? `npm install -g @kikedealba/${tool} && ${tool} setup`
 }
 
-export function openBrain(): Promise<void> {
-  return invoke<void>('open_brain')
-}
-
 export type SectionState = 'written' | 'empty' | 'absent'
 
 export interface DocSection {

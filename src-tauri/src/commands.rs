@@ -259,16 +259,6 @@ pub async fn doctor_report() -> Result<Report, Problem> {
 }
 
 #[tauri::command]
-pub fn open_brain(app: AppHandle) -> Result<(), Problem> {
-    crate::brain::open(&app).map_err(|error| {
-        Problem::new(
-            ProblemKind::Unreadable,
-            format!("No pude abrir la ventana del cerebro: {error}"),
-        )
-    })
-}
-
-#[tauri::command]
 pub fn quit(app: AppHandle) {
     app.exit(0);
 }

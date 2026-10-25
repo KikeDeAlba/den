@@ -123,6 +123,7 @@ export interface FloatOptions {
   focus: () => FloatFocus
   dragging: () => string | null
   renderer: BrainRenderer
+  signal: AbortSignal
 }
 
 export interface FloatControl {
@@ -281,33 +282,43 @@ export function startFloat(graph: BrainGraph, options: FloatOptions): FloatContr
     wake()
   }
 
-  reducedMotion.addEventListener('change', () => {
-    stop()
-    if (reducedMotion.matches) settle()
-    else wake()
-  })
+  const signal = options.signal
+  reducedMotion.addEventListener(
+    'change',
+    () => {
+      stop()
+      if (reducedMotion.matches) settle()
+      else wake()
+    },
+    { signal },
+  )
 
   for (const type of ['pointermove', 'pointerdown', 'wheel', 'keydown', 'focus']) {
-    window.addEventListener(type, stir, { passive: true })
+    window.addEventListener(type, stir, { passive: true, signal })
   }
-  window.addEventListener('blur', wake)
-  document.addEventListener('visibilitychange', wake)
+  window.addEventListener('blur', wake, { signal })
+  document.addEventListener('visibilitychange', wake, { signal })
 
   const release = (): void => {
     if (!pressed) return
     pressed = false
     wake()
   }
-  renderer.getContainer().addEventListener('pointerdown', () => {
-    pressed = true
-    stop()
-    settle()
-  })
-  window.addEventListener('pointerup', release)
-  window.addEventListener('pointercancel', release)
-  window.addEventListener('contextmenu', release)
-  renderer.getContainer().addEventListener('lostpointercapture', release)
-  window.addEventListener('blur', release)
+  renderer.getContainer().addEventListener(
+    'pointerdown',
+    () => {
+      pressed = true
+      stop()
+      settle()
+    },
+    { signal },
+  )
+  window.addEventListener('pointerup', release, { signal })
+  window.addEventListener('pointercancel', release, { signal })
+  window.addEventListener('contextmenu', release, { signal })
+  renderer.getContainer().addEventListener('lostpointercapture', release, { signal })
+  window.addEventListener('blur', release, { signal })
+  signal.addEventListener('abort', stop)
   renderer.getCamera().on('updated', measure)
   renderer.on('resize', measure)
 
