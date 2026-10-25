@@ -1,4 +1,4 @@
-[data-section='ajustes'] {
+.section-host[data-section='ajustes'] {
   .ajustes {
     max-width: 720px;
     margin: 0 auto;
@@ -256,7 +256,7 @@
 }
 
 @media (max-width: 1000px) {
-  [data-section='ajustes'] .ajustes {
+  .section-host[data-section='ajustes'] .ajustes {
     padding: 28px 24px 32px;
   }
 }

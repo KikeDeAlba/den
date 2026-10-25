@@ -1,4 +1,4 @@
-[data-section='ahora'] {
+.section-host[data-section='ahora'] {
   .ahora {
     max-width: 720px;
     margin: 0 auto;
@@ -205,7 +205,7 @@
 }
 
 @media (max-width: 1000px) {
-  [data-section='ahora'] .ahora {
+  .section-host[data-section='ahora'] .ahora {
     padding: 28px 24px 32px;
   }
 }
