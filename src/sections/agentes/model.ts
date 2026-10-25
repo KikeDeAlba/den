@@ -12,6 +12,11 @@ export const REQUIRED_CAPABILITIES = ['sessions.list', 'sessions.dirs', 'work.re
 
 export const NO_PROJECT = '0'
 
+export type Pane = 'terminal' | 'activity'
+
+// TODO(6b): switch to 'activity' once the activity pane shows agent events
+export const DEFAULT_PANE: Pane = 'terminal'
+
 export type Readiness =
   | { kind: 'unknown' }
   | { kind: 'ready' }

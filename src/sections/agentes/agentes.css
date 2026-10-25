@@ -275,6 +275,10 @@
     opacity: 0.5;
   }
 
+  .agentes-composer-actions {
+    display: contents;
+  }
+
   .agentes-problem {
     margin: 12px 32px 0;
     font-size: 12px;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { NO_MODULES, type AgentInfo, type SessionListing, type ToolsStatus } from '../../bita.ts'
 import {
+  DEFAULT_PANE,
   agentesRoute,
   commandPreview,
   dayLabel,
@@ -185,5 +186,11 @@ describe('the new session form', () => {
     expect(duration(row)).toBe('1:12')
     expect(resumeMeta(row, new Date('2026-10-25T12:00:00Z'))).toMatch(/^Codex · Viva Cash · hoy \d\d:\d\d · 1:12$/)
     expect(duration(listing({ endedAt: null }))).toBe('')
+  })
+})
+
+describe('default pane', () => {
+  it('opens sessions on the terminal until the activity pane is filled', () => {
+    expect(DEFAULT_PANE).toBe('terminal')
   })
 })

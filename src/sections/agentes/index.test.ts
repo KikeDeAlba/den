@@ -116,6 +116,7 @@ describe('agentes section', () => {
   beforeEach(() => {
     terminals.made.length = 0
     shell.tools = null
+    localStorage.clear()
     host = document.createElement('section')
     host.className = 'section-host'
     host.dataset['section'] = 'agentes'
@@ -260,5 +261,89 @@ describe('agentes section', () => {
     await flush()
     expect(host.querySelectorAll('.agentes-tile .agentes-xterm')).toHaveLength(2)
     expect(terminals.made.every((made) => made.shown > 0)).toBe(true)
+  })
+
+  it('updates a changed session in place and keeps the composer focus', async () => {
+    api.listAgents.mockResolvedValue([info({ id: 3 })])
+    api.attachAgent.mockResolvedValue(info({ id: 3 }))
+    section.mount(host, [])
+    await flush()
+    await flush()
+    const composer = host.querySelector('#agentes-composer') as HTMLInputElement
+    const pane = host.querySelector('.agentes-session')
+    const tab = host.querySelector('.agentes-tab[data-session="3"]')
+    const term = host.querySelector('.agentes-xterm')
+    const shown = terminals.made[0]?.shown
+    composer.focus()
+    section.receive({ type: 'agent', info: info({ id: 3, bita: listing({ entryId: 128, open: true }) }) })
+    expect(document.activeElement).toBe(composer)
+    expect(host.querySelector('.agentes-session')).toBe(pane)
+    expect(host.querySelector('.agentes-tab[data-session="3"]')).toBe(tab)
+    expect(host.querySelector('.agentes-xterm')).toBe(term)
+    expect(terminals.made[0]?.shown).toBe(shown)
+    expect(texts(host, '.agentes-tab-title')).toEqual(['Barra de menús'])
+    expect(texts(host, '.agentes-lane-entry')).toEqual(['entrada #128'])
+  })
+
+  it('keeps the terminal focus when the session ends and swaps only its actions', async () => {
+    api.listAgents.mockResolvedValue([info({ id: 3 })])
+    api.attachAgent.mockResolvedValue(info({ id: 3 }))
+    section.mount(host, [])
+    await flush()
+    await flush()
+    const term = host.querySelector('.agentes-xterm') as HTMLElement
+    term.tabIndex = 0
+    term.focus()
+    section.receive({ type: 'agent', info: info({ id: 3, alive: false, exitCode: 0, bita: listing({ id: 77 }) }) })
+    expect(document.activeElement).toBe(term)
+    expect(term.isConnected).toBe(true)
+    expect((host.querySelector('#agentes-composer') as HTMLInputElement).disabled).toBe(true)
+    expect(texts(host, '.agentes-composer button')).toEqual(['Retomar', 'Cerrar la pestaña'])
+    expect(texts(host, '.agentes-tab-clock')).toEqual(['terminó'])
+    expect(texts(host, '.agentes-lane-status')).toEqual(['terminó'])
+  })
+
+  it('updates a mosaic tile without rebuilding the grid', async () => {
+    api.listAgents.mockResolvedValue([info({ id: 1 }), info({ id: 2, prompt: 'Otra' })])
+    api.attachAgent.mockImplementation(async (id: number) => info({ id, prompt: id === 2 ? 'Otra' : 'Rediseña Den' }))
+    section.mount(host, ['mosaico'])
+    await flush()
+    await flush()
+    const grid = host.querySelector('.agentes-mosaic')
+    section.receive({ type: 'agent', info: info({ id: 2, prompt: 'Otra', alive: false, exitCode: 1 }) })
+    expect(host.querySelector('.agentes-mosaic')).toBe(grid)
+    expect(texts(host, '.agentes-tile-clock')[1]).toBe('terminó')
+  })
+
+  it('remembers a closed tab across reloads and never hides a live session', async () => {
+    const ended = info({ id: 5, alive: false, exitCode: 0 })
+    const live = info({ id: 6, prompt: 'Sigue viva' })
+    api.listAgents.mockResolvedValue([ended, live])
+    api.attachAgent.mockImplementation(async (id: number) => (id === 5 ? ended : live))
+    section.mount(host, [])
+    await flush()
+    await flush()
+    section.update(['5'])
+    click(host, '.agentes-composer button', 'Cerrar la pestaña')
+    expect(texts(host, '.agentes-tab-title')).toEqual(['Sigue viva'])
+    expect(host.querySelector('.agentes-composer button')?.textContent).toBe('Terminar la sesión')
+    section.unmount()
+    api.attachAgent.mockClear()
+    section.mount(host, [])
+    await flush()
+    await flush()
+    expect(texts(host, '.agentes-tab-title')).toEqual(['Sigue viva'])
+    expect(api.attachAgent).toHaveBeenCalledTimes(1)
+    expect(api.attachAgent).toHaveBeenCalledWith(6, expect.any(Function))
+  })
+
+  it('cannot close the tab of a live session', async () => {
+    api.listAgents.mockResolvedValue([info({ id: 3 })])
+    api.attachAgent.mockResolvedValue(info({ id: 3 }))
+    section.mount(host, [])
+    await flush()
+    await flush()
+    expect(texts(host, '.agentes-composer button')).toEqual(['Terminar la sesión'])
+    expect(localStorage.getItem('den.agentes.dismissed')).toBeNull()
   })
 })

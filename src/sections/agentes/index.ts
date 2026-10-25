@@ -15,11 +15,11 @@ import { shellState } from '../../shell/hub.ts'
 import { go } from '../../shell/routes.ts'
 import type { ShellEvent } from '../section.ts'
 import * as api from './api.ts'
+import { canDismiss, isDismissed, pruneDismissed, readDismissed, rememberDismissed } from './dismissed.ts'
 import * as model from './model.ts'
 import { createTerminal, type TerminalView } from './terminal.ts'
 import './agentes.css'
 
-type Pane = 'terminal' | 'activity'
 type ViewKind = 'session' | 'mosaic' | 'new'
 
 interface Row {
@@ -45,7 +45,7 @@ let host: HTMLElement | null = null
 let view: ViewKind = 'session'
 let selected: number | null = null
 let pendingEntry: number | null = null
-let pane: Pane = 'terminal'
+let pane: model.Pane = model.DEFAULT_PANE
 let loaded = false
 let sessionProblem: Problem | null = null
 let form: Form = freshForm()
@@ -154,17 +154,29 @@ function openSession(id: number): void {
   navigate({ kind: 'session', id })
 }
 
-function tabFor(row: Row): HTMLButtonElement {
+function clockFor(info: AgentInfo, className: string): HTMLElement {
+  const clock = element('span', className, info.alive ? model.shortClock(model.elapsed(info.startedAt, new Date())) : 'terminó')
+  if (info.alive) clock.dataset['clock'] = info.startedAt
+  return clock
+}
+
+function fillTab(tab: HTMLElement, row: Row): void {
   const active = view === 'session' && selected === row.info.id
-  const tab = element('button', active ? 'agentes-tab agentes-tab--on' : 'agentes-tab') as HTMLButtonElement
+  tab.className = active ? 'agentes-tab agentes-tab--on' : 'agentes-tab'
+  tab.setAttribute('aria-selected', String(active))
+  tab.replaceChildren(
+    dot(row.info.alive ? 'var(--running)' : 'var(--fg-faint)'),
+    element('span', 'agentes-tab-title', model.sessionTitle(row.info)),
+    clockFor(row.info, 'agentes-tab-clock'),
+  )
+}
+
+function tabFor(row: Row): HTMLButtonElement {
+  const tab = document.createElement('button')
   tab.type = 'button'
   tab.setAttribute('role', 'tab')
-  tab.setAttribute('aria-selected', String(active))
   tab.dataset['session'] = String(row.info.id)
-  tab.append(dot(row.info.alive ? 'var(--running)' : 'var(--fg-faint)'), element('span', 'agentes-tab-title', model.sessionTitle(row.info)))
-  const clock = element('span', 'agentes-tab-clock', row.info.alive ? model.shortClock(model.elapsed(row.info.startedAt, new Date())) : 'terminó')
-  if (row.info.alive) clock.dataset['clock'] = row.info.startedAt
-  tab.append(clock)
+  fillTab(tab, row)
   tab.addEventListener('click', () => openSession(row.info.id))
   return tab
 }
@@ -197,7 +209,7 @@ function renderTabs(): void {
   tabs.replaceChildren(...list, fresh, element('span', 'agentes-spacer'), tools)
 }
 
-function setPane(next: Pane): void {
+function setPane(next: model.Pane): void {
   pane = next
   render()
 }
@@ -253,7 +265,14 @@ function composerRow(row: Row): HTMLElement {
   const hidden = element('label', 'visually-hidden', 'Mensaje para el agente principal') as HTMLLabelElement
   hidden.htmlFor = composer.id
   composer.disabled = !row.info.alive
-  bar.append(hidden, composer, element('span', 'tag', '⏎'))
+  const actions = element('span', 'agentes-composer-actions')
+  actions.append(...composerActions(row))
+  bar.append(hidden, composer, element('span', 'tag', '⏎'), actions)
+  return bar
+}
+
+function composerActions(row: Row): HTMLElement[] {
+  const bar: HTMLElement[] = []
   if (row.info.alive) {
     const end = button('Terminar la sesión', 'quiet-link quiet-link--danger')
     end.addEventListener('click', () => {
@@ -262,23 +281,24 @@ function composerRow(row: Row): HTMLElement {
         render()
       })
     })
-    bar.append(end)
+    bar.push(end)
   } else {
     const linked = row.info.bita
     if (linked !== null) {
       const again = button('Retomar', 'ghost-button')
       again.addEventListener('click', () => void resume(linked.id, model.sessionTitle(row.info)))
-      bar.append(again)
+      bar.push(again)
     }
     const close = button('Cerrar la pestaña', 'quiet-link')
     close.addEventListener('click', () => dismiss(row.info.id))
-    bar.append(close)
+    bar.push(close)
   }
   return bar
 }
 
 function sessionPane(row: Row): HTMLElement {
   const wrap = element('div', 'agentes-session')
+  wrap.dataset['session'] = String(row.info.id)
   const main = element('section', 'agentes-main')
   main.setAttribute('aria-label', model.sessionTitle(row.info))
   if (pane === 'activity') {
@@ -299,12 +319,11 @@ function mosaicPane(): HTMLElement {
   const grid = element('div', 'agentes-mosaic')
   for (const row of ordered()) {
     const tile = element('section', 'agentes-tile')
+    tile.dataset['session'] = String(row.info.id)
     const head = element('div', 'agentes-tile-head')
     const title = button(model.sessionTitle(row.info), 'agentes-tile-title')
     title.addEventListener('click', () => openSession(row.info.id))
-    const clock = element('span', 'agentes-tile-clock', row.info.alive ? model.shortClock(model.elapsed(row.info.startedAt, new Date())) : 'terminó')
-    if (row.info.alive) clock.dataset['clock'] = row.info.startedAt
-    head.append(title, clock)
+    head.append(title, clockFor(row.info, 'agentes-tile-clock'))
     const frame = element('div', 'agentes-term agentes-term--tile')
     frame.append(row.view.element)
     const open = button('Abrir la sesión', 'quiet-link')
@@ -551,7 +570,7 @@ async function launch(spawn: SpawnRequest): Promise<void> {
     promptBox.value = ''
     form.busy = false
     selected = info.id
-    pane = 'terminal'
+    pane = model.DEFAULT_PANE
     openSession(info.id)
     render()
     terminal.focus()
@@ -576,7 +595,8 @@ async function start(): Promise<void> {
 
 function dismiss(id: number): void {
   const row = rows.get(id)
-  if (row === undefined || row.info.alive) return
+  if (row === undefined || !canDismiss(row.info)) return
+  rememberDismissed(row.info)
   row.view.dispose()
   rows.delete(id)
   if (selected === id) selected = null
@@ -617,8 +637,10 @@ async function loadForm(): Promise<void> {
 async function restore(): Promise<void> {
   try {
     const list = await api.listAgents()
+    pruneDismissed(list)
+    const dismissed = readDismissed()
     for (const info of list) {
-      if (rows.has(info.id)) continue
+      if (rows.has(info.id) || isDismissed(info, dismissed)) continue
       const terminal = makeView(() => info.id)
       const row = attachRow(info, terminal)
       try {
@@ -647,7 +669,7 @@ function resolveEntry(): void {
   pendingEntry = null
   selected = match.id
   view = 'session'
-  pane = 'terminal'
+  pane = model.DEFAULT_PANE
 }
 
 function applyPath(path: readonly string[]): void {
@@ -682,13 +704,39 @@ function tick(): void {
   }
 }
 
+function refreshRow(row: Row): void {
+  const id = String(row.info.id)
+  const tab = tabs.querySelector<HTMLElement>(`.agentes-tab[data-session="${id}"]`)
+  if (tab === null) {
+    renderTabs()
+  } else {
+    fillTab(tab, row)
+  }
+  const session = body.querySelector<HTMLElement>(`.agentes-session[data-session="${id}"]`)
+  if (session !== null) {
+    session.querySelector('.agentes-lanes')?.replaceWith(laneNav(row))
+    session.querySelector('.agentes-main')?.setAttribute('aria-label', model.sessionTitle(row.info))
+    composer.disabled = !row.info.alive
+    session.querySelector('.agentes-composer-actions')?.replaceChildren(...composerActions(row))
+  }
+  const tile = body.querySelector<HTMLElement>(`.agentes-tile[data-session="${id}"]`)
+  if (tile !== null) {
+    const title = tile.querySelector('.agentes-tile-title')
+    if (title !== null) title.textContent = model.sessionTitle(row.info)
+    tile.querySelector('.agentes-tile-clock')?.replaceWith(clockFor(row.info, 'agentes-tile-clock'))
+    const meta = tile.querySelector('.agentes-tile-meta')
+    if (meta !== null) meta.textContent = model.sessionMeta(row.info, projectName)
+  }
+}
+
 function onAgent(info: AgentInfo): void {
   const row = rows.get(info.id)
   if (row === undefined) return
-  const wasAlive = row.info.alive
   row.info = info
+  const before = { view, selected, pane }
   resolveEntry()
-  if (wasAlive !== info.alive || view !== 'new') render()
+  if (before.view !== view || before.selected !== selected || before.pane !== pane) render()
+  else refreshRow(row)
 }
 
 promptBox.addEventListener('input', () => {
@@ -729,7 +777,7 @@ export function unmount(): void {
   selected = null
   pendingEntry = null
   view = 'session'
-  pane = 'terminal'
+  pane = model.DEFAULT_PANE
   sessionProblem = null
   root.remove()
 }
