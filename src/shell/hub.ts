@@ -33,6 +33,7 @@ const state: ShellState = {
 }
 
 let sink: (event: ShellEvent) => void = () => {}
+let listening = false
 let proposalsTicket = 0
 
 export function shellState(): Readonly<ShellState> {
@@ -65,6 +66,8 @@ async function loadProposals(): Promise<void> {
 }
 
 function listenAll(): void {
+  if (listening) return
+  listening = true
   onSnapshot((value) => emit({ type: 'snapshot', snapshot: value }))
   onToolsChanged((status) => {
     emit({ type: 'tools', tools: status })

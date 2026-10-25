@@ -34,7 +34,13 @@ vi.mock('../bita.ts', async (original) => {
 
 import { NO_MODULES, type Snapshot, type ToolsStatus } from '../bita.ts'
 import type { ShellEvent } from '../sections/section.ts'
-import { moduleEnabled, needsSetup, shellState, startHub } from './hub.ts'
+
+type Hub = typeof import('./hub.ts')
+
+let moduleEnabled: Hub['moduleEnabled']
+let needsSetup: Hub['needsSetup']
+let shellState: Hub['shellState']
+let startHub: Hub['startHub']
 
 const idle: Snapshot = { running: [], todaySeconds: 0, problem: null }
 
@@ -48,7 +54,13 @@ function tools(timers: boolean, proposals = true): ToolsStatus {
   }
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  vi.resetModules()
+  const hub = await import('./hub.ts')
+  moduleEnabled = hub.moduleEnabled
+  needsSetup = hub.needsSetup
+  shellState = hub.shellState
+  startHub = hub.startHub
   api.handlers.clear()
   api.snapshot.mockReset()
   api.refresh.mockReset()
@@ -196,5 +208,23 @@ describe('startHub', () => {
     const events: ShellEvent[] = []
     await startHub((event) => events.push(event))
     await vi.waitFor(() => expect(events.at(-1)).toEqual({ type: 'proposals', proposals: [] }))
+  })
+
+  it('registers its listeners only once when started twice', async () => {
+    api.snapshot.mockResolvedValue(idle)
+    api.toolsStatus.mockResolvedValue(tools(true))
+    api.refresh.mockResolvedValue(idle)
+    api.pendingProposals.mockResolvedValue([])
+    const first: ShellEvent[] = []
+    const second: ShellEvent[] = []
+    await startHub((event) => first.push(event))
+    api.handlers.clear()
+    await startHub((event) => second.push(event))
+    expect(api.handlers.size).toBe(0)
+    const state = vi.spyOn(document, 'visibilityState', 'get')
+    state.mockReturnValue('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(second.filter((event) => event.type === 'hidden')).toHaveLength(1)
+    expect(first.filter((event) => event.type === 'hidden')).toHaveLength(0)
   })
 })
