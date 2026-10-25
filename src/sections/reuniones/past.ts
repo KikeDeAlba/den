@@ -127,7 +127,7 @@ export function createPastView(options: PastOptions): PastView {
       if (view === null || view.recording === null) return
       download.disabled = true
       status('Copiando a Descargas…')
-      void meetingDownload(view.dir, view.recording, row.title)
+      void meetingDownload(view.id, row.title)
         .then((path) => status(`Guardada en ${path}`))
         .catch((error: unknown) => status(describeProblem(error).message))
         .finally(() => {

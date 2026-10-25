@@ -1385,8 +1385,8 @@ export function meetingSummary(id: string): Promise<MeetingSummary> {
   return invoke<MeetingSummary>('meeting_summary', { id })
 }
 
-export function meetingDownload(dir: string, recording: string, title: string): Promise<string> {
-  return invoke<string>('meeting_download', { dir, recording, title })
+export function meetingDownload(id: string, title: string): Promise<string> {
+  return invoke<string>('meeting_download', { id, title })
 }
 
 export function openMeetingFolder(dir: string): Promise<void> {

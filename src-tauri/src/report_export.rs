@@ -9,7 +9,7 @@ use serde_json::Value;
 
 use crate::cli::node;
 use crate::model::{Problem, ProblemKind};
-use crate::pdf::{sanitize_with, unique_path_with};
+use crate::pdf::{create_unique, sanitize_with};
 
 const NO_PROJECT: &str = "Sin proyecto";
 pub(crate) const BOM: &str = "\u{feff}";
@@ -1186,8 +1186,10 @@ pub(crate) fn save_export(
 ) -> Result<PathBuf, Problem> {
     let stem = sanitize_with(file_name.map(str::trim).filter(|name| !name.is_empty()).unwrap_or(default_stem), extension);
     std::fs::create_dir_all(dir).map_err(|error| failed(format!("No pude preparar {}: {error}", dir.display())))?;
-    let target = unique_path_with(dir, &stem, extension);
-    std::fs::write(&target, bytes).map_err(|error| failed(format!("No pude guardar {}: {error}", target.display())))?;
+    let (target, mut file) =
+        create_unique(dir, &stem, extension).map_err(|error| failed(format!("No pude guardar en {}: {error}", dir.display())))?;
+    std::io::Write::write_all(&mut file, bytes)
+        .map_err(|error| failed(format!("No pude guardar {}: {error}", target.display())))?;
     Ok(target)
 }
 

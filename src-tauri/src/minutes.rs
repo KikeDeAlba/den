@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use crate::meeting::{inside, meeting_id, Segment};
 use crate::model::{Problem, ProblemKind};
-use crate::pdf::{sanitize_with, unique_path_with};
+use crate::pdf::{create_unique, sanitize_with};
 use crate::recap::recap_call;
 
 const CALL_TIMEOUT: Duration = Duration::from_secs(30);
@@ -175,50 +175,77 @@ pub async fn meeting_summary(id: String) -> Result<MeetingSummary, Problem> {
     read_summary(data)
 }
 
-pub(crate) fn download_target(
-    downloads: &std::path::Path,
-    title: &str,
-    recording: &std::path::Path,
-) -> PathBuf {
-    let extension = recording
+const DOWNLOADABLE: [&str; 3] = ["m4a", "mov", "mp4"];
+
+#[derive(Debug, Deserialize)]
+struct Located {
+    dir: String,
+    #[serde(default)]
+    recording: Option<String>,
+}
+
+fn not_downloadable(message: impl Into<String>) -> Problem {
+    Problem::new(ProblemKind::CliFailed, message)
+}
+
+pub(crate) fn recording_extension(recording: &std::path::Path) -> Option<String> {
+    recording
         .extension()
         .and_then(|value| value.to_str())
-        .unwrap_or("m4a")
-        .to_ascii_lowercase();
+        .map(str::to_ascii_lowercase)
+        .filter(|extension| DOWNLOADABLE.contains(&extension.as_str()))
+}
+
+pub(crate) fn locate_recording(data: Value) -> Result<PathBuf, Problem> {
+    let located: Located = serde_json::from_value(data).map_err(unreadable)?;
+    let folder = PathBuf::from(&located.dir);
+    if !folder.is_absolute() || !folder.join("meeting.json").is_file() {
+        return Err(not_downloadable("La reunión ya no tiene su carpeta en este equipo."));
+    }
+    let source = located
+        .recording
+        .as_deref()
+        .and_then(|recording| inside(&folder, recording))
+        .filter(|path| path.is_file())
+        .ok_or_else(|| not_downloadable("La grabación ya no está en este equipo."))?;
+    if recording_extension(&source).is_none() {
+        return Err(not_downloadable("Solo se descargan grabaciones m4a, mov o mp4."));
+    }
+    Ok(source)
+}
+
+pub(crate) fn copy_to_downloads(downloads: &std::path::Path, title: &str, source: &std::path::Path) -> Result<PathBuf, Problem> {
+    let extension = recording_extension(source).ok_or_else(|| not_downloadable("Solo se descargan grabaciones m4a, mov o mp4."))?;
     let stem = sanitize_with(if title.trim().is_empty() { DEFAULT_STEM } else { title }, &extension);
-    unique_path_with(downloads, &stem, &extension)
+    let (target, mut file) = create_unique(downloads, &stem, &extension)
+        .map_err(|error| not_downloadable(format!("No pude crear la copia en {}: {error}", downloads.display())))?;
+    let mut input = std::fs::File::open(source)
+        .map_err(|error| not_downloadable(format!("No pude leer la grabación: {error}")))?;
+    std::io::copy(&mut input, &mut file).map_err(|error| {
+        let _ = std::fs::remove_file(&target);
+        not_downloadable(format!("No pude copiar la grabación: {error}"))
+    })?;
+    Ok(target)
 }
 
 #[tauri::command]
-pub async fn meeting_download(dir: String, recording: String, title: String) -> Result<String, Problem> {
-    let folder = PathBuf::from(&dir);
-    if !folder.is_absolute() || !folder.join("meeting.json").is_file() {
-        return Err(Problem::new(
-            ProblemKind::CliFailed,
-            format!("{dir} no es la carpeta de una reunión de recap."),
-        ));
-    }
-    let source = inside(&folder, &recording)
-        .filter(|path| path.is_file())
-        .ok_or_else(|| Problem::new(ProblemKind::CliFailed, "La grabación ya no está en este equipo."))?;
+pub async fn meeting_download(id: String, title: String) -> Result<String, Problem> {
+    let id = meeting_id(&id)?;
+    let data = recap_call(&["show", id], CALL_TIMEOUT).await.map_err(Problem::from)?;
+    let source = locate_recording(data)?;
     crate::report_export::save_to_downloads(move |downloads| {
         std::fs::create_dir_all(downloads).map_err(|error| {
             Problem::new(ProblemKind::CliFailed, format!("No pude preparar {}: {error}", downloads.display()))
         })?;
-        let target = download_target(downloads, &title, &source);
-        std::fs::copy(&source, &target).map_err(|error| {
-            Problem::new(ProblemKind::CliFailed, format!("No pude copiar la grabación: {error}"))
-        })?;
-        Ok(target)
+        copy_to_downloads(downloads, &title, &source)
     })
     .await
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{download_target, meeting_id, read_summary, read_transcript, ActionItem};
+    use super::{copy_to_downloads, locate_recording, meeting_id, read_summary, read_transcript, ActionItem};
     use serde_json::json;
-    use std::path::Path;
 
     #[test]
     fn the_transcript_turns_seconds_into_milliseconds() {
@@ -285,12 +312,37 @@ mod tests {
     #[test]
     fn the_download_takes_the_title_and_the_recording_extension() {
         let dir = std::env::temp_dir().join(format!("den-minutes-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("dir");
-        let target = download_target(&dir, "Daily: Viva", Path::new("/x/recording.MOV"));
-        assert_eq!(target, dir.join("Daily- Viva.mov"));
-        std::fs::write(&target, b"x").expect("write");
-        assert_eq!(download_target(&dir, "Daily: Viva", Path::new("/x/recording.mov")), dir.join("Daily- Viva (2).mov"));
-        assert_eq!(download_target(&dir, " ", Path::new("/x/recording")), dir.join("reunion.m4a"));
+        let _ = std::fs::remove_dir_all(&dir);
+        let meeting = dir.join("meeting");
+        let downloads = dir.join("downloads");
+        std::fs::create_dir_all(&meeting).expect("meeting");
+        std::fs::create_dir_all(&downloads).expect("downloads");
+        std::fs::write(meeting.join("meeting.json"), "{}").expect("meta");
+        std::fs::write(meeting.join("recording.MOV"), b"video").expect("recording");
+        let source = locate_recording(json!({"dir": meeting.display().to_string(), "recording": "recording.MOV"})).expect("source");
+        let first = copy_to_downloads(&downloads, "Daily: Viva", &source).expect("first");
+        assert_eq!(first, downloads.join("Daily- Viva.mov"));
+        assert_eq!(std::fs::read(&first).expect("copy"), b"video");
+        assert_eq!(copy_to_downloads(&downloads, "Daily: Viva", &source).expect("second"), downloads.join("Daily- Viva (2).mov"));
+        assert_eq!(copy_to_downloads(&downloads, " ", &source).expect("blank"), downloads.join("reunion.mov"));
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    #[test]
+    fn only_recordings_inside_a_recap_folder_with_known_extensions_download() {
+        let dir = std::env::temp_dir().join(format!("den-minutes-guard-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let meeting = dir.join("meeting");
+        std::fs::create_dir_all(&meeting).expect("meeting");
+        std::fs::write(meeting.join("meeting.json"), "{}").expect("meta");
+        std::fs::write(meeting.join("notes.txt"), "x").expect("notes");
+        std::fs::write(dir.join("outside.m4a"), "x").expect("outside");
+        let at = |recording: &str| json!({"dir": meeting.display().to_string(), "recording": recording});
+        assert!(locate_recording(at("notes.txt")).is_err());
+        assert!(locate_recording(at("../outside.m4a")).is_err());
+        assert!(locate_recording(at(&dir.join("outside.m4a").display().to_string())).is_err());
+        assert!(locate_recording(json!({"dir": "relative", "recording": "a.m4a"})).is_err());
+        assert!(locate_recording(json!({"dir": dir.display().to_string(), "recording": "outside.m4a"})).is_err());
         std::fs::remove_dir_all(&dir).expect("cleanup");
     }
 }
