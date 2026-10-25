@@ -1213,7 +1213,6 @@ function applyModules(next: Modules): void {
 function listenOnce(): void {
   if (listening) return
   listening = true
-  window.addEventListener('keydown', keys)
   onMediaJobs(() => {
     if (!alive) return
     readerPainted = ''
@@ -1256,6 +1255,7 @@ export async function mount(host: HTMLElement, path: readonly string[]): Promise
   stopNarrowWatch = watchNarrow(dom.root)
   initProse(dom.root)
   listenOnce()
+  window.addEventListener('keydown', keys)
   stopSpaceWatch = onSpaceChange((slug) => {
     if (slug !== activeSpace && treeLoaded) switchSpace(slug)
   })
@@ -1276,6 +1276,7 @@ export function update(path: readonly string[]): void {
 
 export function unmount(): void {
   alive = false
+  window.removeEventListener('keydown', keys)
   closeSwitcher()
   stopPlayback()
   spy?.disconnect()

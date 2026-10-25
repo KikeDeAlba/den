@@ -72,7 +72,6 @@ const STATE_CLASS: Record<IssueState, string> = {
 
 let host: HTMLElement | null = null
 let alive = false
-let listening = false
 let stopSpaceWatch: (() => void) | null = null
 
 let spaces: Space[] = []
@@ -929,11 +928,6 @@ function keys(event: KeyboardEvent): void {
   }
 }
 
-function listenOnce(): void {
-  if (listening) return
-  listening = true
-  window.addEventListener('keydown', keys)
-}
 
 export function receive(event: ShellEvent): void {
   if (!alive) return
@@ -948,7 +942,7 @@ export function receive(event: ShellEvent): void {
 export async function mount(target: HTMLElement, path: readonly string[]): Promise<void> {
   host = target
   alive = true
-  listenOnce()
+  window.addEventListener('keydown', keys)
   stopSpaceWatch = onSpaceChange((slug) => {
     if (slug !== activeSpace) switchSpace(slug)
   })
@@ -964,6 +958,7 @@ export function update(path: readonly string[]): void {
 
 export function unmount(): void {
   alive = false
+  window.removeEventListener('keydown', keys)
   closeSwitcher()
   stopSpaceWatch?.()
   stopSpaceWatch = null

@@ -111,6 +111,22 @@ describe.each(IDS)('%s mount cycle', (id) => {
     expect(counts[2]).toBeLessThanOrEqual(counts[0] ?? 0)
   })
 
+  it('removes every window and document listener it added once unmounted', async () => {
+    vi.resetModules()
+    const module = await LOADERS[id]()
+    const onWindow = watch(window)
+    const onDocument = watch(document)
+    await module.mount(host, [])
+    await flush()
+    const keydown = (onWindow.added.get('keydown') ?? 0) + (onDocument.added.get('keydown') ?? 0)
+    module.unmount()
+    await flush()
+    expect(open(onWindow)).toBe(0)
+    expect(open(onDocument)).toBe(0)
+    const removedKeydown = (onWindow.removed.get('keydown') ?? 0) + (onDocument.removed.get('keydown') ?? 0)
+    expect(removedKeydown).toBeGreaterThanOrEqual(keydown)
+  })
+
   it('survives events and a path update after unmount', async () => {
     const module = await LOADERS[id]()
     await module.mount(host, [])
