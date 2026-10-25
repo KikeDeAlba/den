@@ -295,13 +295,7 @@ async fn agent_spawn(
     let spec = spec_for(cli.bin(), cli.database_path(), &request, cols, rows)?;
     let agents = app.state::<Agents>();
     let id = agents.next.fetch_add(1, Ordering::SeqCst) + 1;
-    let exit_app = app.clone();
-    let pty = Pty::spawn(&spec, move |_| {
-        if let Some(info) = exit_app.state::<Agents>().info(id) {
-            emit_changed(&exit_app, &info);
-        }
-    })
-    .map_err(|error| failed(format!("No pude lanzar bita work: {error}")))?;
+    let pty = Arc::new(Pty::spawn(&spec).map_err(|error| failed(format!("No pude lanzar bita work: {error}")))?);
     pty.attach(sink(on_output));
     let pid = pty.pid();
     let info = AgentInfo {
@@ -318,12 +312,20 @@ async fn agent_spawn(
         exit_code: None,
         bita: None,
     };
-    let session = Session {
-        info,
-        pty: Arc::new(pty),
-    };
-    let snapshot = current(&session);
-    lock(&agents.sessions).insert(id, session);
+    lock(&agents.sessions).insert(
+        id,
+        Session {
+            info,
+            pty: Arc::clone(&pty),
+        },
+    );
+    let exit_app = app.clone();
+    pty.watch(move |_| {
+        if let Some(info) = exit_app.state::<Agents>().info(id) {
+            emit_changed(&exit_app, &info);
+        }
+    });
+    let snapshot = agents.info(id).ok_or_else(|| failed("Esa sesión ya no existe en Den."))?;
     emit_changed(&app, &snapshot);
     spawn_link(app.clone(), id, pid);
     Ok(snapshot)
@@ -730,10 +732,10 @@ mod tests {
         spec.env.push(("BITA_HARNESS_BIN_CLAUDE".into(), fake.clone().into_os_string()));
         spec.env.push(("BITA_DB_PATH".into(), database.clone().into_os_string()));
         let (sender, receiver) = std::sync::mpsc::channel();
-        let pty = Arc::new(Pty::spawn(&spec, move |code| {
+        let pty = Arc::new(Pty::spawn(&spec).expect("spawn"));
+        pty.watch(move |code| {
             let _ = sender.send(code);
-        })
-        .expect("spawn"));
+        });
         let seen = Arc::new(Mutex::new(Vec::new()));
         let target = Arc::clone(&seen);
         pty.attach(Box::new(move |chunk| {

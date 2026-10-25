@@ -210,6 +210,37 @@ describe('agentes section', () => {
     expect(api.resizeAgent).toHaveBeenCalledWith(7, 120, 40)
   })
 
+  it('keeps an exit that arrives before the spawn answer', async () => {
+    let finish: (value: AgentInfo) => void = () => undefined
+    api.spawnAgent.mockImplementation(() => new Promise<AgentInfo>((done) => {
+      finish = done
+    }))
+    section.mount(host, ['nueva'])
+    await flush()
+    await flush()
+    host.querySelector<HTMLFormElement>('.agentes-form')!.requestSubmit()
+    await flush()
+    section.receive({ type: 'agent', info: info({ id: 9, alive: false, exitCode: 2 }) })
+    finish(info({ id: 9 }))
+    await flush()
+    section.update(['9'])
+    expect(texts(host, '.agentes-tab-clock')).toEqual(['terminó'])
+    expect(texts(host, '.agentes-lane-status')).toEqual(['terminó con código 2'])
+  })
+
+  it('rereads the session right after spawning it', async () => {
+    api.spawnAgent.mockResolvedValue(info({ id: 4 }))
+    section.mount(host, ['nueva'])
+    await flush()
+    await flush()
+    api.listAgents.mockResolvedValue([info({ id: 4, alive: false, exitCode: 0 })])
+    host.querySelector<HTMLFormElement>('.agentes-form')!.requestSubmit()
+    await flush()
+    await flush()
+    section.update(['4'])
+    expect(texts(host, '.agentes-lane-status')).toEqual(['terminó'])
+  })
+
   it('reattaches to running sessions and sends composer messages', async () => {
     api.listAgents.mockResolvedValue([info({ id: 3 })])
     api.attachAgent.mockResolvedValue(info({ id: 3 }))

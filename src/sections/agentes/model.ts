@@ -196,3 +196,12 @@ export function resumeTitle(listing: SessionListing): string {
   const text = listing.entry.description.trim()
   return text === '' ? 'Sin título' : text
 }
+
+export function mergeInfo(spawned: AgentInfo, early: AgentInfo): AgentInfo {
+  return {
+    ...spawned,
+    alive: spawned.alive && early.alive,
+    exitCode: early.exitCode ?? spawned.exitCode,
+    bita: early.bita ?? spawned.bita,
+  }
+}

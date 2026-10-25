@@ -8,6 +8,7 @@ import {
   duration,
   elapsed,
   folderMeta,
+  mergeInfo,
   parseAgentesPath,
   projectArg,
   readiness,
@@ -192,5 +193,19 @@ describe('the new session form', () => {
 describe('default pane', () => {
   it('opens sessions on the terminal until the activity pane is filled', () => {
     expect(DEFAULT_PANE).toBe('terminal')
+  })
+})
+
+describe('mergeInfo', () => {
+  it('never revives a session whose exit arrived first', () => {
+    const merged = mergeInfo(agent({ alive: true }), agent({ alive: false, exitCode: 1 }))
+    expect(merged.alive).toBe(false)
+    expect(merged.exitCode).toBe(1)
+  })
+
+  it('keeps the link that arrived first', () => {
+    const linked = agent({ bita: { id: 1 } as SessionListing })
+    expect(mergeInfo(agent(), linked).bita?.id).toBe(1)
+    expect(mergeInfo(linked, agent()).bita?.id).toBe(1)
   })
 })

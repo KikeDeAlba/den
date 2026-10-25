@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, MasterPty, PtySize};
+use portable_pty::{native_pty_system, Child, ChildKiller, CommandBuilder, MasterPty, PtySize};
 
 use super::scan::Scanner;
 
@@ -107,6 +107,8 @@ pub struct Pty {
     master: Mutex<Box<dyn MasterPty + Send>>,
     writer: Mutex<Box<dyn Write + Send>>,
     killer: Mutex<Box<dyn ChildKiller + Send + Sync>>,
+    child: Mutex<Option<Box<dyn Child + Send + Sync>>>,
+    drained: Arc<AtomicBool>,
     output: Arc<Mutex<Output>>,
     exit: Arc<Mutex<Option<Option<i32>>>>,
 }
@@ -172,10 +174,7 @@ fn read_loop(mut reader: Box<dyn Read + Send>, sender: mpsc::SyncSender<Vec<u8>>
 }
 
 impl Pty {
-    pub fn spawn<F>(spec: &PtySpec, on_exit: F) -> std::io::Result<Self>
-    where
-        F: FnOnce(Option<i32>) + Send + 'static,
-    {
+    pub fn spawn(spec: &PtySpec) -> std::io::Result<Self> {
         let pair = native_pty_system()
             .openpty(PtySize {
                 rows: spec.rows.max(1),
@@ -220,7 +219,29 @@ impl Pty {
         let drained = Arc::new(AtomicBool::new(false));
         let done = Arc::clone(&drained);
         thread::spawn(move || pump(receiver, pumped, done));
-        let finished = Arc::clone(&exit);
+
+        Ok(Self {
+            pid,
+            group,
+            master: Mutex::new(pair.master),
+            writer: Mutex::new(writer),
+            killer: Mutex::new(killer),
+            child: Mutex::new(Some(child)),
+            drained,
+            output,
+            exit,
+        })
+    }
+
+    pub fn watch<F>(&self, on_exit: F)
+    where
+        F: FnOnce(Option<i32>) + Send + 'static,
+    {
+        let Some(mut child) = lock(&self.child).take() else {
+            return;
+        };
+        let drained = Arc::clone(&self.drained);
+        let finished = Arc::clone(&self.exit);
         thread::spawn(move || {
             let code = child.wait().ok().map(|status| i32::try_from(status.exit_code()).unwrap_or(i32::MAX));
             let deadline = Instant::now() + DRAIN_LIMIT;
@@ -230,16 +251,6 @@ impl Pty {
             *lock(&finished) = Some(code);
             on_exit(code);
         });
-
-        Ok(Self {
-            pid,
-            group,
-            master: Mutex::new(pair.master),
-            writer: Mutex::new(writer),
-            killer: Mutex::new(killer),
-            output,
-            exit,
-        })
     }
 
     pub fn pid(&self) -> Option<u32> {
@@ -390,6 +401,23 @@ mod tests {
         }
     }
 
+    fn started<F: FnOnce(Option<i32>) + Send + 'static>(spec: &PtySpec, on_exit: F) -> std::io::Result<Pty> {
+        let pty = Pty::spawn(spec)?;
+        pty.watch(on_exit);
+        Ok(pty)
+    }
+
+    #[test]
+    fn an_instant_exit_is_reported_only_once_someone_watches() {
+        let pty = Pty::spawn(&shell("exit 3")).expect("spawn");
+        thread::sleep(Duration::from_millis(200));
+        assert!(pty.alive());
+        let (sender, receiver) = mpsc::channel();
+        pty.watch(exited(sender));
+        assert_eq!(receiver.recv_timeout(Duration::from_secs(5)).expect("exit"), Some(3));
+        assert_eq!(pty.exit_code(), Some(Some(3)));
+    }
+
     fn collector(pty: &Pty) -> Arc<Mutex<Vec<u8>>> {
         let seen = Arc::new(Mutex::new(Vec::new()));
         let target = Arc::clone(&seen);
@@ -425,7 +453,7 @@ mod tests {
     #[test]
     fn echoes_what_it_is_sent() {
         let (sender, receiver) = mpsc::channel();
-        let pty = Pty::spawn(&shell("read line; echo got:$line"), exited(sender)).expect("spawn");
+        let pty = started(&shell("read line; echo got:$line"), exited(sender)).expect("spawn");
         let seen = collector(&pty);
         pty.write(b"hola\r").expect("write");
         assert!(wait_for(&seen, "got:hola"));
@@ -436,7 +464,7 @@ mod tests {
     #[test]
     fn the_bracketed_paste_mode_follows_the_program() {
         let (sender, _receiver) = mpsc::channel();
-        let pty = Pty::spawn(&shell("printf '\\033[?2004hon\\n'; read line; printf '\\033[?2004loff\\n'; read line"), exited(sender))
+        let pty = started(&shell("printf '\\033[?2004hon\\n'; read line; printf '\\033[?2004loff\\n'; read line"), exited(sender))
             .expect("spawn");
         let seen = collector(&pty);
         assert!(wait_for(&seen, "on"));
@@ -450,7 +478,7 @@ mod tests {
     #[test]
     fn resizing_reaches_the_terminal() {
         let (sender, _receiver) = mpsc::channel();
-        let pty = Pty::spawn(&shell("read line; stty size"), exited(sender)).expect("spawn");
+        let pty = started(&shell("read line; stty size"), exited(sender)).expect("spawn");
         let seen = collector(&pty);
         pty.resize(100, 40).expect("resize");
         pty.write(b"\r").expect("write");
@@ -460,7 +488,7 @@ mod tests {
     #[test]
     fn a_late_attach_replays_the_history() {
         let (sender, receiver) = mpsc::channel();
-        let pty = Pty::spawn(&shell("echo first-line"), exited(sender)).expect("spawn");
+        let pty = started(&shell("echo first-line"), exited(sender)).expect("spawn");
         receiver.recv_timeout(Duration::from_secs(5)).expect("exit");
         thread::sleep(Duration::from_millis(100));
         let seen = collector(&pty);
@@ -540,7 +568,7 @@ mod tests {
     #[test]
     fn large_output_arrives_in_bounded_chunks() {
         let (sender, receiver) = mpsc::channel();
-        let pty = Pty::spawn(&shell("head -c 300000 /dev/zero | tr '\\0' x; echo; echo done-now"), exited(sender))
+        let pty = started(&shell("head -c 300000 /dev/zero | tr '\\0' x; echo; echo done-now"), exited(sender))
             .expect("spawn");
         let seen = collector(&pty);
         assert!(wait_for(&seen, "done-now"));
@@ -550,7 +578,7 @@ mod tests {
     #[test]
     fn killing_takes_down_the_whole_tree() {
         let (sender, receiver) = mpsc::channel();
-        let pty = Arc::new(Pty::spawn(&shell("sleep 30 & echo child:$!; wait"), exited(sender)).expect("spawn"));
+        let pty = Arc::new(started(&shell("sleep 30 & echo child:$!; wait"), exited(sender)).expect("spawn"));
         let seen = collector(&pty);
         assert!(wait_for(&seen, "child:"));
         let text = String::from_utf8_lossy(&lock(&seen)).into_owned();
@@ -572,7 +600,7 @@ mod tests {
     #[test]
     fn the_session_leads_its_own_process_group() {
         let (sender, _receiver) = mpsc::channel();
-        let pty = Pty::spawn(&shell("read line"), exited(sender)).expect("spawn");
+        let pty = started(&shell("read line"), exited(sender)).expect("spawn");
         assert_eq!(pty.group, pty.pid());
         assert!(pty.group.is_some());
         pty.terminate(Duration::from_millis(200));
@@ -582,7 +610,7 @@ mod tests {
     #[test]
     fn a_child_that_outlives_the_leader_is_still_killed() {
         let (sender, receiver) = mpsc::channel();
-        let pty = Pty::spawn(&shell("sh -c \"trap '' HUP; exec sleep 30\" & echo child:$!; wait"), exited(sender)).expect("spawn");
+        let pty = started(&shell("sh -c \"trap '' HUP; exec sleep 30\" & echo child:$!; wait"), exited(sender)).expect("spawn");
         let seen = collector(&pty);
         assert!(wait_for(&seen, "child:"));
         let text = String::from_utf8_lossy(&lock(&seen)).into_owned();
@@ -601,7 +629,7 @@ mod tests {
     #[test]
     fn a_process_that_ignores_hangup_is_killed_after_the_grace() {
         let (sender, receiver) = mpsc::channel();
-        let pty = Arc::new(Pty::spawn(&shell("trap '' HUP; echo ready; while :; do sleep 1; done"), exited(sender)).expect("spawn"));
+        let pty = Arc::new(started(&shell("trap '' HUP; echo ready; while :; do sleep 1; done"), exited(sender)).expect("spawn"));
         let seen = collector(&pty);
         assert!(wait_for(&seen, "ready"));
         let started = Instant::now();

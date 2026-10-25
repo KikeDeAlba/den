@@ -41,6 +41,8 @@ interface Form {
 }
 
 const rows = new Map<number, Row>()
+const early = new Map<number, AgentInfo>()
+const EARLY_LIMIT = 32
 let host: HTMLElement | null = null
 let view: ViewKind = 'session'
 let selected: number | null = null
@@ -549,9 +551,29 @@ function render(): void {
 }
 
 function attachRow(info: AgentInfo, terminal: TerminalView): Row {
-  const row: Row = { info, view: terminal, sent: '' }
+  const seen = early.get(info.id)
+  early.delete(info.id)
+  const row: Row = { info: seen === undefined ? info : model.mergeInfo(info, seen), view: terminal, sent: '' }
   rows.set(info.id, row)
   return row
+}
+
+function remember(info: AgentInfo): void {
+  early.delete(info.id)
+  early.set(info.id, info)
+  for (const id of early.keys()) {
+    if (early.size <= EARLY_LIMIT) break
+    early.delete(id)
+  }
+}
+
+async function reread(id: number): Promise<void> {
+  try {
+    const fresh = (await api.listAgents()).find((info) => info.id === id)
+    if (fresh !== undefined && rows.has(id)) onAgent(fresh)
+  } catch {
+    return
+  }
 }
 
 async function launch(spawn: SpawnRequest): Promise<void> {
@@ -567,6 +589,7 @@ async function launch(spawn: SpawnRequest): Promise<void> {
     const info = await api.spawnAgent(spawn, size?.cols ?? 0, size?.rows ?? 0, (bytes) => terminal.write(bytes))
     id = info.id
     attachRow(info, terminal)
+    void reread(info.id)
     promptBox.value = ''
     form.busy = false
     selected = info.id
@@ -731,7 +754,10 @@ function refreshRow(row: Row): void {
 
 function onAgent(info: AgentInfo): void {
   const row = rows.get(info.id)
-  if (row === undefined) return
+  if (row === undefined) {
+    remember(info)
+    return
+  }
   row.info = info
   const before = { view, selected, pane }
   resolveEntry()
@@ -772,6 +798,7 @@ export function update(path: readonly string[]): void {
 export function unmount(): void {
   for (const row of rows.values()) row.view.dispose()
   rows.clear()
+  early.clear()
   host = null
   loaded = false
   selected = null
