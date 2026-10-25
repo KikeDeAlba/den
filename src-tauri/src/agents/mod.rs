@@ -611,6 +611,11 @@ pub fn quit_decision(app: &AppHandle) -> QuitDecision {
     agents.quit.decide(agents.live().len())
 }
 
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn quit_ending(app: &AppHandle) -> bool {
+    app.try_state::<Agents>().is_some_and(|agents| agents.quit.ending())
+}
+
 pub fn request_quit(app: &AppHandle) {
     match quit_decision(app) {
         QuitDecision::Exit => exit_now(app),

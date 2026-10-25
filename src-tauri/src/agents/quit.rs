@@ -75,6 +75,10 @@ impl QuitState {
         }
     }
 
+    pub fn ending(&self) -> bool {
+        self.ending.load(Ordering::SeqCst)
+    }
+
     pub fn start_ending(&self) -> bool {
         !self.ending.swap(true, Ordering::SeqCst)
     }
@@ -108,12 +112,10 @@ impl PowerOff {
         *self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(now);
     }
 
-    pub fn take(&self, now: Instant) -> bool {
-        self.0
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .take()
-            .is_some_and(|at| now.saturating_duration_since(at) <= POWER_OFF_WINDOW)
+    pub fn check(&self, now: Instant, keep: bool) -> bool {
+        let mut mark = self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let at = if keep { *mark } else { mark.take() };
+        at.is_some_and(|at| now.saturating_duration_since(at) <= POWER_OFF_WINDOW)
     }
 }
 
@@ -181,7 +183,7 @@ mod mac {
     }
 
     fn decide_terminate(app: &AppHandle) -> usize {
-        let powering_off = POWERING_OFF.take(Instant::now());
+        let powering_off = POWERING_OFF.check(Instant::now(), crate::agents::quit_ending(app));
         match crate::agents::quit_decision(app) {
             QuitDecision::Exit => TERMINATE_NOW,
             _ if powering_off || quit_reason().is_some_and(is_system_quit_reason) => {
@@ -336,13 +338,37 @@ mod tests {
     fn a_power_off_mark_is_used_once_and_expires() {
         let marks = PowerOff::new();
         let now = Instant::now();
-        assert!(!marks.take(now));
+        assert!(!marks.check(now, false));
         marks.mark(now);
-        assert!(marks.take(now + Duration::from_secs(1)));
-        assert!(!marks.take(now + Duration::from_secs(1)));
+        assert!(marks.check(now + Duration::from_secs(1), false));
+        assert!(!marks.check(now + Duration::from_secs(1), false));
         marks.mark(now);
-        assert!(!marks.take(now + POWER_OFF_WINDOW + Duration::from_secs(1)));
-        assert!(!marks.take(now));
+        assert!(!marks.check(now + POWER_OFF_WINDOW + Duration::from_secs(1), false));
+        assert!(!marks.check(now, false));
+    }
+
+    #[test]
+    fn a_power_off_mark_survives_repeated_checks_while_the_sessions_end() {
+        let marks = PowerOff::new();
+        let now = Instant::now();
+        marks.mark(now);
+        assert!(marks.check(now, false));
+        marks.mark(now);
+        assert!(marks.check(now + Duration::from_secs(1), true));
+        assert!(marks.check(now + Duration::from_secs(2), true));
+        assert!(!marks.check(now + POWER_OFF_WINDOW + Duration::from_secs(1), true));
+        assert!(marks.check(now + Duration::from_secs(3), false));
+        assert!(!marks.check(now + Duration::from_secs(3), true));
+    }
+
+    #[test]
+    fn ending_is_visible_until_den_quits() {
+        let state = QuitState::default();
+        assert!(!state.ending());
+        assert!(state.shutdown());
+        assert!(state.ending());
+        state.finish(true);
+        assert!(state.ending());
     }
 
     #[test]
