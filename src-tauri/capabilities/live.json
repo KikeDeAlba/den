@@ -2,6 +2,23 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "live",
   "description": "Permissions for the floating meeting assistant window",
-  "windows": ["live"],
-  "permissions": ["core:default", "core:window:allow-start-dragging"]
+  "windows": [
+    "live"
+  ],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-start-dragging",
+    "allow-backlog-add",
+    "allow-copy-text",
+    "allow-live-ask",
+    "allow-live-hide",
+    "allow-live-open-meetings",
+    "allow-live-sources",
+    "allow-live-state",
+    "allow-navigate-to",
+    "allow-open-external",
+    "allow-open-source-file",
+    "allow-page-asset"
+  ]
 }
