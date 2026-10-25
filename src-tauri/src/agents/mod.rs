@@ -23,6 +23,8 @@ use crate::platform;
 use crate::registry::{self, Tool};
 use model::{SessionDirectory, SessionListing, SpawnRequest};
 use pty::{Pty, PtySpec, KILL_GRACE};
+
+const EXIT_GRACE: Duration = Duration::from_millis(500);
 use quit::QuitDecision;
 
 pub const PLUGIN: &str = "agents";
@@ -457,14 +459,19 @@ pub fn quit_message(live: usize) -> String {
     }
 }
 
+fn terminate_all(live: Vec<Arc<Pty>>, grace: Duration) {
+    let workers: Vec<_> = live
+        .into_iter()
+        .map(|pty| std::thread::spawn(move || pty.terminate(grace)))
+        .collect();
+    for worker in workers {
+        let _ = worker.join();
+    }
+}
+
 fn end_all_and_exit(app: AppHandle, live: Vec<Arc<Pty>>) {
     std::thread::spawn(move || {
-        for pty in &live {
-            end_session(pty);
-        }
-        for pty in &live {
-            pty.wait_exit(KILL_GRACE + Duration::from_millis(500));
-        }
+        terminate_all(live, KILL_GRACE);
         exit_now(&app);
     });
 }
@@ -519,9 +526,7 @@ fn confirm_quit(app: &AppHandle) {
 
 pub fn hang_up_all(app: &AppHandle) {
     if let Some(agents) = app.try_state::<Agents>() {
-        for pty in agents.live() {
-            pty.kill_tree(Duration::ZERO);
-        }
+        terminate_all(agents.live(), EXIT_GRACE);
     }
 }
 

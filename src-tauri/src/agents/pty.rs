@@ -20,6 +20,8 @@ pub const KILL_GRACE: Duration = Duration::from_secs(3);
 pub const QUEUE_DEPTH: usize = 64;
 const READ_BUFFER: usize = 16 * 1024;
 const MARK_SPACING: u64 = 1024;
+pub const KILL_SETTLE: Duration = Duration::from_secs(2);
+const POLL: Duration = Duration::from_millis(20);
 const DRAIN_LIMIT: Duration = Duration::from_millis(500);
 
 pub type Sink = Box<dyn Fn(Vec<u8>) -> bool + Send>;
@@ -101,6 +103,7 @@ fn is_continuation(byte: u8) -> bool {
 
 pub struct Pty {
     pid: Option<u32>,
+    group: Option<u32>,
     master: Mutex<Box<dyn MasterPty + Send>>,
     writer: Mutex<Box<dyn Write + Send>>,
     killer: Mutex<Box<dyn ChildKiller + Send + Sync>>,
@@ -193,8 +196,20 @@ impl Pty {
         let mut child = pair.slave.spawn_command(command).map_err(io_error)?;
         drop(pair.slave);
         let pid = child.process_id();
-        let reader = pair.master.try_clone_reader().map_err(io_error)?;
-        let writer = pair.master.take_writer().map_err(io_error)?;
+        let group = pid.filter(|pid| leads_group(*pid));
+        let handles = pair
+            .master
+            .try_clone_reader()
+            .and_then(|reader| Ok((reader, pair.master.take_writer()?)))
+            .map_err(io_error);
+        let (reader, writer) = match handles {
+            Ok(handles) => handles,
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(error);
+            }
+        };
         let killer = child.clone_killer();
 
         let output = Arc::new(Mutex::new(Output::default()));
@@ -218,6 +233,7 @@ impl Pty {
 
         Ok(Self {
             pid,
+            group,
             master: Mutex::new(pair.master),
             writer: Mutex::new(writer),
             killer: Mutex::new(killer),
@@ -272,23 +288,30 @@ impl Pty {
     }
 
     pub fn kill_tree(self: &Arc<Self>, grace: Duration) {
+        let pty = Arc::clone(self);
+        thread::spawn(move || pty.terminate(grace));
+    }
+
+    pub fn terminate(&self, grace: Duration) {
         if !self.alive() {
             return;
         }
-        if !self.signal_group(Signal::Hangup) {
+        let Some(group) = self.group.filter(|group| signal_group(*group, Signal::Hangup)) else {
             let _ = lock(&self.killer).kill();
+            self.wait_exit(KILL_SETTLE);
             return;
+        };
+        let deadline = Instant::now() + grace;
+        while group_exists(group) && Instant::now() < deadline {
+            thread::sleep(POLL);
         }
-        let pty = Arc::clone(self);
-        thread::spawn(move || {
-            let deadline = Instant::now() + grace;
-            while pty.alive() && Instant::now() < deadline {
-                thread::sleep(Duration::from_millis(50));
-            }
-            if pty.alive() {
-                pty.signal_group(Signal::Kill);
-            }
-        });
+        if group_exists(group) {
+            signal_group(group, Signal::Kill);
+        }
+        let settle = Instant::now() + KILL_SETTLE;
+        while (group_exists(group) || self.alive()) && Instant::now() < settle {
+            thread::sleep(POLL);
+        }
     }
 
     pub fn wait_exit(&self, limit: Duration) -> bool {
@@ -297,27 +320,9 @@ impl Pty {
             if Instant::now() >= deadline {
                 return false;
             }
-            thread::sleep(Duration::from_millis(25));
+            thread::sleep(POLL);
         }
         true
-    }
-
-    #[cfg(unix)]
-    fn signal_group(&self, signal: Signal) -> bool {
-        let Some(pid) = self.pid.and_then(|pid| libc::pid_t::try_from(pid).ok()).filter(|pid| *pid > 1) else {
-            return false;
-        };
-        let number = match signal {
-            Signal::Hangup => libc::SIGHUP,
-            Signal::Kill => libc::SIGKILL,
-        };
-        unsafe { libc::killpg(pid, number) == 0 }
-    }
-
-    #[cfg(not(unix))]
-    fn signal_group(&self, signal: Signal) -> bool {
-        let _ = signal;
-        lock(&self.killer).kill().is_ok()
     }
 }
 
@@ -325,6 +330,48 @@ impl Pty {
 enum Signal {
     Hangup,
     Kill,
+}
+
+#[cfg(unix)]
+fn group_id(pid: u32) -> Option<libc::pid_t> {
+    libc::pid_t::try_from(pid).ok().filter(|pid| *pid > 1)
+}
+
+#[cfg(unix)]
+fn leads_group(pid: u32) -> bool {
+    group_id(pid).is_some_and(|pid| unsafe { libc::getpgid(pid) } == pid)
+}
+
+#[cfg(unix)]
+fn signal_group(group: u32, signal: Signal) -> bool {
+    let Some(group) = group_id(group) else {
+        return false;
+    };
+    let number = match signal {
+        Signal::Hangup => libc::SIGHUP,
+        Signal::Kill => libc::SIGKILL,
+    };
+    unsafe { libc::killpg(group, number) == 0 }
+}
+
+#[cfg(unix)]
+fn group_exists(group: u32) -> bool {
+    group_id(group).is_some_and(|group| unsafe { libc::killpg(group, 0) } == 0)
+}
+
+#[cfg(not(unix))]
+fn leads_group(_pid: u32) -> bool {
+    false
+}
+
+#[cfg(not(unix))]
+fn signal_group(_group: u32, _signal: Signal) -> bool {
+    false
+}
+
+#[cfg(not(unix))]
+fn group_exists(_group: u32) -> bool {
+    false
 }
 
 #[cfg(all(test, unix))]
@@ -519,6 +566,35 @@ mod tests {
         while !gone(child) && Instant::now() < deadline {
             thread::sleep(Duration::from_millis(50));
         }
+        assert!(gone(child));
+    }
+
+    #[test]
+    fn the_session_leads_its_own_process_group() {
+        let (sender, _receiver) = mpsc::channel();
+        let pty = Pty::spawn(&shell("read line"), exited(sender)).expect("spawn");
+        assert_eq!(pty.group, pty.pid());
+        assert!(pty.group.is_some());
+        pty.terminate(Duration::from_millis(200));
+        assert!(!pty.alive());
+    }
+
+    #[test]
+    fn a_child_that_outlives_the_leader_is_still_killed() {
+        let (sender, receiver) = mpsc::channel();
+        let pty = Pty::spawn(&shell("sh -c \"trap '' HUP; exec sleep 30\" & echo child:$!; wait"), exited(sender)).expect("spawn");
+        let seen = collector(&pty);
+        assert!(wait_for(&seen, "child:"));
+        let text = String::from_utf8_lossy(&lock(&seen)).into_owned();
+        let child: libc::pid_t = text
+            .split("child:")
+            .nth(1)
+            .and_then(|rest| rest.split_whitespace().next())
+            .and_then(|pid| pid.parse().ok())
+            .expect("child pid");
+        thread::sleep(Duration::from_millis(100));
+        pty.terminate(Duration::from_millis(300));
+        receiver.recv_timeout(Duration::from_secs(5)).expect("exit");
         assert!(gone(child));
     }
 
