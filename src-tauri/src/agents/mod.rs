@@ -142,7 +142,7 @@ impl Agents {
     fn reserve(&self) -> Result<Slot<'_>, Problem> {
         let sessions = lock(&self.sessions);
         if self.quit.closing() {
-            return Err(failed("Den se está cerrando. No puede arrancar otra sesión."));
+            return Err(closing_down());
         }
         let live = sessions.values().filter(|session| session.pty.alive()).count();
         if live + self.reserved.load(Ordering::SeqCst) >= LIVE_LIMIT {
@@ -196,6 +196,10 @@ fn current(session: &Session) -> AgentInfo {
 
 fn failed(message: impl Into<String>) -> Problem {
     Problem::new(ProblemKind::CliFailed, message)
+}
+
+fn closing_down() -> Problem {
+    failed("Den se está cerrando. No puede arrancar otra sesión.")
 }
 
 fn ensure_main<R: Runtime>(window: &Window<R>) -> Result<(), Problem> {
@@ -384,6 +388,9 @@ async fn agent_spawn(
     let slot = agents.reserve()?;
     let cli = bita().await?;
     let spec = spec_for(cli.bin(), cli.database_path(), &request, cols, rows)?;
+    if agents.quit.closing() {
+        return Err(closing_down());
+    }
     let id = agents.next.fetch_add(1, Ordering::SeqCst) + 1;
     let pty = Arc::new(Pty::spawn(&spec).map_err(|error| failed(format!("No pude lanzar bita work: {error}")))?);
     pty.attach(sink(on_output));
