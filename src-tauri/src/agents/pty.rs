@@ -42,6 +42,7 @@ struct Output {
     history: VecDeque<u8>,
     start: u64,
     marks: VecDeque<u64>,
+    safe: VecDeque<u64>,
     scanner: Scanner,
     sink: Option<Sink>,
 }
@@ -51,6 +52,12 @@ impl Output {
         let base = self.start + self.history.len() as u64;
         for (index, byte) in chunk.iter().enumerate() {
             let ground = self.scanner.at_ground();
+            if ground && !is_continuation(*byte) {
+                let point = base + index as u64;
+                if self.safe.back().is_none_or(|last| point - last >= MARK_SPACING) {
+                    self.safe.push_back(point);
+                }
+            }
             self.scanner.feed(*byte);
             if ground && *byte == b'\n' {
                 let mark = base + index as u64 + 1;
@@ -77,16 +84,22 @@ impl Output {
         while self.marks.front().is_some_and(|mark| *mark < target) {
             self.marks.pop_front();
         }
+        while self.safe.front().is_some_and(|point| *point < target) {
+            self.safe.pop_front();
+        }
         let end = self.start + self.history.len() as u64;
         let cut = match self.marks.front().copied().filter(|mark| *mark <= end) {
             Some(mark) if mark - self.start <= (excess + HISTORY_SLACK) as u64 => mark,
-            _ if excess > HISTORY_SLACK => {
-                let mut cut = target;
-                while cut < end && is_continuation(self.history[(cut - self.start) as usize]) {
-                    cut += 1;
+            _ if excess > HISTORY_SLACK => match self.safe.front().copied().filter(|point| *point < end) {
+                Some(point) => point,
+                None => {
+                    let mut cut = target;
+                    while cut < end && is_continuation(self.history[(cut - self.start) as usize]) {
+                        cut += 1;
+                    }
+                    cut
                 }
-                cut
-            }
+            },
             _ => return,
         };
         self.history.drain(..(cut - self.start) as usize);
@@ -551,6 +564,27 @@ mod tests {
             scanner.feed(*byte);
         }
         assert!(scanner.at_ground());
+    }
+
+    #[test]
+    fn output_without_lines_is_never_cut_inside_an_escape_sequence() {
+        let url = "x".repeat(700);
+        let unit = format!("\x1b]8;;https://example.com/{url}\x1b\\link\x1b]8;;\x1b\\ \x1b[38;5;208mcolor\x1b[0m é ");
+        let mut chunk = Vec::new();
+        while chunk.len() < HISTORY_LIMIT + HISTORY_SLACK + 50_000 {
+            chunk.extend_from_slice(unit.as_bytes());
+        }
+        let mut output = Output::default();
+        output.push(chunk.clone());
+        let cut = usize::try_from(output.start).expect("start");
+        assert!(cut > 0);
+        assert!(output.history.len() <= HISTORY_LIMIT);
+        let mut scanner = Scanner::default();
+        for byte in &chunk[..cut] {
+            scanner.feed(*byte);
+        }
+        assert!(scanner.at_ground(), "cut at {cut} lands inside a sequence");
+        assert!(!is_continuation(chunk[cut]));
     }
 
     #[test]
