@@ -99,15 +99,20 @@ export function createSections(
       }
       live.host.hidden = false
       live.path = route.path
-      if (live.state === 'ready') live.module?.update(route.path)
+      if (live.state !== 'ready' || live.module === null) return
+      try {
+        live.module.update(route.path)
+      } catch (error) {
+        broke(route.section, live, error)
+      }
     },
     broadcast(event) {
-      for (const entry of entries.values()) {
+      for (const [section, entry] of [...entries]) {
         if (entry.state !== 'ready') continue
         try {
           entry.module?.receive?.(event)
         } catch (error) {
-          fail(entry.host, error)
+          broke(section, entry, error)
         }
       }
     },
