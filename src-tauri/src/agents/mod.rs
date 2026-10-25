@@ -79,6 +79,8 @@ pub struct Agents {
     next: AtomicU64,
     quitting: AtomicBool,
     asking: AtomicBool,
+    ending: AtomicBool,
+    replying: AtomicBool,
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -522,10 +524,27 @@ fn terminate_all(live: Vec<Arc<Pty>>, grace: Duration) {
     }
 }
 
-fn end_all_and_exit(app: AppHandle, live: Vec<Arc<Pty>>) {
+fn finish_quit(app: &AppHandle, terminate: bool) {
+    let agents = app.state::<Agents>();
+    if terminate {
+        agents.quitting.store(true, Ordering::SeqCst);
+    }
+    if agents.replying.swap(false, Ordering::SeqCst) {
+        quit::reply(app, terminate);
+    } else if terminate {
+        exit_now(app);
+    }
+}
+
+fn end_all_and_quit(app: AppHandle, grace: Duration) {
+    let agents = app.state::<Agents>();
+    if agents.ending.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let live = agents.live();
     std::thread::spawn(move || {
-        terminate_all(live, KILL_GRACE);
-        exit_now(&app);
+        terminate_all(live, grace);
+        finish_quit(&app, true);
     });
 }
 
@@ -544,6 +563,7 @@ pub fn quit_decision(app: &AppHandle) -> QuitDecision {
         agents.live().len(),
         agents.quitting.load(Ordering::SeqCst),
         agents.asking.load(Ordering::SeqCst),
+        agents.ending.load(Ordering::SeqCst),
     )
 }
 
@@ -555,6 +575,22 @@ pub fn request_quit(app: &AppHandle) {
         }
         QuitDecision::Confirm => confirm_quit(app),
     }
+}
+
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn confirm_before_reply(app: &AppHandle) {
+    app.state::<Agents>().replying.store(true, Ordering::SeqCst);
+    confirm_quit(app);
+}
+
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn end_for_shutdown(app: &AppHandle) {
+    let agents = app.state::<Agents>();
+    agents.replying.store(true, Ordering::SeqCst);
+    if agents.ending.load(Ordering::SeqCst) {
+        return;
+    }
+    end_all_and_quit(app.clone(), EXIT_GRACE);
 }
 
 fn confirm_quit(app: &AppHandle) {
@@ -569,10 +605,15 @@ fn confirm_quit(app: &AppHandle) {
         .kind(MessageDialogKind::Warning)
         .buttons(MessageDialogButtons::OkCancelCustom("Terminar y salir".into(), "Cancelar".into()))
         .show(move |confirmed| {
-            handle.state::<Agents>().asking.store(false, Ordering::SeqCst);
+            let agents = handle.state::<Agents>();
+            agents.asking.store(false, Ordering::SeqCst);
+            if agents.ending.load(Ordering::SeqCst) {
+                return;
+            }
             if confirmed {
-                let live = handle.state::<Agents>().live();
-                end_all_and_exit(handle, live);
+                end_all_and_quit(handle.clone(), KILL_GRACE);
+            } else {
+                finish_quit(&handle, false);
             }
         });
 }
