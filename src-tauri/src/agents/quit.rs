@@ -79,6 +79,10 @@ impl QuitState {
         self.ending.load(Ordering::SeqCst)
     }
 
+    pub fn closing(&self) -> bool {
+        self.ending() || self.quitting.load(Ordering::SeqCst)
+    }
+
     pub fn start_ending(&self) -> bool {
         !self.ending.swap(true, Ordering::SeqCst)
     }
@@ -369,6 +373,18 @@ mod tests {
         assert!(state.ending());
         state.finish(true);
         assert!(state.ending());
+    }
+
+    #[test]
+    fn den_is_closing_once_the_sessions_end_or_it_quits() {
+        let state = QuitState::default();
+        state.ask(false);
+        assert!(!state.closing());
+        assert!(state.start_ending());
+        assert!(state.closing());
+        let quitting = QuitState::default();
+        quitting.mark_quitting();
+        assert!(quitting.closing());
     }
 
     #[test]

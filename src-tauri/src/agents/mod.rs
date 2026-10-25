@@ -10,7 +10,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use serde::Serialize;
@@ -45,6 +45,8 @@ const COMMANDS: &[&str] = &[
 ];
 
 const EXIT_GRACE: Duration = Duration::from_millis(500);
+const SPAWN_SETTLE: Duration = Duration::from_secs(5);
+const SETTLE_POLL: Duration = Duration::from_millis(20);
 const LINK_ATTEMPTS: u32 = 30;
 const LINK_EVERY: Duration = Duration::from_secs(1);
 const DEFAULT_COLS: u16 = 100;
@@ -104,12 +106,25 @@ impl Agents {
         list
     }
 
-    fn live(&self) -> Vec<Arc<Pty>> {
-        lock(&self.sessions)
-            .values()
-            .filter(|session| session.pty.alive())
-            .map(|session| Arc::clone(&session.pty))
-            .collect()
+    fn open(&self) -> usize {
+        let sessions = lock(&self.sessions);
+        sessions.values().filter(|session| session.pty.alive()).count() + self.reserved.load(Ordering::SeqCst)
+    }
+
+    fn settled(&self, wait: Duration) -> Vec<Arc<Pty>> {
+        let deadline = Instant::now() + wait;
+        loop {
+            let sessions = lock(&self.sessions);
+            if self.reserved.load(Ordering::SeqCst) == 0 || Instant::now() >= deadline {
+                return sessions
+                    .values()
+                    .filter(|session| session.pty.alive())
+                    .map(|session| Arc::clone(&session.pty))
+                    .collect();
+            }
+            drop(sessions);
+            std::thread::sleep(SETTLE_POLL);
+        }
     }
 
     fn close(&self, id: u64) -> Result<(), Problem> {
@@ -126,6 +141,9 @@ impl Agents {
 
     fn reserve(&self) -> Result<Slot<'_>, Problem> {
         let sessions = lock(&self.sessions);
+        if self.quit.closing() {
+            return Err(failed("Den se está cerrando. No puede arrancar otra sesión."));
+        }
         let live = sessions.values().filter(|session| session.pty.alive()).count();
         if live + self.reserved.load(Ordering::SeqCst) >= LIVE_LIMIT {
             return Err(failed(format!(
@@ -391,6 +409,9 @@ async fn agent_spawn(
             pty: Arc::clone(&pty),
         },
     );
+    if agents.quit.closing() {
+        end_session(&pty);
+    }
     let exit_app = app.clone();
     pty.watch(move |_| {
         if let Some(info) = exit_app.state::<Agents>().info(id) {
@@ -590,9 +611,8 @@ fn exit_after_reply(app: AppHandle) {
 }
 
 fn end_all_and_quit(app: AppHandle, grace: Duration) {
-    let live = app.state::<Agents>().live();
     std::thread::spawn(move || {
-        terminate_all(live, grace);
+        terminate_all(app.state::<Agents>().settled(SPAWN_SETTLE), grace);
         finish_quit(&app, true);
     });
 }
@@ -608,7 +628,7 @@ pub fn quit_decision(app: &AppHandle) -> QuitDecision {
     let Some(agents) = app.try_state::<Agents>() else {
         return QuitDecision::Exit;
     };
-    agents.quit.decide(agents.live().len())
+    agents.quit.decide(agents.open())
 }
 
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
@@ -640,12 +660,12 @@ pub fn end_for_shutdown(app: &AppHandle) {
 
 fn confirm_quit(app: &AppHandle, reply_pending: bool) {
     let agents = app.state::<Agents>();
-    let live = agents.live();
+    let open = agents.open();
     agents.quit.ask(reply_pending);
     let _ = crate::shell::show(app);
     let handle = app.clone();
     app.dialog()
-        .message(quit_message(live.len()))
+        .message(quit_message(open))
         .title("Salir de Den")
         .kind(MessageDialogKind::Warning)
         .buttons(MessageDialogButtons::OkCancelCustom("Terminar y salir".into(), "Cancelar".into()))
@@ -662,7 +682,7 @@ fn confirm_quit(app: &AppHandle, reply_pending: bool) {
 
 pub fn hang_up_all(app: &AppHandle) {
     if let Some(agents) = app.try_state::<Agents>() {
-        terminate_all(agents.live(), EXIT_GRACE);
+        terminate_all(agents.settled(SPAWN_SETTLE), EXIT_GRACE);
     }
 }
 
@@ -974,6 +994,59 @@ mod tests {
         let won = workers.into_iter().filter_map(|worker| worker.join().ok()).filter(|won| *won).count();
         assert_eq!(won, LIVE_LIMIT);
         assert_eq!(agents.reserved.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn a_spawn_in_flight_counts_as_open() {
+        let agents = Agents::default();
+        assert_eq!(agents.open(), 0);
+        let slot = agents.reserve().expect("room");
+        assert_eq!(agents.open(), 1);
+        assert_eq!(agents.quit.decide(agents.open()), QuitDecision::Confirm);
+        drop(slot);
+        assert_eq!(agents.open(), 0);
+        assert_eq!(agents.quit.decide(agents.open()), QuitDecision::Exit);
+    }
+
+    #[test]
+    fn no_spawn_starts_once_den_is_closing() {
+        let agents = Agents::default();
+        assert!(agents.quit.start_ending());
+        assert!(agents.reserve().is_err());
+        assert_eq!(agents.reserved.load(Ordering::SeqCst), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ending_waits_for_spawns_in_flight_and_returns_them_to_kill() {
+        let agents = Arc::new(Agents::default());
+        let slot_agents = Arc::clone(&agents);
+        let (reserved, ready) = std::sync::mpsc::channel();
+        let spawner = std::thread::spawn(move || {
+            let slot = slot_agents.reserve().expect("room");
+            reserved.send(()).expect("signal");
+            std::thread::sleep(Duration::from_millis(200));
+            slot.fill(7, session_running("sleep 30"));
+        });
+        ready.recv().expect("reserved");
+        assert!(agents.quit.start_ending());
+        let started = Instant::now();
+        let live = agents.settled(Duration::from_secs(5));
+        assert!(started.elapsed() >= Duration::from_millis(150));
+        spawner.join().expect("spawner");
+        assert_eq!(live.len(), 1);
+        terminate_all(live, Duration::from_millis(200));
+        assert_eq!(agents.open(), 0);
+    }
+
+    #[test]
+    fn ending_does_not_wait_forever_for_a_stuck_spawn() {
+        let agents = Agents::default();
+        let slot = agents.reserve().expect("room");
+        let started = Instant::now();
+        assert!(agents.settled(Duration::from_millis(100)).is_empty());
+        assert!(started.elapsed() >= Duration::from_millis(100));
+        drop(slot);
     }
 
     #[test]
