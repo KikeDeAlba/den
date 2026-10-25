@@ -1,4 +1,5 @@
 mod activation;
+mod agents;
 mod ask;
 mod atlassian_cmd;
 mod cli;
@@ -53,6 +54,8 @@ fn main() {
         }))
         .plugin(live::shortcut_plugin())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(agents::plugin())
         .manage(AppState::new())
         .manage(live::LiveSession::default())
         .manage(tray::TrayList::default())
@@ -160,7 +163,7 @@ fn main() {
                 tray::OPEN => {
                     let _ = shell::show(app);
                 }
-                tray::QUIT => app.exit(0),
+                tray::QUIT | menu::QUIT => agents::request_quit(app),
                 menu::LIVE => live::toggle(app),
                 _ => {}
             }
@@ -188,12 +191,14 @@ fn main() {
 }
 
 fn on_run_event(app: &AppHandle, event: RunEvent) {
+    if let RunEvent::Exit = event {
+        agents::hang_up_all(app);
+        return;
+    }
     #[cfg(target_os = "macos")]
     if let RunEvent::Reopen { .. } = event {
         let _ = shell::show(app);
     }
-    #[cfg(not(target_os = "macos"))]
-    let _ = (app, event);
 }
 
 fn spawn_refresh(app: AppHandle) {

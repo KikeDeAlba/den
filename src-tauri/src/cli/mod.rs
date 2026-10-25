@@ -81,6 +81,10 @@ impl Cli {
         &self.db_path
     }
 
+    pub fn bin(&self) -> &[OsString] {
+        &self.bin
+    }
+
     pub async fn call<T: DeserializeOwned>(&self, args: &[&str]) -> Result<T, Problem> {
         self.envelope::<T>(args).await?.ok_or_else(|| self.empty())
     }

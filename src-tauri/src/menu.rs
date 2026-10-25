@@ -3,6 +3,7 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::AppHandle;
 
 pub const LIVE: &str = "live-assist";
+pub const QUIT: &str = "quit";
 
 const GO_PREFIX: &str = "go:";
 
@@ -38,7 +39,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::hide(app, Some("Ocultar Den"))?,
             &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::quit(app, Some("Salir de Den"))?,
+            &MenuItem::with_id(app, QUIT, "Salir de Den", true, Some("CmdOrCtrl+Q"))?,
         ],
     )?;
 
@@ -90,7 +91,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{route_of, GO_PREFIX, LIVE, SECTIONS};
+    use super::{route_of, GO_PREFIX, LIVE, QUIT, SECTIONS};
 
     #[test]
     fn go_items_carry_their_route() {
@@ -136,6 +137,7 @@ mod tests {
     #[test]
     fn the_window_items_never_read_as_a_go_route() {
         assert_eq!(route_of(LIVE), None);
+        assert_eq!(route_of(QUIT), None);
         assert_eq!(route_of(""), None);
         assert_eq!(route_of("quit"), None);
     }

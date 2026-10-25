@@ -260,7 +260,7 @@ pub async fn doctor_report() -> Result<Report, Problem> {
 
 #[tauri::command]
 pub fn quit(app: AppHandle) {
-    app.exit(0);
+    crate::agents::request_quit(&app);
 }
 
 #[cfg(test)]
