@@ -41,6 +41,7 @@ pub struct QuitState {
     asking: AtomicBool,
     ending: AtomicBool,
     replying: AtomicBool,
+    shutting_down: AtomicBool,
 }
 
 impl QuitState {
@@ -89,7 +90,12 @@ impl QuitState {
 
     pub fn shutdown(&self) -> bool {
         self.replying.store(true, Ordering::SeqCst);
+        self.shutting_down.store(true, Ordering::SeqCst);
         self.start_ending()
+    }
+
+    pub fn shutting_down(&self) -> bool {
+        self.ending() && self.shutting_down.load(Ordering::SeqCst)
     }
 
     pub fn finish(&self, terminate: bool) -> Finish {
@@ -105,21 +111,56 @@ impl QuitState {
 }
 
 #[derive(Debug, Default)]
-pub struct PowerOff(Mutex<Option<Instant>>);
+struct PowerOffMark {
+    at: Option<Instant>,
+    seen: bool,
+}
+
+#[derive(Debug, Default)]
+pub struct PowerOff(Mutex<PowerOffMark>);
 
 impl PowerOff {
     pub const fn new() -> Self {
-        Self(Mutex::new(None))
+        Self(Mutex::new(PowerOffMark { at: None, seen: false }))
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, PowerOffMark> {
+        self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     pub fn mark(&self, now: Instant) {
-        *self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(now);
+        self.lock().at = Some(now);
     }
 
-    pub fn check(&self, now: Instant, keep: bool) -> bool {
-        let mut mark = self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        let at = if keep { *mark } else { mark.take() };
-        at.is_some_and(|at| now.saturating_duration_since(at) <= POWER_OFF_WINDOW)
+    pub fn check(&self, now: Instant) -> bool {
+        let mut mark = self.lock();
+        if !mark.seen {
+            mark.seen = mark.at.is_some_and(|at| now.saturating_duration_since(at) <= POWER_OFF_WINDOW);
+        }
+        mark.seen
+    }
+
+    pub fn clear(&self) {
+        *self.lock() = PowerOffMark::default();
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Terminate {
+    Now,
+    EndForShutdown,
+    Later,
+    Cancel,
+    Confirm,
+}
+
+pub fn decide_terminate(decision: QuitDecision, shutting_down: bool, system_quit: impl FnOnce() -> bool) -> Terminate {
+    match decision {
+        QuitDecision::Exit => Terminate::Now,
+        _ if shutting_down => Terminate::Later,
+        _ if system_quit() => Terminate::EndForShutdown,
+        QuitDecision::Wait => Terminate::Cancel,
+        QuitDecision::Confirm => Terminate::Confirm,
     }
 }
 
@@ -146,6 +187,14 @@ pub fn reply(app: &tauri::AppHandle, terminate: bool) {
 pub fn reply(_app: &tauri::AppHandle, _terminate: bool) {}
 
 #[cfg(target_os = "macos")]
+pub fn forget_power_off() {
+    mac::forget_power_off();
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn forget_power_off() {}
+
+#[cfg(target_os = "macos")]
 mod mac {
     use std::panic::{catch_unwind, AssertUnwindSafe};
     use std::sync::OnceLock;
@@ -156,7 +205,7 @@ mod mac {
     use objc2_foundation::NSString;
     use tauri::AppHandle;
 
-    use super::{is_system_quit_reason, PowerOff, QuitDecision};
+    use super::{is_system_quit_reason, PowerOff, Terminate};
 
     const TERMINATE_CANCEL: usize = 0;
     const TERMINATE_NOW: usize = 1;
@@ -186,19 +235,28 @@ mod mac {
         }
     }
 
+    pub fn forget_power_off() {
+        POWERING_OFF.clear();
+    }
+
     fn decide_terminate(app: &AppHandle) -> usize {
-        let powering_off = POWERING_OFF.check(Instant::now(), crate::agents::quit_ending(app));
-        match crate::agents::quit_decision(app) {
-            QuitDecision::Exit => TERMINATE_NOW,
-            _ if powering_off || quit_reason().is_some_and(is_system_quit_reason) => {
+        let terminate = super::decide_terminate(
+            crate::agents::quit_decision(app),
+            crate::agents::quit_shutting_down(app),
+            || POWERING_OFF.check(Instant::now()) || quit_reason().is_some_and(is_system_quit_reason),
+        );
+        match terminate {
+            Terminate::Now => TERMINATE_NOW,
+            Terminate::EndForShutdown => {
                 crate::agents::end_for_shutdown(app);
                 TERMINATE_LATER
             }
-            QuitDecision::Wait => {
+            Terminate::Later => TERMINATE_LATER,
+            Terminate::Cancel => {
                 let _ = crate::shell::show(app);
                 TERMINATE_CANCEL
             }
-            QuitDecision::Confirm => {
+            Terminate::Confirm => {
                 crate::agents::confirm_before_reply(app);
                 TERMINATE_LATER
             }
@@ -339,30 +397,60 @@ mod tests {
     }
 
     #[test]
-    fn a_power_off_mark_is_used_once_and_expires() {
+    fn a_power_off_mark_expires_and_is_cleared_when_den_finishes() {
         let marks = PowerOff::new();
         let now = Instant::now();
-        assert!(!marks.check(now, false));
+        assert!(!marks.check(now));
         marks.mark(now);
-        assert!(marks.check(now + Duration::from_secs(1), false));
-        assert!(!marks.check(now + Duration::from_secs(1), false));
+        assert!(!marks.check(now + POWER_OFF_WINDOW + Duration::from_secs(1)));
         marks.mark(now);
-        assert!(!marks.check(now + POWER_OFF_WINDOW + Duration::from_secs(1), false));
-        assert!(!marks.check(now, false));
+        assert!(marks.check(now + Duration::from_secs(1)));
+        marks.clear();
+        assert!(!marks.check(now + Duration::from_secs(1)));
     }
 
     #[test]
-    fn a_power_off_mark_survives_repeated_checks_while_the_sessions_end() {
+    fn a_power_off_mark_survives_repeated_checks_without_marking_again() {
         let marks = PowerOff::new();
         let now = Instant::now();
         marks.mark(now);
-        assert!(marks.check(now, false));
+        assert!(marks.check(now + Duration::from_secs(1)));
+        assert!(marks.check(now + Duration::from_secs(2)));
+        assert!(marks.check(now + POWER_OFF_WINDOW + Duration::from_secs(5)));
+    }
+
+    #[test]
+    fn a_second_terminate_request_during_a_shutdown_waits_instead_of_cancelling() {
+        let state = QuitState::default();
+        let marks = PowerOff::new();
+        let now = Instant::now();
         marks.mark(now);
-        assert!(marks.check(now + Duration::from_secs(1), true));
-        assert!(marks.check(now + Duration::from_secs(2), true));
-        assert!(!marks.check(now + POWER_OFF_WINDOW + Duration::from_secs(1), true));
-        assert!(marks.check(now + Duration::from_secs(3), false));
-        assert!(!marks.check(now + Duration::from_secs(3), true));
+        let first = decide_terminate(state.decide(2), state.shutting_down(), || marks.check(now));
+        assert_eq!(first, Terminate::EndForShutdown);
+        assert!(state.shutdown());
+        assert_eq!(state.decide(2), QuitDecision::Wait);
+        let second = decide_terminate(state.decide(2), state.shutting_down(), || false);
+        assert_eq!(second, Terminate::Later);
+        let unmarked = decide_terminate(state.decide(2), false, || marks.check(now + Duration::from_secs(1)));
+        assert_eq!(unmarked, Terminate::EndForShutdown);
+        assert!(!state.shutdown());
+        assert_eq!(state.finish(true), Finish { reply: Some(true), exit: false });
+        marks.clear();
+        assert_eq!(decide_terminate(state.decide(2), state.shutting_down(), || false), Terminate::Now);
+    }
+
+    #[test]
+    fn a_terminate_request_while_a_confirmed_quit_ends_the_sessions_is_cancelled_unless_the_system_quits() {
+        let state = QuitState::default();
+        state.ask(false);
+        assert_eq!(state.answer(true), Answer::EndAll);
+        assert!(state.start_ending());
+        assert!(!state.shutting_down());
+        assert_eq!(decide_terminate(state.decide(1), state.shutting_down(), || false), Terminate::Cancel);
+        assert_eq!(decide_terminate(state.decide(1), state.shutting_down(), || true), Terminate::EndForShutdown);
+        assert!(!state.shutdown());
+        assert!(state.shutting_down());
+        assert_eq!(decide_terminate(state.decide(1), state.shutting_down(), || false), Terminate::Later);
     }
 
     #[test]

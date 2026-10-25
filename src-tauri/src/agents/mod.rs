@@ -590,6 +590,7 @@ fn terminate_all(live: Vec<Arc<Pty>>, grace: Duration) {
 
 fn finish_quit(app: &AppHandle, terminate: bool) {
     let finish = app.state::<Agents>().quit.finish(terminate);
+    quit::forget_power_off();
     if let Some(answer) = finish.reply {
         quit::reply(app, answer);
         if answer {
@@ -632,8 +633,8 @@ pub fn quit_decision(app: &AppHandle) -> QuitDecision {
 }
 
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-pub fn quit_ending(app: &AppHandle) -> bool {
-    app.try_state::<Agents>().is_some_and(|agents| agents.quit.ending())
+pub fn quit_shutting_down(app: &AppHandle) -> bool {
+    app.try_state::<Agents>().is_some_and(|agents| agents.quit.shutting_down())
 }
 
 pub fn request_quit(app: &AppHandle) {
