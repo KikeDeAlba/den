@@ -65,6 +65,43 @@ describe('onSnapshot', () => {
   })
 })
 
+describe('subscriptions', () => {
+  it('stops delivering and unlistens once the returned function runs', async () => {
+    let registered: Handler | undefined
+    const unlisten = vi.fn()
+    listen.mockImplementation((_name: string, handler: Handler) => {
+      registered = handler
+      return Promise.resolve(unlisten)
+    })
+    const seen: unknown[] = []
+    const stop = onSnapshot((value) => seen.push(value))
+    await Promise.resolve()
+    stop()
+    expect(unlisten).toHaveBeenCalledTimes(1)
+    registered!({ payload: { running: [], todaySeconds: 1, problem: null } })
+    expect(seen).toEqual([])
+  })
+
+  it('unlistens a registration that resolves after the caller already gave up', async () => {
+    const unlisten = vi.fn()
+    let finish: (value: () => void) => void = () => undefined
+    listen.mockImplementation(() => new Promise((resolve) => (finish = resolve)))
+    const stop = onNavigate(() => undefined)
+    stop()
+    finish(unlisten)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(unlisten).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns a harmless function when the listener cannot be registered', async () => {
+    listen.mockReturnValue(Promise.reject(new Error('no tauri')))
+    const stop = onSnapshot(() => undefined)
+    await Promise.resolve()
+    expect(() => stop()).not.toThrow()
+  })
+})
+
 describe('snapshot', () => {
   it('invokes the snapshot command', async () => {
     invoke.mockResolvedValue({ running: [], todaySeconds: 0, problem: null })

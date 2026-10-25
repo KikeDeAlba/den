@@ -48,4 +48,23 @@ describe('rail', () => {
       .click()
     expect(location.hash).toBe('#/reuniones')
   })
+
+  it('hides the sections that are not available', () => {
+    const rail = buildRail()
+    rail.reveal(new Set(['ahora', 'ajustes']))
+    const shown = buttons(rail.element).filter((item) => !item.hidden)
+    expect(shown.map((item) => item.dataset['section'])).toEqual(['ahora', 'ajustes'])
+  })
+
+  it('shows a dot with an accessible note and clears it', () => {
+    const rail = buildRail()
+    const docs = buttons(rail.element).find((item) => item.dataset['section'] === 'docs')!
+    rail.mark('docs', '2 cambios propuestos')
+    expect(docs.dataset['dot']).toBe('true')
+    expect(docs.getAttribute('aria-label')).toBe('Documentación, 2 cambios propuestos')
+    expect(docs.querySelector('.rail-dot')).not.toBeNull()
+    rail.mark('docs', null)
+    expect(docs.dataset['dot']).toBe('false')
+    expect(docs.getAttribute('aria-label')).toBe('Documentación')
+  })
 })

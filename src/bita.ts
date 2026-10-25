@@ -352,6 +352,19 @@ export function setPay(pay: Pay): Promise<Pay> {
   return invoke<Pay>('set_pay', { pay })
 }
 
+export interface MenubarSettings {
+  showLabel: boolean
+  hideWhenIdle: boolean
+}
+
+export function menubarSettings(): Promise<MenubarSettings> {
+  return invoke<MenubarSettings>('menubar_settings')
+}
+
+export function menubarSettingsSet(settings: MenubarSettings): Promise<MenubarSettings> {
+  return invoke<MenubarSettings>('menubar_settings_set', { settings })
+}
+
 export function scopes(): Promise<Scope[]> {
   return invoke<Scope[]>('scopes')
 }
@@ -1394,10 +1407,28 @@ export function quit(): Promise<void> {
   return invoke<void>('quit')
 }
 
-export function onSnapshot(handler: (value: Snapshot) => void): void {
-  void listen<Snapshot>(SNAPSHOT_EVENT, (event) => {
-    handler(event.payload)
+export type Unsubscribe = () => void
+
+function subscribe<T>(name: string, handler: (payload: T) => void): Unsubscribe {
+  let stop: (() => void) | null = null
+  let cancelled = false
+  void listen<T>(name, (event) => {
+    if (!cancelled) handler(event.payload)
   })
+    .then((unlisten) => {
+      if (cancelled) unlisten()
+      else stop = unlisten
+    })
+    .catch(() => undefined)
+  return () => {
+    cancelled = true
+    stop?.()
+    stop = null
+  }
+}
+
+export function onSnapshot(handler: (value: Snapshot) => void): Unsubscribe {
+  return subscribe<Snapshot>(SNAPSHOT_EVENT, handler)
 }
 
 export function liveState(): Promise<LiveView> {
@@ -1448,10 +1479,8 @@ export function navigate(route: string): Promise<void> {
   return invoke('navigate_to', { route })
 }
 
-export function onNavigate(handler: (route: string) => void): void {
-  void listen<string>(NAVIGATE_EVENT, (event) => {
-    handler(event.payload)
-  }).catch(() => undefined)
+export function onNavigate(handler: (route: string) => void): Unsubscribe {
+  return subscribe<string>(NAVIGATE_EVENT, handler)
 }
 
 export function openSourceFile(path: string): Promise<void> {

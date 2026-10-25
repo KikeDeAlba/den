@@ -75,6 +75,8 @@ fn main() {
             report::report,
             pay::get_pay,
             pay::set_pay,
+            tray::menubar_settings,
+            tray::menubar_settings_set,
             coworkers::coworker_overtime,
             coworkers::overtime_excludes_list,
             coworkers::overtime_excludes_add,
@@ -160,6 +162,10 @@ fn main() {
                 return;
             }
             match id {
+                tray::OPEN => {
+                    let _ = shell::show(app);
+                }
+                tray::QUIT => app.exit(0),
                 menu::LIVE => live::toggle(app),
                 menu::LIVE_WIDE => live::open_wide(app),
                 _ => {}
@@ -213,13 +219,20 @@ fn spawn_tick(app: AppHandle) {
         let mut ticker = interval(TICK);
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
         let mut shown_title: Option<String> = None;
+        let mut shown_icon: Option<bool> = None;
         loop {
             ticker.tick().await;
             let snapshot = app.state::<AppState>().snapshot(Utc::now());
-            let title = tray::format_title(&snapshot.running);
+            let settings = tray::settings(&app);
+            let title = tray::format_title(&snapshot.running, settings.show_label);
             if shown_title.as_deref() != Some(title.as_str()) {
                 tray::set_title(&app, &title);
                 shown_title = Some(title);
+            }
+            let visible = tray::icon_visible(&snapshot.running, settings);
+            if shown_icon != Some(visible) {
+                tray::set_visible(&app, visible);
+                shown_icon = Some(visible);
             }
             tray::update_list(&app, &snapshot.running);
             if shell::is_showing(&app) || live::is_visible(&app) {
