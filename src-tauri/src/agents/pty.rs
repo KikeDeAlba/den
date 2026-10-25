@@ -23,6 +23,7 @@ const MARK_SPACING: u64 = 1024;
 pub const KILL_SETTLE: Duration = Duration::from_secs(2);
 const POLL: Duration = Duration::from_millis(20);
 const DRAIN_LIMIT: Duration = Duration::from_millis(500);
+pub const ORPHAN_GRACE: Duration = Duration::from_secs(1);
 
 pub type Sink = Box<dyn Fn(Vec<u8>) -> bool + Send>;
 
@@ -242,8 +243,12 @@ impl Pty {
         };
         let drained = Arc::clone(&self.drained);
         let finished = Arc::clone(&self.exit);
+        let group = self.group;
         thread::spawn(move || {
             let code = child.wait().ok().map(|status| i32::try_from(status.exit_code()).unwrap_or(i32::MAX));
+            if let Some(group) = group {
+                end_orphans(group, ORPHAN_GRACE);
+            }
             let deadline = Instant::now() + DRAIN_LIMIT;
             while !drained.load(Ordering::SeqCst) && Instant::now() < deadline {
                 thread::sleep(Duration::from_millis(10));
@@ -334,6 +339,19 @@ impl Pty {
             thread::sleep(POLL);
         }
         true
+    }
+}
+
+fn end_orphans(group: u32, grace: Duration) {
+    if !group_exists(group) || !signal_group(group, Signal::Hangup) {
+        return;
+    }
+    let deadline = Instant::now() + grace;
+    while group_exists(group) && Instant::now() < deadline {
+        thread::sleep(POLL);
+    }
+    if group_exists(group) {
+        signal_group(group, Signal::Kill);
     }
 }
 
@@ -624,6 +642,41 @@ mod tests {
         pty.terminate(Duration::from_millis(300));
         receiver.recv_timeout(Duration::from_secs(5)).expect("exit");
         assert!(gone(child));
+    }
+
+    fn child_pid(text: &str) -> libc::pid_t {
+        text.split("child:")
+            .nth(1)
+            .and_then(|rest| rest.split_whitespace().next())
+            .and_then(|pid| pid.parse().ok())
+            .expect("child pid")
+    }
+
+    fn gone_within(pid: libc::pid_t, limit: Duration) -> bool {
+        let deadline = Instant::now() + limit;
+        while !gone(pid) && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(20));
+        }
+        gone(pid)
+    }
+
+    #[test]
+    fn a_background_job_that_ignores_hangup_is_killed_after_the_leader_exits() {
+        let (sender, receiver) = mpsc::channel();
+        let pty = started(
+            &shell("sh -c \"trap '' HUP; echo child:$$; exec sleep 30\" & read line; exit 0"),
+            exited(sender),
+        )
+        .expect("spawn");
+        let seen = collector(&pty);
+        assert!(wait_for(&seen, "child:"));
+        let child = child_pid(&String::from_utf8_lossy(&lock(&seen)));
+        thread::sleep(Duration::from_millis(100));
+        let started = Instant::now();
+        pty.write(b"\r").expect("write");
+        receiver.recv_timeout(Duration::from_secs(5)).expect("exit");
+        assert!(started.elapsed() >= ORPHAN_GRACE - Duration::from_millis(100));
+        assert!(gone_within(child, Duration::from_secs(2)), "background job {child} survived its leader");
     }
 
     #[test]
