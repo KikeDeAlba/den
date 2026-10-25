@@ -94,12 +94,18 @@ pub struct PendingAsk {
     pub channel: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum LiveMode {
-    #[default]
-    Compact,
-    Wide,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Toggle {
+    Show,
+    Hide,
+}
+
+pub fn toggle_action(visible: bool) -> Toggle {
+    if visible {
+        Toggle::Hide
+    } else {
+        Toggle::Show
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -115,7 +121,6 @@ pub struct LiveView {
     pub pending_asks: Vec<PendingAsk>,
     pub shortcut: String,
     pub visible: bool,
-    pub mode: LiveMode,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -140,8 +145,6 @@ pub struct FullTranscript {
 struct StoredSettings {
     #[serde(default)]
     shortcut: Option<String>,
-    #[serde(default)]
-    mode: Option<LiveMode>,
 }
 
 #[derive(Default)]
@@ -418,43 +421,10 @@ fn hide_compact(app: &AppHandle) {
     }
 }
 
-fn open_meetings(app: &AppHandle, focus: bool) -> tauri::Result<()> {
-    if focus {
-        return crate::shell::navigate(app, MEETINGS_ROUTE);
-    }
-    let window = crate::shell::create(app)?;
-    window.show()?;
-    window.emit_to(crate::shell::LABEL, crate::shell::NAVIGATE_EVENT, MEETINGS_ROUTE)?;
-    Ok(())
-}
-
-fn open_mode(app: &AppHandle, mode: LiveMode, focus: bool) -> tauri::Result<()> {
-    match mode {
-        LiveMode::Compact => open_compact(app)?,
-        LiveMode::Wide => {
-            hide_compact(app);
-            open_meetings(app, focus)?;
-        }
-    }
+pub fn show(app: &AppHandle) -> tauri::Result<()> {
+    open_compact(app)?;
     let _ = app.emit(STATE_EVENT, ());
     Ok(())
-}
-
-pub fn mode(app: &AppHandle) -> LiveMode {
-    stored_settings(app).mode.unwrap_or_default()
-}
-
-pub fn open_passive(app: &AppHandle) -> tauri::Result<()> {
-    open_mode(app, mode(app), false)
-}
-
-pub fn switch_mode(app: &AppHandle, wanted: LiveMode) -> Result<(), Problem> {
-    let mut settings = stored_settings(app);
-    settings.mode = Some(wanted);
-    let stored = store_settings(app, &settings);
-    open_mode(app, wanted, true)
-        .map_err(|error| Problem::new(ProblemKind::Unreadable, format!("No pude abrir el asistente: {error}")))?;
-    stored
 }
 
 pub fn hide(app: &AppHandle) {
@@ -462,12 +432,20 @@ pub fn hide(app: &AppHandle) {
     let _ = app.emit(STATE_EVENT, ());
 }
 
-pub fn toggle(app: &AppHandle) {
-    if is_visible(app) {
-        hide(app);
-    } else {
-        let _ = open_passive(app);
+pub fn toggle(app: &AppHandle) -> Toggle {
+    let action = toggle_action(is_visible(app));
+    match action {
+        Toggle::Hide => hide(app),
+        Toggle::Show => {
+            let _ = show(app);
+        }
     }
+    action
+}
+
+fn open_meetings(app: &AppHandle) -> tauri::Result<()> {
+    hide(app);
+    crate::shell::navigate(app, MEETINGS_ROUTE)
 }
 
 fn settings_path(app: &AppHandle) -> Option<PathBuf> {
@@ -494,7 +472,9 @@ fn store_settings(app: &AppHandle, settings: &StoredSettings) -> Result<(), Prob
 }
 
 pub fn shortcut_fired(app: &AppHandle) {
-    let _ = open_passive(app);
+    if toggle(app) == Toggle::Hide {
+        return;
+    }
     if app.state::<LiveSession>().active().is_none() {
         let _ = app.emit(
             ask::ANSWER_EVENT,
@@ -588,7 +568,7 @@ async fn started(app: &AppHandle, active: ActiveMeeting) {
     }
     let opens = live_config().await.map(|config| config.enabled && config.open_window).unwrap_or(false);
     if opens {
-        let _ = open_passive(app);
+        let _ = show(app);
     }
     let _ = app.emit(STATE_EVENT, ());
 }
@@ -719,7 +699,6 @@ fn view(app: &AppHandle) -> LiveView {
         pending_asks: inner.pending_asks.clone(),
         shortcut,
         visible: is_visible(app),
-        mode: mode(app),
     }
 }
 
@@ -735,8 +714,9 @@ pub fn live_transcript_full(app: AppHandle) -> Option<FullTranscript> {
 }
 
 #[tauri::command]
-pub fn live_mode_set(app: AppHandle, mode: LiveMode) -> Result<(), Problem> {
-    switch_mode(&app, mode)
+pub fn live_open_meetings(app: AppHandle) -> Result<(), Problem> {
+    open_meetings(&app)
+        .map_err(|error| Problem::new(ProblemKind::Unreadable, format!("No pude abrir Reuniones: {error}")))
 }
 
 #[tauri::command]
@@ -746,7 +726,7 @@ pub fn live_state(app: AppHandle) -> LiveView {
 
 #[tauri::command]
 pub fn live_show(app: AppHandle) -> Result<(), Problem> {
-    open_passive(&app)
+    show(&app)
         .map_err(|error| Problem::new(ProblemKind::Unreadable, format!("No pude abrir el asistente: {error}")))
 }
 
@@ -901,7 +881,7 @@ pub async fn open_source_file(path: String) -> Result<(), Problem> {
 mod tests {
     use super::{
         config_value, increment, openable_file, parse_active, parse_asking, parse_config, read_asking, read_asking_dir,
-        read_pending_asks, state_dir_from, tail, AskPhase, LiveMode, StoredSettings,
+        read_pending_asks, state_dir_from, tail, toggle_action, AskPhase, StoredSettings, Toggle,
     };
     use serde_json::json;
     use std::path::PathBuf;
@@ -1161,17 +1141,19 @@ mod tests {
     }
 
     #[test]
-    fn the_remembered_mode_defaults_to_compact_and_survives_the_shortcut() {
+    fn settings_from_the_old_wide_mode_still_load_their_shortcut() {
         let empty: StoredSettings = serde_json::from_str("{}").expect("empty");
-        assert_eq!(empty.mode.unwrap_or_default(), LiveMode::Compact);
-        let older: StoredSettings = serde_json::from_str(r#"{"shortcut":"Ctrl+Alt+Space"}"#).expect("older");
-        assert_eq!(older.mode, None);
+        assert_eq!(empty.shortcut, None);
         let wide: StoredSettings = serde_json::from_str(r#"{"shortcut":"Ctrl+Alt+A","mode":"wide"}"#).expect("wide");
-        assert_eq!(wide.mode, Some(LiveMode::Wide));
         assert_eq!(wide.shortcut.as_deref(), Some("Ctrl+Alt+A"));
         let text = serde_json::to_string(&wide).expect("serialize");
-        assert!(text.contains(r#""mode":"wide""#));
-        assert!(serde_json::from_str::<StoredSettings>(r#"{"mode":"huge"}"#).is_err());
+        assert!(!text.contains("mode"));
+    }
+
+    #[test]
+    fn the_shortcut_always_toggles_the_mini_window() {
+        assert_eq!(toggle_action(false), Toggle::Show);
+        assert_eq!(toggle_action(true), Toggle::Hide);
     }
 
     #[test]

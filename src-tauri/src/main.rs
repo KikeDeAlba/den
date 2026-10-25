@@ -137,7 +137,7 @@ fn main() {
             live::live_shortcut_set,
             live::open_source_file,
             live::live_transcript_full,
-            live::live_mode_set,
+            live::live_open_meetings,
             shell::navigate_to,
             proposals::docs_branch_diff,
             proposals::page_history,
@@ -160,7 +160,9 @@ fn main() {
                     let _ = shell::show(app);
                 }
                 tray::QUIT => app.exit(0),
-                menu::LIVE => live::toggle(app),
+                menu::LIVE => {
+                    live::toggle(app);
+                }
                 _ => {}
             }
         })

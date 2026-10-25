@@ -722,9 +722,6 @@ export interface PendingAsk {
   channel?: 'mic' | 'system' | string
 }
 
-export type LiveMode = 'compact' | 'wide'
-
-
 export interface LiveView {
   active: ActiveMeeting | null
   title: string | null
@@ -736,7 +733,6 @@ export interface LiveView {
   pendingAsks: PendingAsk[]
   shortcut: string
   visible: boolean
-  mode: LiveMode
 }
 
 export interface LiveTranscriptUpdate {
@@ -1491,8 +1487,8 @@ export function liveTranscriptFull(): Promise<LiveFullTranscript | null> {
   return invoke<LiveFullTranscript | null>('live_transcript_full')
 }
 
-export function liveModeSet(mode: LiveMode): Promise<void> {
-  return invoke('live_mode_set', { mode })
+export function liveOpenMeetings(): Promise<void> {
+  return invoke('live_open_meetings')
 }
 
 export function navigate(route: string): Promise<void> {

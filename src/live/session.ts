@@ -55,7 +55,6 @@ export const EMPTY_VIEW: LiveView = {
   pendingAsks: [],
   shortcut: 'Ctrl+Alt+Space',
   visible: true,
-  mode: 'compact',
 }
 
 export class Session {
