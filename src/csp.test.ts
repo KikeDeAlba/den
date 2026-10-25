@@ -26,6 +26,13 @@ describe('content security policy', () => {
     }
   })
 
+  it('lets the webview reach the Tauri IPC and nothing else beyond self', () => {
+    const config = JSON.parse(read(join(ROOT, 'src-tauri', 'tauri.conf.json'))) as { app: { security: { csp: string } } }
+    const directives = config.app.security.csp.split(';').map((part) => part.trim())
+    const connect = directives.filter((part) => part.startsWith('connect-src'))
+    expect(connect).toEqual(["connect-src 'self' ipc: http://ipc.localhost"])
+  })
+
   it('handles every form submit in script so form-action none never blocks it', () => {
     for (const file of files(SRC)) {
       const text = read(file)
