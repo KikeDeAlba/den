@@ -597,24 +597,27 @@ mod tests {
     }
 
     #[test]
-    fn a_stalled_consumer_pauses_the_reader() {
-        struct Endless(Arc<std::sync::atomic::AtomicUsize>);
-        impl Read for Endless {
-            fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
-                self.0.fetch_add(1, Ordering::SeqCst);
-                buffer.fill(b'x');
-                Ok(buffer.len())
-            }
-        }
-        let reads = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let (sender, receiver) = mpsc::sync_channel(QUEUE_DEPTH);
-        let reader = Endless(Arc::clone(&reads));
-        let worker = thread::spawn(move || read_loop(Box::new(reader), sender));
-        thread::sleep(Duration::from_millis(300));
-        let seen = reads.load(Ordering::SeqCst);
-        assert!(seen <= QUEUE_DEPTH + 2, "{seen} reads while nobody consumed");
-        drop(receiver);
-        worker.join().expect("reader stops");
+    fn a_stalled_consumer_pauses_the_program() {
+        const TOTAL: usize = 32 * 1024 * 1024;
+        let (sender, receiver) = mpsc::channel();
+        let pty = started(&shell(&format!("read go; head -c {TOTAL} /dev/zero | tr '\\0' x; echo; echo done-now")), exited(sender))
+            .expect("spawn");
+        let (open_gate, gate) = mpsc::channel::<()>();
+        let gate = Mutex::new(gate);
+        let received = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counted = Arc::clone(&received);
+        pty.attach(Box::new(move |chunk| {
+            let _ = lock(&gate).recv();
+            counted.fetch_add(chunk.iter().filter(|byte| **byte == b'x').count(), Ordering::SeqCst);
+            true
+        }));
+        pty.write(b"\r").expect("write");
+        thread::sleep(Duration::from_millis(1500));
+        assert!(pty.alive(), "the program wrote everything while nobody consumed");
+        assert_eq!(received.load(Ordering::SeqCst), 0);
+        drop(open_gate);
+        assert_eq!(receiver.recv_timeout(Duration::from_secs(20)).expect("exit"), Some(0));
+        assert_eq!(received.load(Ordering::SeqCst), TOTAL);
     }
 
     #[test]

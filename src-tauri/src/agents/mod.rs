@@ -954,7 +954,7 @@ mod tests {
         let pty = Arc::new(
             Pty::spawn(&PtySpec {
                 program: PathBuf::from("/bin/sh"),
-                args: vec!["-c".into(), "read line; echo got:$line".into()],
+                args: vec!["-c".into(), "stty raw -echo; echo ready; exec sleep 30".into()],
                 cwd: None,
                 env: vec![("PATH".into(), "/usr/bin:/bin".into())],
                 cols: 80,
@@ -962,12 +962,37 @@ mod tests {
             })
             .expect("spawn"),
         );
-        let (sender, receiver) = std::sync::mpsc::channel();
-        pty.watch(move |code| {
-            let _ = sender.send(code);
+        pty.watch(|_| ());
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let target = Arc::clone(&seen);
+        pty.attach(Box::new(move |chunk| {
+            lock(&target).extend(chunk);
+            true
+        }));
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while !String::from_utf8_lossy(&lock(&seen)).contains("ready") && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let watchdog = {
+            let pty = Arc::clone(&pty);
+            std::thread::spawn(move || {
+                let _ = released.recv_timeout(Duration::from_secs(3));
+                pty.terminate(Duration::from_millis(200));
+            })
+        };
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_time().build().expect("runtime");
+        let started = std::time::Instant::now();
+        let (stalled, caller_free) = runtime.block_on(async {
+            let write = write_blocking(Arc::clone(&pty), vec![b'x'; 4 * 1024 * 1024]);
+            tokio::pin!(write);
+            let stalled = tokio::time::timeout(Duration::from_millis(300), &mut write).await.is_err();
+            (stalled, started.elapsed() < Duration::from_secs(2))
         });
-        tauri::async_runtime::block_on(write_blocking(Arc::clone(&pty), b"hola\r".to_vec())).expect("write");
-        assert_eq!(receiver.recv_timeout(Duration::from_secs(5)).expect("exit"), Some(0));
+        assert!(stalled, "the write finished although nobody reads the terminal");
+        assert!(caller_free, "the calling thread was blocked by the write");
+        drop(release);
+        let _ = watchdog.join();
     }
 
     #[test]
