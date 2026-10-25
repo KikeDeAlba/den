@@ -698,6 +698,20 @@ pub fn hang_up_all(app: &AppHandle) {
 mod tests {
     use super::*;
 
+    const PATH_SEP: &str = if cfg!(windows) { ";" } else { ":" };
+
+    fn abs(path: &str) -> String {
+        if cfg!(windows) {
+            format!("C:{}", path.replace('/', "\\"))
+        } else {
+            path.to_string()
+        }
+    }
+
+    fn abs_os(path: &str) -> OsString {
+        OsString::from(abs(path))
+    }
+
     #[test]
     fn listing_without_a_folder_asks_for_every_session() {
         assert_eq!(sessions_args(None, 50), ["sessions", "ls", "--all", "--limit", "50"]);
@@ -728,7 +742,7 @@ mod tests {
 
     fn env_of(pairs: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
         pty_env(
-            &[OsString::from("/opt/bita/bin/bita")],
+            &[abs_os("/opt/bita/bin/bita")],
             pairs.iter().map(|(key, value)| (OsString::from(key), OsString::from(value))),
         )
     }
@@ -739,22 +753,26 @@ mod tests {
 
     #[test]
     fn the_terminal_gets_colors_and_a_usable_path() {
-        let env = env_of(&[("NO_COLOR", "1"), ("PATH", "/custom/bin")]);
+        let custom = abs("/custom/bin");
+        let env = env_of(&[("NO_COLOR", "1"), ("PATH", custom.as_str())]);
         assert_eq!(lookup(&env, "TERM").as_deref(), Some("xterm-256color"));
         assert_eq!(lookup(&env, "NO_COLOR"), None);
         let path = lookup(&env, "PATH").expect("path");
-        assert!(path.starts_with("/opt/bita/bin"));
-        assert!(path.ends_with("/custom/bin"));
+        assert!(path.starts_with(&abs("/opt/bita/bin")), "{path}");
+        assert!(path.ends_with(&custom), "{path}");
     }
 
     #[test]
     fn relative_and_empty_path_entries_are_not_inherited() {
-        let env = env_of(&[("PATH", "/usr/bin::.:bin:./node_modules/.bin:/custom/bin:")]);
+        let inherited = [abs("/usr/bin"), String::new(), ".".into(), "bin".into(), "./node_modules/.bin".into(), abs("/custom/bin"), String::new()]
+            .join(PATH_SEP);
+        let env = env_of(&[("PATH", inherited.as_str())]);
         let path = lookup(&env, "PATH").expect("path");
         let entries: Vec<String> = std::env::split_paths(&path).map(|entry| entry.to_string_lossy().into_owned()).collect();
-        assert!(entries.iter().all(|entry| entry.starts_with('/')), "{path}");
-        assert!(path.ends_with(":/usr/bin:/custom/bin"), "{path}");
-        let only_relative = env_of(&[("PATH", ".:bin:")]);
+        assert!(entries.iter().all(|entry| Path::new(entry).is_absolute()), "{path}");
+        assert!(path.ends_with(&format!("{PATH_SEP}{}{PATH_SEP}{}", abs("/usr/bin"), abs("/custom/bin"))), "{path}");
+        let only_relative_path = [".", "bin", ""].join(PATH_SEP);
+        let only_relative = env_of(&[("PATH", only_relative_path.as_str())]);
         let path = lookup(&only_relative, "PATH").expect("path");
         assert!(std::env::split_paths(&path).all(|entry| entry.is_absolute()), "{path}");
     }
@@ -767,17 +785,17 @@ mod tests {
             ..SpawnRequest::default()
         };
         for program in ["bita", "./bita", "bin/node", ""] {
-            let bin = [OsString::from(program), OsString::from("/opt/bita.js")];
+            let bin = [OsString::from(program), abs_os("/opt/bita.js")];
             let refused = spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).expect_err(program);
             assert!(refused.message.contains("ruta incompleta"), "{program}: {}", refused.message);
         }
         for script in ["bita.js", "./bita.js", "dist/bin/bita.js", ""] {
-            let bin = [OsString::from("/usr/bin/node"), OsString::from("--no-warnings"), OsString::from(script)];
+            let bin = [abs_os("/usr/bin/node"), OsString::from("--no-warnings"), OsString::from(script)];
             let refused = spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).expect_err(script);
             assert!(refused.message.contains("ruta incompleta"), "{script}: {}", refused.message);
         }
-        assert!(spec_for(&[OsString::from("/usr/bin/node")], Path::new("/tmp/x.db"), &request, 80, 24).is_ok());
-        let bin = [OsString::from("/usr/bin/node"), OsString::from("--no-warnings"), OsString::from("/opt/bita.js")];
+        assert!(spec_for(&[abs_os("/usr/bin/node")], Path::new("/tmp/x.db"), &request, 80, 24).is_ok());
+        let bin = [abs_os("/usr/bin/node"), OsString::from("--no-warnings"), abs_os("/opt/bita.js")];
         assert!(spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).is_ok());
     }
 
@@ -841,12 +859,12 @@ mod tests {
             prompt: Some("hola".into()),
             ..SpawnRequest::default()
         };
-        let bin = [OsString::from("/usr/bin/node"), OsString::from("/opt/bita.js")];
+        let bin = [abs_os("/usr/bin/node"), abs_os("/opt/bita.js")];
         let spec = spec_for(&bin, Path::new("/tmp/test.db"), &request, 0, 0).expect("spec");
-        assert_eq!(spec.program, PathBuf::from("/usr/bin/node"));
+        assert_eq!(spec.program, PathBuf::from(abs("/usr/bin/node")));
         assert_eq!(
             spec.args,
-            ["/opt/bita.js", "work", "--harness", "codex", "--project=0", "--prompt=hola", "--db-path", "/tmp/test.db"]
+            [abs("/opt/bita.js").as_str(), "work", "--harness", "codex", "--project=0", "--prompt=hola", "--db-path", "/tmp/test.db"]
         );
         assert_eq!(spec.cwd, Some(std::fs::canonicalize(folder).expect("canonical")));
         assert_eq!((spec.cols, spec.rows), (DEFAULT_COLS, DEFAULT_ROWS));
@@ -854,13 +872,13 @@ mod tests {
 
     #[test]
     fn a_new_session_needs_an_existing_folder() {
-        let bin = [OsString::from("/usr/bin/bita")];
+        let bin = [abs_os("/usr/bin/bita")];
         let mut request = SpawnRequest {
             harness: Some("claude".into()),
             ..SpawnRequest::default()
         };
         assert!(spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).is_err());
-        request.cwd = Some("/definitely/not/here".into());
+        request.cwd = Some(abs("/definitely/not/here"));
         let missing = spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).expect_err("missing");
         assert!(missing.message.contains("ya no existe"));
         request.cwd = Some("relative/dir".into());
@@ -871,7 +889,7 @@ mod tests {
     fn the_folder_is_canonicalized() {
         let root = std::env::temp_dir().join(format!("den-agent-cwd-{}", std::process::id()));
         std::fs::create_dir_all(root.join("inner")).expect("dirs");
-        let bin = [OsString::from("/usr/bin/bita")];
+        let bin = [abs_os("/usr/bin/bita")];
         let request = SpawnRequest {
             harness: Some("claude".into()),
             cwd: Some(root.join("inner").join("..").join("inner").to_string_lossy().into_owned()),
@@ -884,13 +902,13 @@ mod tests {
 
     #[test]
     fn resuming_runs_in_the_session_folder_and_fails_when_it_is_gone() {
-        let bin = [OsString::from("/usr/bin/bita")];
+        let bin = [abs_os("/usr/bin/bita")];
         let mut request = SpawnRequest {
             resume_session: Some(7),
             ..SpawnRequest::default()
         };
         assert!(spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).is_err());
-        request.cwd = Some("/definitely/not/here".into());
+        request.cwd = Some(abs("/definitely/not/here"));
         let gone = spec_for(&bin, Path::new("/tmp/x.db"), &request, 80, 24).expect_err("gone");
         assert!(gone.message.contains("ya no existe"));
         request.cwd = Some(std::env::temp_dir().to_string_lossy().into_owned());
