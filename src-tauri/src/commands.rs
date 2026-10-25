@@ -7,16 +7,8 @@ use crate::docs::Feature;
 use crate::doctor::{self, Report};
 use crate::worked::{self, WorkedView};
 use crate::model::{Entry, Problem, Scope, SummaryData, SummaryMeta, SummaryView, Snapshot};
-use crate::registry::{Origin, Tool};
+use crate::registry::Tool;
 use crate::state::AppState;
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CliInfo {
-    pub command: String,
-    pub database: String,
-    pub from_environment: bool,
-}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -65,15 +57,6 @@ pub fn jira_projects_of(rows: Vec<serde_json::Value>) -> Vec<JiraProject> {
 #[tauri::command]
 pub fn snapshot(state: State<'_, AppState>) -> Snapshot {
     state.snapshot(Utc::now())
-}
-
-#[tauri::command]
-pub fn cli_info(state: State<'_, AppState>) -> Option<CliInfo> {
-    state.describe_cli().map(|cli| CliInfo {
-        command: cli.command_line(),
-        database: cli.database_path().display().to_string(),
-        from_environment: cli.origin() == Origin::Override,
-    })
 }
 
 #[tauri::command]

@@ -59,7 +59,6 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::snapshot,
             commands::refresh,
-            commands::cli_info,
             commands::projects,
             commands::jira_projects,
             commands::start_timer,
