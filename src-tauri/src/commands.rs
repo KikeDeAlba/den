@@ -199,6 +199,22 @@ pub async fn pending() -> Result<SummaryView, Problem> {
     Ok(summary_view(data, meta))
 }
 
+pub fn time_summary_args(range: &str) -> [&'static str; 4] {
+    let range = match range {
+        "week" => "week",
+        _ => "today",
+    };
+    ["summary", range, "--include-running", "--no-notes"]
+}
+
+#[tauri::command]
+pub async fn time_summary(range: String) -> Result<SummaryView, Problem> {
+    crate::docs::require(Feature::Jira).await?;
+    let cli = Cli::for_tool(Tool::Tally).await?;
+    let (data, meta) = cli.call_with_meta::<SummaryData>(&time_summary_args(&range)).await?;
+    Ok(summary_view(data, meta))
+}
+
 #[tauri::command]
 pub async fn jira_projects() -> Result<Vec<JiraProject>, Problem> {
     let status = crate::registry::global().status().await;
@@ -253,16 +269,6 @@ pub fn open_notes(app: AppHandle, entry_id: Option<i64>) -> Result<(), Problem> 
 }
 
 #[tauri::command]
-pub fn open_reports(app: AppHandle) -> Result<(), Problem> {
-    crate::reports::open(&app).map_err(|error| {
-        Problem::new(
-            ProblemKind::Unreadable,
-            format!("No pude abrir la ventana de reportes: {error}"),
-        )
-    })
-}
-
-#[tauri::command]
 pub fn open_brain(app: AppHandle) -> Result<(), Problem> {
     crate::brain::open(&app).map_err(|error| {
         Problem::new(
@@ -303,7 +309,7 @@ pub fn quit(app: AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::{jira_projects_of, summary_view, JiraProject, Project};
+    use super::{jira_projects_of, summary_view, time_summary_args, JiraProject, Project};
     use crate::model::SummaryData;
     use serde_json::json;
 
@@ -391,5 +397,35 @@ mod tests {
         let empty = summary_view(bare, serde_json::Value::Null);
         assert_eq!(empty.jira_seconds, 0);
         assert!(empty.groups.is_empty() && empty.excluded.is_empty());
+    }
+
+    #[test]
+    fn a_time_summary_keeps_the_issue_key_and_kind_of_each_task() {
+        let data: SummaryData = serde_json::from_value(json!({
+            "totalSeconds": 3600,
+            "totalHuman": "1h",
+            "groups": [
+                {"summary": "Firma BBVA", "projectId": 7, "projectName": "CoDi", "totalSeconds": 3600, "totalHuman": "1h",
+                 "estimateSeconds": 3600, "estimateHuman": "1h", "entryIds": [1], "days": ["2026-10-10"],
+                 "partIndex": 1, "partCount": 1, "jira": true, "issueKey": "COD-12", "kind": "remote-meeting"},
+                {"summary": "Sin tarjeta", "projectId": 7, "projectName": "CoDi", "totalSeconds": 600, "totalHuman": "10m",
+                 "estimateSeconds": 1800, "estimateHuman": "30m", "entryIds": [2], "days": ["2026-10-10"],
+                 "partIndex": 1, "partCount": 1, "jira": true, "issueKey": null}
+            ]
+        }))
+        .expect("tally data");
+        let view = summary_view(data, serde_json::Value::Null);
+        assert_eq!(view.groups[0].issue_key.as_deref(), Some("COD-12"));
+        assert_eq!(view.groups[0].kind.as_deref(), Some("remote-meeting"));
+        assert_eq!(view.groups[1].issue_key, None);
+        let json = serde_json::to_value(&view).expect("json");
+        assert_eq!(json["groups"][0]["issueKey"], "COD-12");
+    }
+
+    #[test]
+    fn a_time_summary_asks_tally_for_today_or_the_week_with_running_timers() {
+        assert_eq!(time_summary_args("week"), ["summary", "week", "--include-running", "--no-notes"]);
+        assert_eq!(time_summary_args("today"), ["summary", "today", "--include-running", "--no-notes"]);
+        assert_eq!(time_summary_args("rm -rf"), ["summary", "today", "--include-running", "--no-notes"]);
     }
 }

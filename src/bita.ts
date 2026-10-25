@@ -140,6 +140,8 @@ export interface Group {
   partCount: number
   jiraProjectKey: string | null
   jira: boolean
+  issueKey?: string | null
+  kind?: string | null
 }
 
 export interface NonJira {
@@ -204,6 +206,10 @@ export function worked(range: 'today' | 'week'): Promise<WorkedView> {
 
 export function pending(): Promise<SummaryView> {
   return invoke<SummaryView>('pending')
+}
+
+export function timeSummary(range: 'today' | 'week'): Promise<SummaryView> {
+  return invoke<SummaryView>('time_summary', { range })
 }
 
 export interface ReportRange {
@@ -474,10 +480,6 @@ export function installHint(status: ToolsStatus | null, tool: ToolName): string 
 
 export function openNotes(entryId: number | null): Promise<void> {
   return invoke<void>('open_notes', { entryId })
-}
-
-export function openReports(): Promise<void> {
-  return invoke<void>('open_reports')
 }
 
 export function openBrain(): Promise<void> {

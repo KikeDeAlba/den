@@ -7,7 +7,7 @@ export default defineConfig({
   build: {
     target: ['es2022', 'safari16', 'chrome111', 'firefox115'],
     rollupOptions: {
-      input: { index: 'index.html', notas: 'notas.html', live: 'live.html', 'live-wide': 'live-wide.html', reportes: 'reportes.html', cerebro: 'cerebro.html' },
+      input: { index: 'index.html', notas: 'notas.html', live: 'live.html', 'live-wide': 'live-wide.html', cerebro: 'cerebro.html' },
     },
   },
   server: {

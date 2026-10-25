@@ -1,8 +1,4 @@
-body:has(#reportes) {
-  background: var(--bg);
-}
-
-#reportes {
+.section-host[data-section='tiempo'] #reportes {
   --others: #7c6f64;
   position: relative;
   height: 100%;
@@ -13,69 +9,60 @@ body:has(#reportes) {
   font-size: 13px;
 }
 
-#reportes button:focus-visible,
-#reportes input:focus-visible,
-#reportes a:focus-visible {
+.section-host[data-section='tiempo'] #reportes button:focus-visible,
+.section-host[data-section='tiempo'] #reportes input:focus-visible,
+.section-host[data-section='tiempo'] #reportes a:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
 
-#reportes button:disabled {
+.section-host[data-section='tiempo'] #reportes button:disabled {
   opacity: 0.5;
 }
 
-.report-drag {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 28px;
-  z-index: 1;
-}
-
-.report-num {
+.section-host[data-section='tiempo'] .report-num {
   font-family: var(--font-mono);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--fg);
 }
 
-.report-num--mute {
+.section-host[data-section='tiempo'] .report-num--mute {
   color: var(--fg-mute);
 }
 
-.report-num--dim {
+.section-host[data-section='tiempo'] .report-num--dim {
   color: var(--fg-dim);
 }
 
-.report-num--strong {
+.section-host[data-section='tiempo'] .report-num--strong {
   font-size: 12px;
 }
 
-.report-right {
+.section-host[data-section='tiempo'] .report-right {
   text-align: right;
 }
 
-.report-grow {
+.section-host[data-section='tiempo'] .report-grow {
   flex-grow: 1;
 }
 
-.report-nowrap {
+.section-host[data-section='tiempo'] .report-nowrap {
   white-space: nowrap;
 }
 
-.report-meta {
+.section-host[data-section='tiempo'] .report-meta {
   font-size: 11px;
   color: var(--fg-mute);
 }
 
-.report-dashboard {
+.section-host[data-section='tiempo'] .report-dashboard {
   min-height: 100%;
   display: flex;
   flex-wrap: wrap;
 }
 
-.report-rail {
+.section-host[data-section='tiempo'] .report-rail {
   flex: 1 1 220px;
   max-width: 100%;
   padding: 0 12px 14px;
@@ -86,7 +73,7 @@ body:has(#reportes) {
   gap: 22px;
 }
 
-.report-rail-head {
+.section-host[data-section='tiempo'] .report-rail-head {
   position: relative;
   z-index: 2;
   height: 44px;
@@ -96,29 +83,29 @@ body:has(#reportes) {
   gap: 8px;
 }
 
-.report-rail-mark {
+.section-host[data-section='tiempo'] .report-rail-mark {
   display: inline-flex;
   color: var(--running);
 }
 
-.report-rail-word {
+.section-host[data-section='tiempo'] .report-rail-word {
   font-size: 13.5px;
   font-weight: 700;
   color: var(--fg-bright);
 }
 
-.report-rail-sub {
+.section-host[data-section='tiempo'] .report-rail-sub {
   font-size: 11.5px;
   color: var(--fg-mute);
 }
 
-.report-rail-group {
+.section-host[data-section='tiempo'] .report-rail-group {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.report-rail-label {
+.section-host[data-section='tiempo'] .report-rail-label {
   padding: 0 8px 6px;
   font-size: 10.5px;
   font-weight: 600;
@@ -127,18 +114,18 @@ body:has(#reportes) {
   color: var(--fg-mute);
 }
 
-.report-rail-label--split {
+.section-host[data-section='tiempo'] .report-rail-label--split {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
 }
 
-.report-rail-count {
+.section-host[data-section='tiempo'] .report-rail-count {
   font-size: 11px;
   letter-spacing: 0;
 }
 
-.report-rail-item {
+.section-host[data-section='tiempo'] .report-rail-item {
   text-align: left;
   padding: 7px 8px;
   border-radius: 6px;
@@ -146,17 +133,17 @@ body:has(#reportes) {
   color: var(--fg-mute);
 }
 
-.report-rail-item:hover {
+.section-host[data-section='tiempo'] .report-rail-item:hover {
   color: var(--fg-dim);
 }
 
-.report-rail-item[aria-current='true'] {
+.section-host[data-section='tiempo'] .report-rail-item[aria-current='true'] {
   background: var(--elev);
   color: var(--fg);
   font-weight: 600;
 }
 
-.report-custom {
+.section-host[data-section='tiempo'] .report-custom {
   margin-top: 6px;
   padding: 0 8px;
   display: grid;
@@ -164,20 +151,20 @@ body:has(#reportes) {
   gap: 8px;
 }
 
-.report-custom-apply {
+.section-host[data-section='tiempo'] .report-custom-apply {
   grid-column: 1 / -1;
   padding: 6px 12px;
   font-size: 12px;
 }
 
-.report-field {
+.section-host[data-section='tiempo'] .report-field {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
 }
 
-.report-field-label {
+.section-host[data-section='tiempo'] .report-field-label {
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.3px;
@@ -185,7 +172,7 @@ body:has(#reportes) {
   color: var(--fg-mute);
 }
 
-.report-input {
+.section-host[data-section='tiempo'] .report-input {
   width: 100%;
   min-width: 0;
   padding: 6px 8px;
@@ -198,12 +185,12 @@ body:has(#reportes) {
   color-scheme: dark;
 }
 
-.report-input:focus {
+.section-host[data-section='tiempo'] .report-input:focus {
   outline: none;
   border-color: var(--running);
 }
 
-.report-rail-project {
+.section-host[data-section='tiempo'] .report-rail-project {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -213,23 +200,23 @@ body:has(#reportes) {
   color: var(--fg-dim);
 }
 
-.report-rail-project:hover {
+.section-host[data-section='tiempo'] .report-rail-project:hover {
   background: var(--card-quiet);
 }
 
-.report-rail-project input {
+.section-host[data-section='tiempo'] .report-rail-project input {
   margin: 0;
   accent-color: var(--blue);
 }
 
-.report-rail-dot {
+.section-host[data-section='tiempo'] .report-rail-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.report-rail-name {
+.section-host[data-section='tiempo'] .report-rail-name {
   flex-grow: 1;
   min-width: 0;
   overflow: hidden;
@@ -237,12 +224,12 @@ body:has(#reportes) {
   white-space: nowrap;
 }
 
-.report-rail-more {
+.section-host[data-section='tiempo'] .report-rail-more {
   align-self: flex-start;
   padding: 6px 8px;
 }
 
-.report-main {
+.section-host[data-section='tiempo'] .report-main {
   flex: 999 1 560px;
   min-width: 0;
   padding: 36px 28px 32px;
@@ -251,7 +238,7 @@ body:has(#reportes) {
   gap: 14px;
 }
 
-.report-header {
+.section-host[data-section='tiempo'] .report-header {
   position: relative;
   z-index: 2;
   display: flex;
@@ -260,7 +247,7 @@ body:has(#reportes) {
   gap: 12px;
 }
 
-.report-titles {
+.section-host[data-section='tiempo'] .report-titles {
   flex: 1 1 280px;
   min-width: 0;
   display: flex;
@@ -268,7 +255,7 @@ body:has(#reportes) {
   gap: 4px;
 }
 
-.report-title {
+.section-host[data-section='tiempo'] .report-title {
   margin: 0;
   font-size: 21px;
   font-weight: 600;
@@ -276,43 +263,43 @@ body:has(#reportes) {
   overflow-wrap: anywhere;
 }
 
-.report-subtitle {
+.section-host[data-section='tiempo'] .report-subtitle {
   margin: 0;
   font-size: 11.5px;
   color: var(--fg-mute);
 }
 
-.report-title-line {
+.section-host[data-section='tiempo'] .report-title-line {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
 
-.report-title-dot {
+.section-host[data-section='tiempo'] .report-title-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.report-primary {
+.section-host[data-section='tiempo'] .report-primary {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
-.report-segmented button:hover:not(.segmented-on) {
+.section-host[data-section='tiempo'] .report-segmented button:hover:not(.segmented-on) {
   color: var(--fg-dim);
 }
 
-.report-kpis {
+.section-host[data-section='tiempo'] .report-kpis {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(var(--kpi-min, 200px), 100%), 1fr));
   gap: 9px;
 }
 
-.report-kpi {
+.section-host[data-section='tiempo'] .report-kpi {
   padding: 12px 14px;
   background: var(--card);
   border: 1px solid var(--elev);
@@ -323,7 +310,7 @@ body:has(#reportes) {
   min-width: 0;
 }
 
-.report-kpi-label {
+.section-host[data-section='tiempo'] .report-kpi-label {
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.5px;
@@ -331,7 +318,7 @@ body:has(#reportes) {
   color: var(--fg-mute);
 }
 
-.report-kpi-value {
+.section-host[data-section='tiempo'] .report-kpi-value {
   font-family: var(--font-mono);
   font-size: 25px;
   font-weight: 600;
@@ -340,20 +327,20 @@ body:has(#reportes) {
   font-variant-numeric: tabular-nums;
 }
 
-.report-kpi-value--ok {
+.section-host[data-section='tiempo'] .report-kpi-value--ok {
   color: var(--ok);
 }
 
-.report-kpi-value--estimate {
+.section-host[data-section='tiempo'] .report-kpi-value--estimate {
   color: var(--estimate);
 }
 
-.report-kpi-note {
+.section-host[data-section='tiempo'] .report-kpi-note {
   font-size: 11px;
   color: var(--fg-dim);
 }
 
-.report-card {
+.section-host[data-section='tiempo'] .report-card {
   min-width: 0;
   padding: 14px 16px;
   background: var(--card);
@@ -364,26 +351,26 @@ body:has(#reportes) {
   gap: 12px;
 }
 
-.report-hours {
+.section-host[data-section='tiempo'] .report-hours {
   padding-bottom: 12px;
   gap: 10px;
 }
 
-.report-card-head {
+.section-host[data-section='tiempo'] .report-card-head {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 10px;
 }
 
-.report-card-title {
+.section-host[data-section='tiempo'] .report-card-title {
   margin: 0;
   font-size: 13.5px;
   font-weight: 600;
   color: var(--fg-bright);
 }
 
-.report-legend-note {
+.section-host[data-section='tiempo'] .report-legend-note {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -391,23 +378,23 @@ body:has(#reportes) {
   color: var(--fg-mute);
 }
 
-.report-legend-goal {
+.section-host[data-section='tiempo'] .report-legend-goal {
   width: 14px;
   border-top: 1px dashed var(--estimate);
 }
 
-.report-swatch {
+.section-host[data-section='tiempo'] .report-swatch {
   width: 8px;
   height: 8px;
   border-radius: 2px;
   flex-shrink: 0;
 }
 
-.report-chart-scroll {
+.section-host[data-section='tiempo'] .report-chart-scroll {
   overflow-x: auto;
 }
 
-.report-columns {
+.section-host[data-section='tiempo'] .report-columns {
   position: relative;
   display: flex;
   align-items: flex-end;
@@ -415,7 +402,7 @@ body:has(#reportes) {
   border-bottom: 1px solid var(--line);
 }
 
-.report-goal {
+.section-host[data-section='tiempo'] .report-goal {
   position: absolute;
   left: 0;
   right: 0;
@@ -424,7 +411,7 @@ body:has(#reportes) {
   pointer-events: none;
 }
 
-.report-column {
+.section-host[data-section='tiempo'] .report-column {
   flex: 1 1 0;
   min-width: 0;
   height: 100%;
@@ -435,7 +422,7 @@ body:has(#reportes) {
   gap: 4px;
 }
 
-.report-column-value {
+.section-host[data-section='tiempo'] .report-column-value {
   font-family: var(--font-mono);
   font-size: 9.5px;
   color: var(--fg-mute);
@@ -443,17 +430,17 @@ body:has(#reportes) {
   white-space: nowrap;
 }
 
-.report-column-bar {
+.section-host[data-section='tiempo'] .report-column-bar {
   width: 100%;
   border-radius: 3px 3px 0 0;
 }
 
-.report-axis {
+.section-host[data-section='tiempo'] .report-axis {
   display: flex;
   padding: 5px 2px 0;
 }
 
-.report-axis-label {
+.section-host[data-section='tiempo'] .report-axis-label {
   flex: 1 1 0;
   min-width: 0;
   text-align: center;
@@ -463,27 +450,27 @@ body:has(#reportes) {
   white-space: nowrap;
 }
 
-.report-axis-label--weekend {
+.section-host[data-section='tiempo'] .report-axis-label--weekend {
   color: var(--others);
 }
 
-.report-pair {
+.section-host[data-section='tiempo'] .report-pair {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
   gap: 9px;
 }
 
-.report-pair--detail {
+.section-host[data-section='tiempo'] .report-pair--detail {
   grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
 }
 
-.report-stacks-wrap {
+.section-host[data-section='tiempo'] .report-stacks-wrap {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.report-stacks {
+.section-host[data-section='tiempo'] .report-stacks {
   display: flex;
   align-items: flex-end;
   gap: 18px;
@@ -491,7 +478,7 @@ body:has(#reportes) {
   border-bottom: 1px solid var(--line);
 }
 
-.report-stack {
+.section-host[data-section='tiempo'] .report-stack {
   flex: 1 1 0;
   min-width: 0;
   display: flex;
@@ -500,7 +487,7 @@ body:has(#reportes) {
   gap: 4px;
 }
 
-.report-stack-total {
+.section-host[data-section='tiempo'] .report-stack-total {
   text-align: center;
   font-family: var(--font-mono);
   font-size: 10.5px;
@@ -509,23 +496,23 @@ body:has(#reportes) {
   white-space: nowrap;
 }
 
-.report-stack-pile {
+.section-host[data-section='tiempo'] .report-stack-pile {
   display: flex;
   flex-direction: column-reverse;
   gap: 1px;
 }
 
-.report-stack-part--top {
+.section-host[data-section='tiempo'] .report-stack-part--top {
   border-radius: 3px 3px 0 0;
 }
 
-.report-stacks-axis {
+.section-host[data-section='tiempo'] .report-stacks-axis {
   display: flex;
   gap: 18px;
   padding: 0 6px;
 }
 
-.report-stacks-axis span {
+.section-host[data-section='tiempo'] .report-stacks-axis span {
   flex: 1 1 0;
   min-width: 0;
   text-align: center;
@@ -533,13 +520,13 @@ body:has(#reportes) {
   color: var(--fg-mute);
 }
 
-.report-legend {
+.section-host[data-section='tiempo'] .report-legend {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 12px;
 }
 
-.report-legend-item {
+.section-host[data-section='tiempo'] .report-legend-item {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -547,28 +534,28 @@ body:has(#reportes) {
   color: var(--fg-dim);
 }
 
-.report-distribution {
+.section-host[data-section='tiempo'] .report-distribution {
   gap: 10px;
 }
 
-.report-bars {
+.section-host[data-section='tiempo'] .report-bars {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.report-bar-row {
+.section-host[data-section='tiempo'] .report-bar-row {
   display: grid;
   grid-template-columns: minmax(0, 132px) minmax(0, 1fr) 52px 40px;
   align-items: center;
   gap: 10px;
 }
 
-.report-bar-row .report-num {
+.section-host[data-section='tiempo'] .report-bar-row .report-num {
   text-align: right;
 }
 
-.report-bar-name {
+.section-host[data-section='tiempo'] .report-bar-name {
   font-size: 12px;
   color: var(--fg-dim);
   overflow: hidden;
@@ -576,25 +563,25 @@ body:has(#reportes) {
   white-space: nowrap;
 }
 
-.report-bar-track {
+.section-host[data-section='tiempo'] .report-bar-track {
   height: 10px;
   background: var(--inset);
   border-radius: 3px;
   overflow: hidden;
 }
 
-.report-bar-fill {
+.section-host[data-section='tiempo'] .report-bar-fill {
   height: 100%;
   border-radius: 3px;
 }
 
-.report-table-card {
+.section-host[data-section='tiempo'] .report-table-card {
   padding: 0;
   gap: 0;
   overflow: hidden;
 }
 
-.report-table-head {
+.section-host[data-section='tiempo'] .report-table-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -603,22 +590,22 @@ body:has(#reportes) {
   border-bottom: 1px solid var(--line);
 }
 
-.report-table-scroll {
+.section-host[data-section='tiempo'] .report-table-scroll {
   overflow-x: auto;
 }
 
-.report-table {
+.section-host[data-section='tiempo'] .report-table {
   width: 100%;
   min-width: 720px;
   border-collapse: collapse;
   font-size: 12px;
 }
 
-.report-table--entries {
+.section-host[data-section='tiempo'] .report-table--entries {
   min-width: 600px;
 }
 
-.report-table th {
+.section-host[data-section='tiempo'] .report-table th {
   padding: 8px 10px;
   text-align: left;
   font-size: 10.5px;
@@ -628,70 +615,70 @@ body:has(#reportes) {
   color: var(--fg-mute);
 }
 
-.report-table th.report-right {
+.section-host[data-section='tiempo'] .report-table th.report-right {
   text-align: right;
 }
 
-.report-table td {
+.section-host[data-section='tiempo'] .report-table td {
   padding: 8px 10px;
   border-top: 1px solid var(--line-soft);
   vertical-align: middle;
 }
 
-.report-table th:first-child,
-.report-table td:first-child {
+.section-host[data-section='tiempo'] .report-table th:first-child,
+.section-host[data-section='tiempo'] .report-table td:first-child {
   padding-left: 16px;
 }
 
-.report-table th:last-child,
-.report-table td:last-child {
+.section-host[data-section='tiempo'] .report-table th:last-child,
+.section-host[data-section='tiempo'] .report-table td:last-child {
   padding-right: 16px;
 }
 
-.report-table--entries td {
+.section-host[data-section='tiempo'] .report-table--entries td {
   padding-top: 9px;
   padding-bottom: 9px;
 }
 
-.report-col-start {
+.section-host[data-section='tiempo'] .report-col-start {
   width: 110px;
 }
 
-.report-col-duration {
+.section-host[data-section='tiempo'] .report-col-duration {
   width: 90px;
 }
 
-.report-col-jira {
+.section-host[data-section='tiempo'] .report-col-jira {
   width: 120px;
 }
 
-.report-row:hover td {
+.section-host[data-section='tiempo'] .report-row:hover td {
   background: var(--card-quiet);
 }
 
-.report-row-link {
+.section-host[data-section='tiempo'] .report-row-link {
   display: inline-flex;
   max-width: 100%;
   color: var(--fg);
 }
 
-.report-row-link:hover .pill:not(.pill--empty) {
+.section-host[data-section='tiempo'] .report-row-link:hover .pill:not(.pill--empty) {
   background: var(--elev-strong);
 }
 
-.pill-name {
+.section-host[data-section='tiempo'] .pill-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.report-share {
+.section-host[data-section='tiempo'] .report-share {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.report-share-track {
+.section-host[data-section='tiempo'] .report-share-track {
   width: 120px;
   height: 6px;
   flex-shrink: 0;
@@ -700,31 +687,31 @@ body:has(#reportes) {
   overflow: hidden;
 }
 
-.report-share-fill {
+.section-host[data-section='tiempo'] .report-share-fill {
   height: 100%;
 }
 
-.report-tag--pending {
+.section-host[data-section='tiempo'] .report-tag--pending {
   background: none;
   border: 1px solid var(--estimate);
   color: var(--estimate);
 }
 
-.report-table-foot {
+.section-host[data-section='tiempo'] .report-table-foot {
   padding: 10px 16px;
   border-top: 1px solid var(--line);
   font-size: 11.5px;
   color: var(--fg-mute);
 }
 
-.report-table-empty {
+.section-host[data-section='tiempo'] .report-table-empty {
   margin: 0;
   padding: 14px 16px;
   font-size: 12px;
   color: var(--fg-mute);
 }
 
-.report-state {
+.section-host[data-section='tiempo'] .report-state {
   padding: 48px 16px;
   display: flex;
   flex-direction: column;
@@ -734,19 +721,19 @@ body:has(#reportes) {
   color: var(--fg-mute);
 }
 
-.report-state-title {
+.section-host[data-section='tiempo'] .report-state-title {
   margin: 0;
   max-width: 480px;
   font-size: 13px;
   color: var(--fg-dim);
 }
 
-.report-state-note {
+.section-host[data-section='tiempo'] .report-state-note {
   margin: 0;
   font-size: 11.5px;
 }
 
-.report-state-hint {
+.section-host[data-section='tiempo'] .report-state-hint {
   font-family: var(--font-mono);
   font-size: 11px;
   padding: 4px 8px;
@@ -756,7 +743,7 @@ body:has(#reportes) {
   user-select: text;
 }
 
-.report-state--problem {
+.section-host[data-section='tiempo'] .report-state--problem {
   margin: 0 auto;
   width: min(100%, 520px);
   padding: 20px 16px;
@@ -765,11 +752,11 @@ body:has(#reportes) {
   background: var(--card);
 }
 
-.report-state--problem .report-state-title {
+.section-host[data-section='tiempo'] .report-state--problem .report-state-title {
   color: var(--fg);
 }
 
-.report-spinner {
+.section-host[data-section='tiempo'] .report-spinner {
   animation: report-spin 900ms linear infinite;
 }
 
@@ -780,12 +767,12 @@ body:has(#reportes) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .report-spinner {
+  .section-host[data-section='tiempo'] .report-spinner {
     animation: none;
   }
 }
 
-.report-detail {
+.section-host[data-section='tiempo'] .report-detail {
   max-width: 1200px;
   margin: 0 auto;
   padding: 36px 28px 32px;
@@ -794,7 +781,7 @@ body:has(#reportes) {
   gap: 14px;
 }
 
-.report-crumbs {
+.section-host[data-section='tiempo'] .report-crumbs {
   position: relative;
   z-index: 2;
   display: flex;
@@ -805,7 +792,7 @@ body:has(#reportes) {
   color: var(--fg-mute);
 }
 
-.report-crumb-back {
+.section-host[data-section='tiempo'] .report-crumb-back {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -814,11 +801,11 @@ body:has(#reportes) {
   color: var(--fg-mute);
 }
 
-.report-crumb-back:hover {
+.section-host[data-section='tiempo'] .report-crumb-back:hover {
   color: var(--fg);
 }
 
-.report-crumb-here {
+.section-host[data-section='tiempo'] .report-crumb-here {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -826,7 +813,7 @@ body:has(#reportes) {
   color: var(--fg-dim);
 }
 
-.report-strip {
+.section-host[data-section='tiempo'] .report-strip {
   display: flex;
   height: 14px;
   gap: 1px;
@@ -834,28 +821,28 @@ body:has(#reportes) {
   overflow: hidden;
 }
 
-.report-strip-part {
+.section-host[data-section='tiempo'] .report-strip-part {
   min-width: 3px;
 }
 
-.report-themes-list {
+.section-host[data-section='tiempo'] .report-themes-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.report-theme {
+.section-host[data-section='tiempo'] .report-theme {
   display: grid;
   grid-template-columns: 10px minmax(0, 1fr) 56px 40px;
   align-items: center;
   gap: 10px;
 }
 
-.report-theme .report-num {
+.section-host[data-section='tiempo'] .report-theme .report-num {
   text-align: right;
 }
 
-.report-theme-name {
+.section-host[data-section='tiempo'] .report-theme-name {
   font-size: 12px;
   color: var(--fg-dim);
   overflow: hidden;
@@ -863,20 +850,20 @@ body:has(#reportes) {
   white-space: nowrap;
 }
 
-.report-footnote {
+.section-host[data-section='tiempo'] .report-footnote {
   margin: 0;
   font-size: 10.5px;
   color: var(--fg-mute);
 }
 
-.report-entry-title {
+.section-host[data-section='tiempo'] .report-entry-title {
   display: flex;
   align-items: center;
   gap: 8px;
   color: var(--fg);
 }
 
-.report-meeting-dot {
+.section-host[data-section='tiempo'] .report-meeting-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -884,7 +871,7 @@ body:has(#reportes) {
   background: var(--danger);
 }
 
-.report-overlap {
+.section-host[data-section='tiempo'] .report-overlap {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -893,13 +880,13 @@ body:has(#reportes) {
   color: var(--estimate);
 }
 
-.report-export {
+.section-host[data-section='tiempo'] .report-export {
   min-height: 100%;
   display: flex;
   flex-wrap: wrap;
 }
 
-.report-export-form {
+.section-host[data-section='tiempo'] .report-export-form {
   flex: 1 1 420px;
   max-width: 100%;
   min-width: 0;
@@ -910,7 +897,7 @@ body:has(#reportes) {
   gap: 20px;
 }
 
-.report-export-head {
+.section-host[data-section='tiempo'] .report-export-head {
   position: relative;
   z-index: 2;
   display: flex;
@@ -918,7 +905,7 @@ body:has(#reportes) {
   gap: 8px;
 }
 
-.report-back {
+.section-host[data-section='tiempo'] .report-back {
   display: inline-flex;
   width: 28px;
   height: 28px;
@@ -928,19 +915,19 @@ body:has(#reportes) {
   color: var(--fg-mute);
 }
 
-.report-back:hover {
+.section-host[data-section='tiempo'] .report-back:hover {
   background: var(--elev);
   color: var(--fg);
 }
 
-.report-export-title {
+.section-host[data-section='tiempo'] .report-export-title {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
   color: var(--fg-bright);
 }
 
-.report-fieldset {
+.section-host[data-section='tiempo'] .report-fieldset {
   margin: 0;
   padding: 0;
   min-width: 0;
@@ -951,12 +938,12 @@ body:has(#reportes) {
   gap: 8px;
 }
 
-.report-fieldset--tight {
+.section-host[data-section='tiempo'] .report-fieldset--tight {
   gap: 2px;
   align-items: stretch;
 }
 
-.report-legend-title {
+.section-host[data-section='tiempo'] .report-legend-title {
   padding: 0 0 8px;
   font-size: 10.5px;
   font-weight: 600;
@@ -965,19 +952,19 @@ body:has(#reportes) {
   color: var(--fg-mute);
 }
 
-.report-formats,
-.report-dates {
+.section-host[data-section='tiempo'] .report-formats,
+.section-host[data-section='tiempo'] .report-dates {
   align-self: stretch;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
 
-.report-dates {
+.section-host[data-section='tiempo'] .report-dates {
   gap: 8px;
 }
 
-.report-format {
+.section-host[data-section='tiempo'] .report-format {
   display: flex;
   gap: 8px;
   align-items: flex-start;
@@ -987,47 +974,47 @@ body:has(#reportes) {
   border: 1px solid var(--elev);
 }
 
-.report-format--on {
+.section-host[data-section='tiempo'] .report-format--on {
   background: var(--card);
   border-color: var(--running);
 }
 
-.report-format input,
-.report-target input {
+.section-host[data-section='tiempo'] .report-format input,
+.section-host[data-section='tiempo'] .report-target input {
   margin: 2px 0 0;
   accent-color: var(--running);
 }
 
-.report-format-text {
+.section-host[data-section='tiempo'] .report-format-text {
   display: flex;
   flex-direction: column;
   gap: 3px;
   min-width: 0;
 }
 
-.report-format-name {
+.section-host[data-section='tiempo'] .report-format-name {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--fg);
 }
 
-.report-format-hint {
+.section-host[data-section='tiempo'] .report-format-hint {
   font-size: 11px;
   line-height: 1.4;
   color: var(--fg-mute);
 }
 
-.report-pills {
+.section-host[data-section='tiempo'] .report-pills {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.report-pill:hover {
+.section-host[data-section='tiempo'] .report-pill:hover {
   color: var(--fg);
 }
 
-.report-switch-row {
+.section-host[data-section='tiempo'] .report-switch-row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1035,7 +1022,7 @@ body:has(#reportes) {
   border-bottom: 1px solid var(--line-soft);
 }
 
-.report-switch-text {
+.section-host[data-section='tiempo'] .report-switch-text {
   flex-grow: 1;
   min-width: 0;
   display: flex;
@@ -1043,17 +1030,17 @@ body:has(#reportes) {
   gap: 2px;
 }
 
-.report-switch-name {
+.section-host[data-section='tiempo'] .report-switch-name {
   font-size: 12px;
   color: var(--fg);
 }
 
-.report-switch-hint {
+.section-host[data-section='tiempo'] .report-switch-hint {
   font-size: 10.5px;
   color: var(--fg-mute);
 }
 
-.report-target {
+.section-host[data-section='tiempo'] .report-target {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -1062,15 +1049,15 @@ body:has(#reportes) {
   color: var(--fg-dim);
 }
 
-.report-target input {
+.section-host[data-section='tiempo'] .report-target input {
   margin: 0;
 }
 
-.report-target--off {
+.section-host[data-section='tiempo'] .report-target--off {
   opacity: 0.5;
 }
 
-.report-target-note {
+.section-host[data-section='tiempo'] .report-target-note {
   min-width: 0;
   font-family: var(--font-mono);
   font-size: 10.5px;
@@ -1078,7 +1065,7 @@ body:has(#reportes) {
   overflow-wrap: anywhere;
 }
 
-.report-export-actions {
+.section-host[data-section='tiempo'] .report-export-actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -1087,7 +1074,7 @@ body:has(#reportes) {
   padding-top: 4px;
 }
 
-.report-export-status {
+.section-host[data-section='tiempo'] .report-export-status {
   flex: 1 1 200px;
   margin: 0;
   font-family: var(--font-mono);
@@ -1097,13 +1084,13 @@ body:has(#reportes) {
   user-select: text;
 }
 
-.report-export-status--error {
+.section-host[data-section='tiempo'] .report-export-status--error {
   color: var(--fg);
   padding-left: 8px;
   border-left: 2px solid var(--danger);
 }
 
-.report-preview {
+.section-host[data-section='tiempo'] .report-preview {
   flex: 999 1 560px;
   min-width: 0;
   padding: 36px 28px 28px;
@@ -1113,13 +1100,13 @@ body:has(#reportes) {
   gap: 12px;
 }
 
-.report-preview-head {
+.section-host[data-section='tiempo'] .report-preview-head {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.report-preview-label {
+.section-host[data-section='tiempo'] .report-preview-label {
   flex-grow: 1;
   font-size: 10.5px;
   font-weight: 600;
@@ -1128,7 +1115,8 @@ body:has(#reportes) {
   color: var(--fg-mute);
 }
 
-.paper {
+.section-host[data-section='tiempo'] .paper,
+#print-root .paper {
   --bg: #fbf1c7;
   --inset: #f2e5bc;
   --card: #f2e5bc;
@@ -1158,7 +1146,8 @@ body:has(#reportes) {
   print-color-adjust: exact;
 }
 
-.paper-header {
+.section-host[data-section='tiempo'] .paper-header,
+#print-root .paper-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -1167,8 +1156,10 @@ body:has(#reportes) {
   border-bottom: 1px solid #d5c4a1;
 }
 
-.paper-kicker,
-.paper-label {
+.section-host[data-section='tiempo'] .paper-kicker,
+#print-root .paper-kicker,
+.section-host[data-section='tiempo'] .paper-label,
+#print-root .paper-label {
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.5px;
@@ -1176,33 +1167,38 @@ body:has(#reportes) {
   color: #7c6f64;
 }
 
-.paper-title {
+.section-host[data-section='tiempo'] .paper-title,
+#print-root .paper-title {
   margin: 4px 0 0;
   font-size: 20px;
   font-weight: 600;
   color: #282828;
 }
 
-.paper-meta {
+.section-host[data-section='tiempo'] .paper-meta,
+#print-root .paper-meta {
   text-align: right;
   font-size: 10.5px;
   line-height: 1.5;
   color: #665c54;
 }
 
-.paper-stats {
+.section-host[data-section='tiempo'] .paper-stats,
+#print-root .paper-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
-.paper-stat {
+.section-host[data-section='tiempo'] .paper-stat,
+#print-root .paper-stat {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.paper-stat-value {
+.section-host[data-section='tiempo'] .paper-stat-value,
+#print-root .paper-stat-value {
   font-family: var(--font-mono);
   font-size: 17px;
   font-weight: 600;
@@ -1210,19 +1206,22 @@ body:has(#reportes) {
   color: #282828;
 }
 
-.paper-stat-label {
+.section-host[data-section='tiempo'] .paper-stat-label,
+#print-root .paper-stat-label {
   font-size: 9.5px;
   color: #7c6f64;
 }
 
-.paper-block {
+.section-host[data-section='tiempo'] .paper-block,
+#print-root .paper-block {
   display: flex;
   flex-direction: column;
   gap: 6px;
   break-inside: auto;
 }
 
-.paper-bar {
+.section-host[data-section='tiempo'] .paper-bar,
+#print-root .paper-bar {
   display: grid;
   grid-template-columns: minmax(0, 110px) minmax(0, 1fr) 48px;
   align-items: center;
@@ -1230,7 +1229,8 @@ body:has(#reportes) {
   break-inside: avoid;
 }
 
-.paper-bar-name {
+.section-host[data-section='tiempo'] .paper-bar-name,
+#print-root .paper-bar-name {
   font-size: 10.5px;
   color: #3c3836;
   overflow: hidden;
@@ -1238,29 +1238,34 @@ body:has(#reportes) {
   white-space: nowrap;
 }
 
-.paper-bar-track {
+.section-host[data-section='tiempo'] .paper-bar-track,
+#print-root .paper-bar-track {
   height: 8px;
   background: #ebdbb2;
   border-radius: 2px;
   overflow: hidden;
 }
 
-.paper-bar-fill {
+.section-host[data-section='tiempo'] .paper-bar-fill,
+#print-root .paper-bar-fill {
   height: 100%;
 }
 
-.paper-num {
+.section-host[data-section='tiempo'] .paper-num,
+#print-root .paper-num {
   font-family: var(--font-mono);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
   color: #3c3836;
 }
 
-.paper-bar .paper-num {
+.section-host[data-section='tiempo'] .paper-bar .paper-num,
+#print-root .paper-bar .paper-num {
   text-align: right;
 }
 
-.paper-columns {
+.section-host[data-section='tiempo'] .paper-columns,
+#print-root .paper-columns {
   height: 64px;
   display: flex;
   align-items: flex-end;
@@ -1269,33 +1274,38 @@ body:has(#reportes) {
   break-inside: avoid;
 }
 
-.paper-column {
+.section-host[data-section='tiempo'] .paper-column,
+#print-root .paper-column {
   flex: 1 1 0;
   height: 100%;
   display: flex;
   align-items: flex-end;
 }
 
-.paper-column-bar {
+.section-host[data-section='tiempo'] .paper-column-bar,
+#print-root .paper-column-bar {
   width: 100%;
   background: #076678;
   border-radius: 2px 2px 0 0;
 }
 
-.paper-axis {
+.section-host[data-section='tiempo'] .paper-axis,
+#print-root .paper-axis {
   display: flex;
   justify-content: space-between;
   font-size: 9.5px;
   color: #7c6f64;
 }
 
-.paper-table {
+.section-host[data-section='tiempo'] .paper-table,
+#print-root .paper-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 10.5px;
 }
 
-.paper-table th {
+.section-host[data-section='tiempo'] .paper-table th,
+#print-root .paper-table th {
   padding: 5px 6px 5px 0;
   text-align: left;
   font-size: 9.5px;
@@ -1305,53 +1315,64 @@ body:has(#reportes) {
   color: #7c6f64;
 }
 
-.paper-table td {
+.section-host[data-section='tiempo'] .paper-table td,
+#print-root .paper-table td {
   padding: 5px 6px 5px 0;
   border-top: 1px solid #d5c4a1;
   color: #665c54;
   vertical-align: top;
 }
 
-.paper-table th:last-child,
-.paper-table td:last-child {
+.section-host[data-section='tiempo'] .paper-table th:last-child,
+#print-root .paper-table th:last-child,
+.section-host[data-section='tiempo'] .paper-table td:last-child,
+#print-root .paper-table td:last-child {
   padding-right: 0;
 }
 
-.paper-table tr {
+.section-host[data-section='tiempo'] .paper-table tr,
+#print-root .paper-table tr {
   break-inside: avoid;
 }
 
-.paper-table .paper-right {
+.section-host[data-section='tiempo'] .paper-table .paper-right,
+#print-root .paper-table .paper-right {
   text-align: right;
 }
 
-.paper-strong {
+.section-host[data-section='tiempo'] .paper-strong,
+#print-root .paper-strong {
   color: #282828 !important;
 }
 
-.paper-nowrap {
+.section-host[data-section='tiempo'] .paper-nowrap,
+#print-root .paper-nowrap {
   white-space: nowrap;
 }
 
-.paper-empty {
+.section-host[data-section='tiempo'] .paper-empty,
+#print-root .paper-empty {
   margin: 0;
   font-size: 10.5px;
   color: #7c6f64;
 }
 
-.paper-note {
+.section-host[data-section='tiempo'] .paper-note,
+#print-root .paper-note {
   margin: 0;
   font-size: 10px;
   color: #7c6f64;
 }
 
-.paper-table .paper-total td {
+.section-host[data-section='tiempo'] .paper-table .paper-total td,
+#print-root .paper-table .paper-total td {
   border-top: 1px solid #7c6f64;
   color: #282828;
   font-weight: 600;
 }
 
-.paper-footer {
+.section-host[data-section='tiempo'] .paper-footer,
+#print-root .paper-footer {
   display: flex;
   justify-content: space-between;
   padding-top: 8px;
@@ -1360,7 +1381,8 @@ body:has(#reportes) {
   color: #7c6f64;
 }
 
-.paper-link {
+.section-host[data-section='tiempo'] .paper-link,
+#print-root .paper-link {
   color: #076678;
   text-decoration: underline;
 }
@@ -1397,33 +1419,35 @@ body:has(#reportes) {
 }
 
 @media (max-width: 520px) {
-  .report-main,
-  .report-detail {
+  .section-host[data-section='tiempo'] .report-main,
+  .section-host[data-section='tiempo'] .report-detail {
     padding-left: 16px;
     padding-right: 16px;
   }
 
-  .report-export-form,
-  .report-preview {
+  .section-host[data-section='tiempo'] .report-export-form,
+  .section-host[data-section='tiempo'] .report-preview {
     padding-left: 16px;
     padding-right: 16px;
   }
 
-  .report-bar-row {
+  .section-host[data-section='tiempo'] .report-bar-row {
     grid-template-columns: minmax(0, 96px) minmax(0, 1fr) 48px 34px;
     gap: 8px;
   }
 
-  .report-stacks,
-  .report-stacks-axis {
+  .section-host[data-section='tiempo'] .report-stacks,
+  .section-host[data-section='tiempo'] .report-stacks-axis {
     gap: 8px;
   }
 
-  .paper {
+  .section-host[data-section='tiempo'] .paper,
+  #print-root .paper {
     padding: 24px 18px;
   }
 
-  .paper-stats {
+  .section-host[data-section='tiempo'] .paper-stats,
+  #print-root .paper-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1443,15 +1467,7 @@ body:has(#reportes) {
     print-color-adjust: exact;
   }
 
-  body.printing #reportes {
-    display: block !important;
-    height: auto !important;
-    overflow: visible !important;
-    background: #fff !important;
-    border-radius: 0 !important;
-  }
-
-  body.printing #reportes > :not(#print-root) {
+  body.printing > :not(#print-root) {
     display: none !important;
   }
 
@@ -1462,19 +1478,19 @@ body:has(#reportes) {
   }
 }
 
-.report-notice {
+.section-host[data-section='tiempo'] .report-notice {
   margin: 0;
   align-items: center;
   font-size: 11.5px;
   color: var(--fg-dim);
 }
 
-.report-notice svg {
+.section-host[data-section='tiempo'] .report-notice svg {
   flex-shrink: 0;
   color: var(--estimate);
 }
 
-.report-sr {
+.section-host[data-section='tiempo'] .report-sr {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -1483,32 +1499,32 @@ body:has(#reportes) {
   white-space: nowrap;
 }
 
-.report-pay-banner {
+.section-host[data-section='tiempo'] .report-pay-banner {
   margin: 0;
   align-items: center;
   flex-wrap: wrap;
 }
 
-.report-pay-banner svg {
+.section-host[data-section='tiempo'] .report-pay-banner svg {
   flex-shrink: 0;
   color: var(--fg-mute);
 }
 
-.report-overtime .report-notice {
+.section-host[data-section='tiempo'] .report-overtime .report-notice {
   margin: 12px 16px 0;
 }
 
-.report-overtime-empty {
+.section-host[data-section='tiempo'] .report-overtime-empty {
   margin: 0;
   padding: 12px 16px;
 }
 
-.report-overtime-table {
+.section-host[data-section='tiempo'] .report-overtime-table {
   min-width: 620px;
 }
 
-.report-overtime-table tbody th,
-.report-overtime-table tfoot th {
+.section-host[data-section='tiempo'] .report-overtime-table tbody th,
+.section-host[data-section='tiempo'] .report-overtime-table tfoot th {
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0;
@@ -1517,22 +1533,22 @@ body:has(#reportes) {
   border-top: 1px solid var(--line-soft);
 }
 
-.report-overtime-month {
+.section-host[data-section='tiempo'] .report-overtime-month {
   white-space: nowrap;
 }
 
-.report-overtime-month .tag {
+.section-host[data-section='tiempo'] .report-overtime-month .tag {
   margin-left: 8px;
 }
 
-.report-overtime-total th,
-.report-overtime-total td {
+.section-host[data-section='tiempo'] .report-overtime-total th,
+.section-host[data-section='tiempo'] .report-overtime-total td {
   border-top: 1px solid var(--elev) !important;
   font-weight: 600;
   color: var(--fg-bright) !important;
 }
 
-.pay-layer {
+.section-host[data-section='tiempo'] .pay-layer {
   position: fixed;
   inset: 0;
   z-index: 40;
@@ -1540,7 +1556,7 @@ body:has(#reportes) {
   justify-content: flex-end;
 }
 
-.pay-sheet {
+.section-host[data-section='tiempo'] .pay-sheet {
   width: min(400px, 100%);
   height: 100%;
   overflow-y: auto;
@@ -1553,57 +1569,57 @@ body:has(#reportes) {
   color: var(--fg);
 }
 
-.pay-head {
+.section-host[data-section='tiempo'] .pay-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
 
-.pay-title {
+.section-host[data-section='tiempo'] .pay-title {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
   color: var(--fg-bright);
 }
 
-.pay-caption {
+.section-host[data-section='tiempo'] .pay-caption {
   margin: 0;
   font-size: 11px;
   line-height: 1.45;
   color: var(--fg-mute);
 }
 
-.pay-form {
+.section-host[data-section='tiempo'] .pay-form {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.pay-grid {
+.section-host[data-section='tiempo'] .pay-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
-.pay-field--wide {
+.section-host[data-section='tiempo'] .pay-field--wide {
   grid-column: 1 / -1;
 }
 
-.pay-rate {
+.section-host[data-section='tiempo'] .pay-rate {
   margin: -4px 0 0;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--fg-dim);
 }
 
-.pay-projects .report-switch-name {
+.section-host[data-section='tiempo'] .pay-projects .report-switch-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.pay-actions {
+.section-host[data-section='tiempo'] .pay-actions {
   position: sticky;
   bottom: -22px;
   padding: 10px 0 0;
@@ -1611,42 +1627,42 @@ body:has(#reportes) {
 }
 
 @media (max-width: 520px) {
-  .pay-sheet {
+  .section-host[data-section='tiempo'] .pay-sheet {
     padding: 32px 16px 16px;
     border-left: none;
   }
 
-  .pay-grid {
+  .section-host[data-section='tiempo'] .pay-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .pay-actions {
+  .section-host[data-section='tiempo'] .pay-actions {
     bottom: -16px;
   }
 }
 
-.coworker-pair {
+.section-host[data-section='tiempo'] .coworker-pair {
   grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   align-items: start;
 }
 
-.coworker-form {
+.section-host[data-section='tiempo'] .coworker-form {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.coworker-grid {
+.section-host[data-section='tiempo'] .coworker-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(120px, 100%), 1fr));
   gap: 10px;
 }
 
-.coworker-field--wide {
+.section-host[data-section='tiempo'] .coworker-field--wide {
   grid-column: span 2;
 }
 
-.coworker-actions {
+.section-host[data-section='tiempo'] .coworker-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1654,29 +1670,29 @@ body:has(#reportes) {
   gap: 10px;
 }
 
-.coworker-status {
+.section-host[data-section='tiempo'] .coworker-status {
   flex: 1 1 200px;
   margin: 0;
 }
 
-.coworker-excludes {
+.section-host[data-section='tiempo'] .coworker-excludes {
   gap: 10px;
 }
 
-.coworker-excludes > .report-meta,
-.coworker-candidates > .report-meta {
+.section-host[data-section='tiempo'] .coworker-excludes > .report-meta,
+.section-host[data-section='tiempo'] .coworker-candidates > .report-meta {
   margin: -6px 0 0;
 }
 
-.coworker-none {
+.section-host[data-section='tiempo'] .coworker-none {
   margin: 0;
 }
 
-.coworker-retry {
+.section-host[data-section='tiempo'] .coworker-retry {
   align-self: flex-start;
 }
 
-.coworker-chips {
+.section-host[data-section='tiempo'] .coworker-chips {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1685,7 +1701,7 @@ body:has(#reportes) {
   gap: 4px;
 }
 
-.coworker-chip {
+.section-host[data-section='tiempo'] .coworker-chip {
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -1694,14 +1710,14 @@ body:has(#reportes) {
   background: var(--elev);
 }
 
-.coworker-chip-key {
+.section-host[data-section='tiempo'] .coworker-chip-key {
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 500;
   color: var(--fg);
 }
 
-.coworker-chip-remove {
+.section-host[data-section='tiempo'] .coworker-chip-remove {
   display: inline-flex;
   width: 20px;
   height: 20px;
@@ -1711,35 +1727,35 @@ body:has(#reportes) {
   color: var(--fg-mute);
 }
 
-.coworker-chip-remove:hover {
+.section-host[data-section='tiempo'] .coworker-chip-remove:hover {
   background: var(--elev-strong);
   color: var(--fg);
 }
 
-.coworker-exclude-form {
+.section-host[data-section='tiempo'] .coworker-exclude-form {
   display: flex;
   align-items: flex-end;
   gap: 8px;
 }
 
-.coworker-exclude-field {
+.section-host[data-section='tiempo'] .coworker-exclude-field {
   flex: 0 1 160px;
 }
 
-.coworker-results {
+.section-host[data-section='tiempo'] .coworker-results {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.coworker-person {
+.section-host[data-section='tiempo'] .coworker-person {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 10px;
 }
 
-.coworker-candidate-list {
+.section-host[data-section='tiempo'] .coworker-candidate-list {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1748,7 +1764,7 @@ body:has(#reportes) {
   gap: 2px;
 }
 
-.coworker-candidate {
+.section-host[data-section='tiempo'] .coworker-candidate {
   width: 100%;
   display: flex;
   flex-wrap: wrap;
@@ -1760,16 +1776,16 @@ body:has(#reportes) {
   color: var(--fg);
 }
 
-.coworker-candidate:hover {
+.section-host[data-section='tiempo'] .coworker-candidate:hover {
   background: var(--elev);
 }
 
-.coworker-candidate-name {
+.section-host[data-section='tiempo'] .coworker-candidate-name {
   font-size: 12.5px;
   font-weight: 600;
 }
 
-.coworker-candidate-email {
+.section-host[data-section='tiempo'] .coworker-candidate-email {
   min-width: 0;
   font-family: var(--font-mono);
   font-size: 11px;
@@ -1777,41 +1793,41 @@ body:has(#reportes) {
   overflow-wrap: anywhere;
 }
 
-.coworker-table--hours {
+.section-host[data-section='tiempo'] .coworker-table--hours {
   min-width: 420px;
 }
 
-.coworker-table--issues {
+.section-host[data-section='tiempo'] .coworker-table--issues {
   min-width: 600px;
 }
 
-.coworker-key {
+.section-host[data-section='tiempo'] .coworker-key {
   white-space: nowrap;
   color: var(--fg-bright);
 }
 
-.coworker-key-link {
+.section-host[data-section='tiempo'] .coworker-key-link {
   color: var(--blue);
   text-decoration: none;
   border-radius: 3px;
 }
 
-.coworker-key-link:hover {
+.section-host[data-section='tiempo'] .coworker-key-link:hover {
   color: var(--aqua);
   text-decoration: underline;
 }
 
-.coworker-export {
+.section-host[data-section='tiempo'] .coworker-export {
   padding: 16px;
 }
 
-.coworker-export-form {
+.section-host[data-section='tiempo'] .coworker-export-form {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.coworker-export-field {
+.section-host[data-section='tiempo'] .coworker-export-field {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1819,36 +1835,36 @@ body:has(#reportes) {
   min-width: 0;
 }
 
-.coworker-export-field .report-segmented {
+.section-host[data-section='tiempo'] .coworker-export-field .report-segmented {
   max-width: 100%;
   flex-wrap: wrap;
 }
 
-.coworker-export-switches {
+.section-host[data-section='tiempo'] .coworker-export-switches {
   display: flex;
   flex-direction: column;
 }
 
-.coworker-export-target {
+.section-host[data-section='tiempo'] .coworker-export-target {
   margin: 0;
   font-family: var(--font-mono);
   overflow-wrap: anywhere;
 }
 
-.coworker-summary {
+.section-host[data-section='tiempo'] .coworker-summary {
   max-width: 420px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.coworker-pad {
+.section-host[data-section='tiempo'] .coworker-pad {
   margin: 0;
   padding: 12px 16px;
 }
 
 @media (max-width: 520px) {
-  .coworker-field--wide {
+  .section-host[data-section='tiempo'] .coworker-field--wide {
     grid-column: 1 / -1;
   }
 }
