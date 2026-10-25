@@ -53,7 +53,7 @@ describe('pendientes filters', () => {
 
   it('filters by status, kind, page, origin and creation date', () => {
     const items = [
-      item(1, { kind: 'finding', pageId: 5, pageTitle: 'API', createdAt: '2026-10-25T09:00:00Z' }),
+      item(1, { kind: 'finding', pageId: 5, pageTitle: 'API', createdAt: '2026-10-25T12:00:00Z' }),
       item(2, { status: 'resolved', createdAt: '2026-09-01T09:00:00Z' }),
       item(3, { source: 'extracted', entryId: 9, pageId: 5, pageTitle: 'API', createdAt: '2026-10-21T09:00:00Z' }),
     ]
