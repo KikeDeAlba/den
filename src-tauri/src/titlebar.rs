@@ -271,12 +271,17 @@ mod platform {
     pub fn refresh(window: &WebviewWindow) {
         let label = window.label().to_string();
         let _ = window.run_on_main_thread(move || {
-            PINS.with(|pins| {
-                for pin in pins.borrow().iter().filter(|pin| pin.label() == label) {
-                    pin.ivars().inset.set(traffic_inset());
-                    pin.apply();
-                }
+            let matching: Vec<Retained<Pin>> = PINS.with(|pins| {
+                pins.borrow()
+                    .iter()
+                    .filter(|pin| pin.label() == label)
+                    .cloned()
+                    .collect()
             });
+            for pin in matching {
+                pin.ivars().inset.set(traffic_inset());
+                pin.apply();
+            }
         });
     }
 
